@@ -1,5 +1,6 @@
 package com.treepeople.leapmindtts.config;
 
+import com.treepeople.leapmindtts.config.PythonAIServiceProperties;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
@@ -13,31 +14,27 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 /**
- * WebClient配置类
+ * WebClient 配置类
+ * 超时值取自 PythonAIServiceProperties，支持通过 application.yml 覆盖
  */
 @Configuration
 public class WebClientConfig {
 
     @Bean
-    public WebClient.Builder webClientBuilder() {
-        // 针对TTS服务的网络延迟和处理时间，增加超时配置
-        // 阿里云TTS服务在网络不稳定时可能需要更长的连接和处理时间
+    public WebClient.Builder webClientBuilder(PythonAIServiceProperties pythonProps) {
+        int connectTimeout = Math.max(pythonProps.getConnectTimeout(), 5);
+        int readTimeout = Math.max(pythonProps.getReadTimeout(), 30);
+
         HttpClient httpClient = HttpClient.create()
-                // 连接超时：从10秒增加到20秒，应对网络握手延迟
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 20000)
-                // 响应超时：从30秒增加到90秒，应对TTS合成处理时间
-                .responseTimeout(Duration.ofSeconds(90))
-                // 启用连接池以提高性能和稳定性
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout * 1000)
+                .responseTimeout(Duration.ofSeconds(readTimeout))
                 .keepAlive(true)
                 .doOnConnected(conn ->
-                        // 读超时：增加到90秒，等待TTS服务响应
-                        conn.addHandlerLast(new ReadTimeoutHandler(90, TimeUnit.SECONDS))
-                                // 写超时：增加到60秒，应对大文本上传
+                        conn.addHandlerLast(new ReadTimeoutHandler(readTimeout, TimeUnit.SECONDS))
                                 .addHandlerLast(new WriteTimeoutHandler(60, TimeUnit.SECONDS)));
 
         return WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
-                // 增加内存缓冲区大小，支持更大的音频文件
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(20 * 1024 * 1024)); // 20MB
     }
     @Bean

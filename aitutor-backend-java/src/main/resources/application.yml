@@ -53,6 +53,16 @@ ai:
     key: sk-ead3ef8a1ef941bab04b2b530ed24a34
   prompt: '你是一个聪明且体贴的老师，请简洁的回答以下这个问题，回答完后需要加入"还有其他问题欢迎继续问我呀。”'
 
+# Python AI 微服务配置（M2 答疑/讲题用）
+# Java 通过 WebClient 调用 Python FastAPI 内部接口
+python:
+  ai:
+    base-url: http://localhost:8001          # Python 服务地址
+    generate-path: /api/internal/ai/generate # 非流式调用
+    stream-path: /api/internal/ai/generate/stream  # 流式 SSE
+    connect-timeout: 10  # 连接超时（秒）
+    read-timeout: 120    # 读超时（秒），流式需较长
+
 # 阿里云TTS配置
 tts:
   api:
