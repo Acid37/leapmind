@@ -18,7 +18,7 @@ import React, { useState, useCallback } from 'react';
 import Header from '../../components/common/Header';
 import SlideViewer from '../../components/lecture/SlideViewer';
 import TeacherPanel from '../../components/teacher/TeacherPanel';
-import ChatPanelPlaceholder from '../../components/lecture/ChatPanelPlaceholder';
+import { ChatPanel } from '../../components/chat';
 import { Flag, BookOpen, MessageCircle, Monitor, User, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const TABS = [
@@ -252,7 +252,7 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
       {/* 右侧：追问对话面板 (25%) - 含输入框 */}
       <div className="hidden lg:flex lg:w-[25%] flex-col p-3 gap-3">
         <div className="flex-1 min-h-0">
-          <ChatPanelPlaceholder sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} />
+          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} visible={true} />
         </div>
         <button
           onClick={handleEndLecture}
@@ -298,7 +298,7 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
           </div>
         </div>
         <div className="flex-1 p-3 overflow-hidden">
-          <ChatPanelPlaceholder sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} />
+          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} visible={true} />
         </div>
       </div>
 
