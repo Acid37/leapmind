@@ -3,6 +3,7 @@ package com.treepeople.leapmindtts.service.lesson.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.treepeople.leapmindtts.service.PptxExportService;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
@@ -21,7 +22,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class PptxExportServiceImpl {
+public class PptxExportServiceImpl implements PptxExportService {
     private final MinioClient minioClient;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
@@ -63,7 +64,7 @@ public class PptxExportServiceImpl {
                     XSLFTextParagraph p = titleBox.addNewTextParagraph();
                     XSLFTextRun run = p.addNewTextRun();
                     run.setText(page.get("title").asText());
-                    run.setFontSize(26);
+                    run.setFontSize(26.0);
                     run.setBold(true);
                 }
                 // 渲染正文
@@ -73,7 +74,7 @@ public class PptxExportServiceImpl {
                     XSLFTextParagraph p = contentBox.addNewTextParagraph();
                     XSLFTextRun run = p.addNewTextRun();
                     run.setText(page.get("content").asText());
-                    run.setFontSize(16);
+                    run.setFontSize(16.0);
                 }
                 // 渲染旁白提示
                 if (page.has("narrationText") && !page.get("narrationText").asText().isBlank()) {
@@ -82,7 +83,7 @@ public class PptxExportServiceImpl {
                     XSLFTextParagraph p = voiceBox.addNewTextParagraph();
                     XSLFTextRun run = p.addNewTextRun();
                     run.setText("配音旁白：" + page.get("narrationText").asText());
-                    run.setFontSize(12);
+                    run.setFontSize(12.0);
                     run.setItalic(true);
                 }
             }
@@ -120,5 +121,15 @@ public class PptxExportServiceImpl {
 
         log.info("备课 {} PPTX 导出完成，临时下载链接: {}", prepId, downloadUrl);
         return downloadUrl;
+    }
+
+    @Override
+    public String export(Long prepId) {
+        try {
+            return exportPptxByPrepId(prepId);
+        } catch (Exception e) {
+            log.error("导出PPT失败, prepId: {}", prepId, e);
+            throw new RuntimeException("导出PPT失败: " + e.getMessage(), e);
+        }
     }
 }

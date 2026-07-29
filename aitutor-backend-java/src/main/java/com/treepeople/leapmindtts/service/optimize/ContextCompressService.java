@@ -1,7 +1,7 @@
 package com.treepeople.leapmindtts.service.optimize;
 
-import com.treepeople.leapmindtts.config.ContextCompressProperties;
-import com.treepeople.leapmindtts.config.PythonApiProperties;
+import com.treepeople.leapmindtts.pojo.properties.ContextCompressProperties;
+import com.treepeople.leapmindtts.pojo.properties.PythonApiProperties;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +11,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import java.time.Duration;
 
-@Service
+@Service("optimizeContextCompressService")
 @Slf4j
 public class ContextCompressService {
 

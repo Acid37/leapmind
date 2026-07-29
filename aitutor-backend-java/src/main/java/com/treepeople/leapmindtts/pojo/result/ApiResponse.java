@@ -1,7 +1,8 @@
 package com.treepeople.leapmindtts.pojo.result;
 
- import lombok.Data;
  import lombok.AllArgsConstructor;
+ import lombok.Builder;
+ import lombok.Data;
  import lombok.NoArgsConstructor;
 
  /**
@@ -12,6 +13,7 @@ package com.treepeople.leapmindtts.pojo.result;
  @Data
  @AllArgsConstructor
  @NoArgsConstructor
+ @Builder
  public class ApiResponse<T> {
      private int code;
      private String message;

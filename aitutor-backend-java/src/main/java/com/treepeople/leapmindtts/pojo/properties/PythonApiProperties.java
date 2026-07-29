@@ -9,8 +9,12 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "python.api")
 public class PythonApiProperties {
     private String baseUrl;
+    private String compressContextUri;
 
     public String getCompressContextUri() {
-        return baseUrl + "/internal/ai/compress-context";
+        if (compressContextUri != null && !compressContextUri.isEmpty()) {
+            return compressContextUri;
+        }
+        return (baseUrl != null ? baseUrl : "") + "/internal/ai/compress-context";
     }
 }

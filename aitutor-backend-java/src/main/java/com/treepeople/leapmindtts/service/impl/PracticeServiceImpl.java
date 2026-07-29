@@ -16,7 +16,7 @@ import com.treepeople.leapmindtts.pojo.entity.PracticeMistake;
 import com.treepeople.leapmindtts.pojo.entity.PracticeQuestion;
 import com.treepeople.leapmindtts.pojo.entity.PracticeUserStats;
 import com.treepeople.leapmindtts.pojo.entity.User;
-import com.treepeople.leapmindtts.service.AIModelService;
+import com.treepeople.leapmindtts.service.lesson.AIModelService;
 import com.treepeople.leapmindtts.service.PracticeService;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Cell;

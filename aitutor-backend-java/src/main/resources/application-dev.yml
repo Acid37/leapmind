@@ -1,8 +1,10 @@
 spring:
+  main:
+    allow-circular-references: true
   datasource:
-    url: jdbc:mysql://localhost:3310/leapmind-voice?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/leapmind-voice?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
-    password: 123456
+    password: 1234
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 10
@@ -12,6 +14,7 @@ spring:
       max-lifetime: 1800000
   flyway:
     clean-disabled: false
+    clean-on-validation-error: true
     out-of-order: false
     encoding: UTF-8
   # ===================================================================
