@@ -93,8 +93,6 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
     try {
       const data = await generateSession({
         sceneType: "free_practice",
-        subject: "math",
-        grade: "grade_8",
         questionCount: 7,
         mode,
         lessonId: lessonId || undefined,
@@ -190,7 +188,6 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
           result,
         },
       }));
-      setShowResult(true);
     } catch (err) {
       console.error("提交失败:", err);
     } finally {
@@ -202,14 +199,12 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
   const handleNext = () => {
     if (currentIndex < session.questions.length - 1) {
       setCurrentIndex((i) => i + 1);
-      setShowResult(false);
     }
   };
 
   // --- 跳转题目 ---
   const handleJump = (index) => {
     setCurrentIndex(index);
-    setShowResult(!!answers[session.questions[index].questionId]?.submitted);
   };
 
   // --- 计时回调 ---
@@ -410,12 +405,7 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
           {/* 左侧：上一题 */}
           <button
             disabled={currentIndex === 0}
-            onClick={() => {
-              setCurrentIndex((i) => i - 1);
-              setShowResult(
-                !!answers[session.questions[currentIndex - 1].questionId]?.submitted
-              );
-            }}
+            onClick={() => setCurrentIndex((i) => i - 1)}
             className="flex items-center gap-1 px-3 py-2 text-sm text-slate-500 hover:text-slate-700 disabled:opacity-30 transition-colors cursor-pointer"
           >
             <ArrowLeft size={16} /> 上一题
