@@ -18,13 +18,8 @@ import com.treepeople.leapmindtts.pojo.entity.PracticeUserStats;
 import com.treepeople.leapmindtts.pojo.entity.User;
 import com.treepeople.leapmindtts.service.AIModelService;
 import com.treepeople.leapmindtts.service.PracticeService;
+import com.treepeople.leapmindtts.service.importer.PracticeQuestionImportParser;
 import lombok.RequiredArgsConstructor;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -33,10 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -53,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -64,6 +57,7 @@ public class PracticeServiceImpl implements PracticeService {
     private static final int CHECKIN_POINTS = 2;
     private static final String STATUS_ENABLED = "ENABLED";
     private static final String STATUS_DISABLED = "DISABLED";
+    private static final String STATUS_ARCHIVED = "ARCHIVED";
     private static final String STATUS_UNRESOLVED = "UNRESOLVED";
     private static final String STATUS_REVIEWING = "REVIEWING";
     private static final String STATUS_RESOLVED = "RESOLVED";
@@ -81,6 +75,7 @@ public class PracticeServiceImpl implements PracticeService {
     private final PracticeMistakeMapper mistakeMapper;
     private final PracticeCheckinMapper checkinMapper;
     private final UserMapper userMapper;
+    private final PracticeQuestionImportParser questionImportParser;
     private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
     private final ObjectProvider<AIModelService> aiModelServiceProvider;
 
@@ -116,12 +111,14 @@ public class PracticeServiceImpl implements PracticeService {
                 false);
         if (StringUtils.hasText(str(params.get("status")))) {
             wrapper.eq("status", str(params.get("status")));
+        } else {
+            wrapper.ne("status", STATUS_ARCHIVED);
         }
         if (StringUtils.hasText(str(params.get("keyword")))) {
             String keyword = str(params.get("keyword"));
             wrapper.and(w -> w.like("title", keyword).or().like("content", keyword).or().like("knowledge_point", keyword));
         }
-        wrapper.orderByDesc("updated_at").orderByDesc("id");
+        wrapper.orderByDesc("created_at").orderByDesc("id");
         Page<PracticeQuestion> page = questionMapper.selectPage(new Page<>(pageNo, pageSize), wrapper);
         Map<String, Object> result = new HashMap<>();
         result.put("records", page.getRecords().stream().map(q -> toQuestionMap(q, true)).collect(Collectors.toList()));
@@ -172,7 +169,7 @@ public class PracticeServiceImpl implements PracticeService {
         if (used > 0) {
             PracticeQuestion update = new PracticeQuestion();
             update.setId(questionId);
-            update.setStatus(STATUS_DISABLED);
+            update.setStatus(STATUS_ARCHIVED);
             questionMapper.updateById(update);
         } else {
             questionMapper.deleteById(questionId);
@@ -183,37 +180,37 @@ public class PracticeServiceImpl implements PracticeService {
     @Transactional
     public Map<String, Object> importQuestions(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("请上传题库 Excel 或 CSV 文件");
+            throw new IllegalArgumentException("请上传题库文件，支持 " + PracticeQuestionImportParser.SUPPORTED_FORMATS);
         }
-        String filename = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase(Locale.ROOT);
         List<PracticeQuestion> questions;
         try {
-            if (filename.endsWith(".csv")) {
-                questions = parseCsv(file);
-            } else if (filename.endsWith(".xlsx")) {
-                questions = parseXlsx(file);
-            } else {
-                throw new IllegalArgumentException("仅支持 .xlsx 或 .csv 文件");
-            }
+            questions = questionImportParser.parse(file);
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("题库文件解析失败：" + e.getMessage(), e);
         }
         int inserted = 0;
+        int pendingReview = 0;
         List<String> errors = new ArrayList<>();
         for (int i = 0; i < questions.size(); i++) {
             try {
                 validateQuestion(questions.get(i));
                 questionMapper.insert(questions.get(i));
                 inserted++;
+                if (STATUS_DISABLED.equals(questions.get(i).getStatus())) {
+                    pendingReview++;
+                }
             } catch (Exception e) {
-                errors.add("第 " + (i + 2) + " 行导入失败：" + e.getMessage());
+                errors.add("第 " + (i + 1) + " 题导入失败：" + e.getMessage());
             }
         }
         Map<String, Object> result = new HashMap<>();
+        result.put("filename", file.getOriginalFilename());
+        result.put("supportedFormats", PracticeQuestionImportParser.SUPPORTED_FORMATS);
         result.put("totalRows", questions.size());
         result.put("inserted", inserted);
+        result.put("pendingReview", pendingReview);
         result.put("failed", errors.size());
         result.put("errors", errors);
         return result;
@@ -486,60 +483,99 @@ public class PracticeServiceImpl implements PracticeService {
 
     @Override
     public Map<String, Object> getStatistics(Long userId, String range) {
+        String normalizedRange = StringUtils.hasText(range) ? range.toLowerCase(Locale.ROOT) : "week";
         QueryWrapper<PracticeAnswerRecord> wrapper = new QueryWrapper<PracticeAnswerRecord>()
                 .eq("user_id", userId);
-        applyRange(wrapper, range);
+        applyRange(wrapper, normalizedRange);
         List<PracticeAnswerRecord> records = recordMapper.selectList(wrapper.orderByAsc("answered_at"));
         long total = records.size();
-        long correct = records.stream().filter(PracticeAnswerRecord::getCorrect).count();
+        long correct = records.stream().filter(record -> Boolean.TRUE.equals(record.getCorrect())).count();
         int totalSeconds = records.stream().map(PracticeAnswerRecord::getDurationSeconds).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
         double avgSeconds = total == 0 ? 0 : Math.round(totalSeconds * 10.0 / total) / 10.0;
 
-        Map<String, List<PracticeAnswerRecord>> byKnowledge = records.stream().collect(Collectors.groupingBy(PracticeAnswerRecord::getKnowledgePoint, LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<PracticeAnswerRecord>> byKnowledge = records.stream().collect(Collectors.groupingBy(
+                record -> normalizedGroupName(record.getKnowledgePoint(), "未分类"), LinkedHashMap::new, Collectors.toList()));
         List<Map<String, Object>> knowledgeDistribution = byKnowledge.entrySet().stream()
-                .map(entry -> statGroup(entry.getKey(), entry.getValue()))
-                .sorted((a, b) -> Long.compare(((Number) b.get("count")).longValue(), ((Number) a.get("count")).longValue()))
+                .map(entry -> knowledgeStat(entry.getKey(), entry.getValue()))
+                .sorted((a, b) -> {
+                    int masteryCompare = Double.compare(((Number) a.get("masteryScore")).doubleValue(), ((Number) b.get("masteryScore")).doubleValue());
+                    return masteryCompare != 0 ? masteryCompare : Long.compare(((Number) b.get("count")).longValue(), ((Number) a.get("count")).longValue());
+                })
                 .collect(Collectors.toList());
 
-        Map<String, List<PracticeAnswerRecord>> byChapter = records.stream().collect(Collectors.groupingBy(PracticeAnswerRecord::getChapter, LinkedHashMap::new, Collectors.toList()));
-        List<Map<String, Object>> chapterDistribution = byChapter.entrySet().stream()
-                .map(entry -> statGroup(entry.getKey(), entry.getValue()))
-                .sorted((a, b) -> Long.compare(((Number) b.get("count")).longValue(), ((Number) a.get("count")).longValue()))
-                .collect(Collectors.toList());
+        List<Map<String, Object>> chapterDistribution = groupStatistics(records, record -> normalizedGroupName(record.getChapter(), "未分类章节"));
+        List<Map<String, Object>> questionTypeDistribution = groupStatistics(records, record -> normalizedGroupName(record.getQuestionType(), "UNKNOWN"));
+        List<Map<String, Object>> difficultyDistribution = groupStatistics(records, record -> normalizedGroupName(record.getDifficulty(), "UNKNOWN"));
 
         List<Map<String, Object>> trend = new ArrayList<>();
-        int days = "today".equalsIgnoreCase(range) ? 1 : 7;
-        if ("all".equalsIgnoreCase(range)) {
-            days = 14;
-        }
+        int days = switch (normalizedRange) {
+            case "today" -> 1;
+            case "month" -> 30;
+            case "all" -> 14;
+            default -> 7;
+        };
         for (int i = days - 1; i >= 0; i--) {
             LocalDate day = LocalDate.now().minusDays(i);
             List<PracticeAnswerRecord> dayRecords = records.stream()
-                    .filter(r -> r.getAnsweredAt().toLocalDate().equals(day))
+                    .filter(record -> record.getAnsweredAt() != null && record.getAnsweredAt().toLocalDate().equals(day))
                     .collect(Collectors.toList());
-            long dayCorrect = dayRecords.stream().filter(PracticeAnswerRecord::getCorrect).count();
+            long dayCorrect = dayRecords.stream().filter(record -> Boolean.TRUE.equals(record.getCorrect())).count();
+            int daySeconds = dayRecords.stream().map(PracticeAnswerRecord::getDurationSeconds).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
             Map<String, Object> item = new HashMap<>();
             item.put("date", day.toString());
             item.put("count", dayRecords.size());
             item.put("accuracy", dayRecords.isEmpty() ? 0 : Math.round(dayCorrect * 1000.0 / dayRecords.size()) / 10.0);
-            item.put("durationSeconds", dayRecords.stream().map(PracticeAnswerRecord::getDurationSeconds).filter(Objects::nonNull).mapToInt(Integer::intValue).sum());
+            item.put("durationSeconds", daySeconds);
+            item.put("averageDurationSeconds", dayRecords.isEmpty() ? 0 : Math.round(daySeconds * 10.0 / dayRecords.size()) / 10.0);
             trend.add(item);
         }
 
+        List<PracticeAnswerRecord> previousRecords = previousPeriodRecords(userId, normalizedRange);
+        double currentAccuracy = accuracyPercent(records);
+        double previousAccuracy = accuracyPercent(previousRecords);
+        boolean hasPreviousPeriod = !previousRecords.isEmpty();
+        double accuracyChange = hasPreviousPeriod ? Math.round((currentAccuracy - previousAccuracy) * 10.0) / 10.0 : 0;
+        long activeDays = records.stream()
+                .map(PracticeAnswerRecord::getAnsweredAt)
+                .filter(Objects::nonNull)
+                .map(LocalDateTime::toLocalDate)
+                .distinct()
+                .count();
+        PracticeUserStats userStats = ensureStats(userId);
+        List<Map<String, Object>> wrongReasonDistribution = wrongReasonDistribution(records, avgSeconds);
+        List<String> recommendations = buildRecommendations(records, knowledgeDistribution, questionTypeDistribution, currentAccuracy, accuracyChange, avgSeconds);
+
         Map<String, Object> result = new HashMap<>();
-        result.put("range", range);
+        result.put("range", normalizedRange);
         result.put("totalAnswers", total);
         result.put("correctAnswers", correct);
-        result.put("accuracy", total == 0 ? 0 : Math.round(correct * 1000.0 / total) / 10.0);
+        result.put("incorrectAnswers", total - correct);
+        result.put("accuracy", currentAccuracy);
+        result.put("previousAccuracy", previousAccuracy);
+        result.put("accuracyChange", accuracyChange);
+        result.put("hasPreviousPeriod", hasPreviousPeriod);
         result.put("totalDurationSeconds", totalSeconds);
         result.put("averageDurationSeconds", avgSeconds);
+        result.put("activeDays", activeDays);
+        result.put("bestStreak", bestStreak(records));
+        result.put("currentStreak", nvl(userStats.getCurrentStreak()));
         result.put("knowledgeDistribution", knowledgeDistribution);
         result.put("chapterDistribution", chapterDistribution);
+        result.put("questionTypeDistribution", questionTypeDistribution);
+        result.put("difficultyDistribution", difficultyDistribution);
+        result.put("wrongReasonDistribution", wrongReasonDistribution);
         result.put("trend", trend);
         result.put("weakKnowledgePoints", knowledgeDistribution.stream()
-                .filter(item -> ((Number) item.get("accuracy")).doubleValue() < 80)
+                .filter(item -> Boolean.TRUE.equals(item.get("needsReview")))
                 .limit(5)
                 .collect(Collectors.toList()));
+        result.put("strongKnowledgePoints", knowledgeDistribution.stream()
+                .filter(item -> ((Number) item.get("count")).longValue() >= 3)
+                .filter(item -> ((Number) item.get("masteryScore")).doubleValue() >= 80)
+                .sorted((a, b) -> Double.compare(((Number) b.get("masteryScore")).doubleValue(), ((Number) a.get("masteryScore")).doubleValue()))
+                .limit(5)
+                .collect(Collectors.toList()));
+        result.put("recommendations", recommendations);
         return result;
     }
 
@@ -948,6 +984,8 @@ public class PracticeServiceImpl implements PracticeService {
             wrapper.ge("answered_at", LocalDate.now().atStartOfDay());
         } else if ("week".equalsIgnoreCase(range)) {
             wrapper.ge("answered_at", LocalDate.now().minusDays(6).atStartOfDay());
+        } else if ("month".equalsIgnoreCase(range)) {
+            wrapper.ge("answered_at", LocalDate.now().minusDays(29).atStartOfDay());
         }
     }
 
@@ -1133,6 +1171,7 @@ public class PracticeServiceImpl implements PracticeService {
         map.put("knowledgePoint", question == null ? "" : question.getKnowledgePoint());
         map.put("difficulty", question == null ? "" : question.getDifficulty());
         map.put("questionType", question == null ? "" : question.getQuestionType());
+        map.put("subject", question == null ? "" : question.getSubject());
         map.put("track", question == null ? "" : question.getTrack());
         map.put("status", mistake.getStatus());
         map.put("wrongCount", mistake.getWrongCount());
@@ -1145,8 +1184,259 @@ public class PracticeServiceImpl implements PracticeService {
         return map;
     }
 
+    private List<Map<String, Object>> groupStatistics(List<PracticeAnswerRecord> records,
+                                                      Function<PracticeAnswerRecord, String> classifier) {
+        return records.stream()
+                .collect(Collectors.groupingBy(classifier, LinkedHashMap::new, Collectors.toList()))
+                .entrySet().stream()
+                .map(entry -> statGroup(entry.getKey(), entry.getValue()))
+                .sorted((a, b) -> Long.compare(((Number) b.get("count")).longValue(), ((Number) a.get("count")).longValue()))
+                .collect(Collectors.toList());
+    }
+
+    private List<PracticeAnswerRecord> previousPeriodRecords(Long userId, String range) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime currentStart;
+        LocalDateTime previousStart;
+        switch (range) {
+            case "today" -> {
+                currentStart = today.atStartOfDay();
+                previousStart = today.minusDays(1).atStartOfDay();
+            }
+            case "month" -> {
+                currentStart = today.minusDays(29).atStartOfDay();
+                previousStart = today.minusDays(59).atStartOfDay();
+            }
+            case "week" -> {
+                currentStart = today.minusDays(6).atStartOfDay();
+                previousStart = today.minusDays(13).atStartOfDay();
+            }
+            default -> {
+                return List.of();
+            }
+        }
+        return recordMapper.selectList(new QueryWrapper<PracticeAnswerRecord>()
+                .eq("user_id", userId)
+                .ge("answered_at", previousStart)
+                .lt("answered_at", currentStart)
+                .orderByAsc("answered_at"));
+    }
+
+    private double accuracyPercent(List<PracticeAnswerRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return 0;
+        }
+        long correct = records.stream().filter(record -> Boolean.TRUE.equals(record.getCorrect())).count();
+        return Math.round(correct * 1000.0 / records.size()) / 10.0;
+    }
+
+    private Map<String, Object> knowledgeStat(String name, List<PracticeAnswerRecord> records) {
+        Map<String, Object> map = new LinkedHashMap<>(statGroup(name, records));
+        List<PracticeAnswerRecord> ordered = records.stream()
+                .sorted(Comparator.comparing(record -> record.getAnsweredAt() == null ? LocalDateTime.MIN : record.getAnsweredAt()))
+                .collect(Collectors.toList());
+        int count = ordered.size();
+        long correct = ordered.stream().filter(record -> Boolean.TRUE.equals(record.getCorrect())).count();
+        int recentStart = Math.max(0, count - 5);
+        int previousStart = Math.max(0, recentStart - 5);
+        List<PracticeAnswerRecord> recent = ordered.subList(recentStart, count);
+        List<PracticeAnswerRecord> previous = ordered.subList(previousStart, recentStart);
+        double recentAccuracy = weightedAccuracy(recent);
+        double previousAccuracy = previous.isEmpty() ? recentAccuracy : weightedAccuracy(previous);
+        double smoothedAccuracy = (correct + 2.5) / (count + 5.0);
+        double sampleConfidence = Math.min(1.0, count / 8.0);
+        double masteryScore = roundOne((smoothedAccuracy * 0.55 + recentAccuracy / 100.0 * 0.30 + sampleConfidence * 0.15) * 100.0);
+        if (count < 3) {
+            masteryScore = Math.min(69.0, masteryScore);
+        }
+        double recentTrend = previous.isEmpty() ? 0 : roundOne(recentAccuracy - previousAccuracy);
+        String level = masteryLevel(masteryScore, count);
+
+        map.put("recentAccuracy", recentAccuracy);
+        map.put("recentTrend", recentTrend);
+        map.put("sampleConfidence", roundOne(sampleConfidence * 100));
+        map.put("masteryScore", masteryScore);
+        map.put("masteryLevel", level);
+        map.put("needsReview", count < 3 || masteryScore < 70 || recentAccuracy < 60);
+        map.put("recommendation", masteryRecommendation(name, level, count, recentTrend));
+        map.put("lastAnsweredAt", ordered.isEmpty() ? null : ordered.get(ordered.size() - 1).getAnsweredAt());
+        return map;
+    }
+
+    private double weightedAccuracy(List<PracticeAnswerRecord> records) {
+        if (records.isEmpty()) return 0;
+        double weightSum = 0;
+        double correctWeight = 0;
+        for (int index = 0; index < records.size(); index++) {
+            double weight = index + 1;
+            weightSum += weight;
+            if (Boolean.TRUE.equals(records.get(index).getCorrect())) {
+                correctWeight += weight;
+            }
+        }
+        return roundOne(correctWeight * 100.0 / weightSum);
+    }
+
+    private String masteryLevel(double masteryScore, int count) {
+        if (count < 3) return "数据不足";
+        if (masteryScore >= 85) return "已掌握";
+        if (masteryScore >= 70) return "较熟练";
+        if (masteryScore >= 55) return "待巩固";
+        return "薄弱";
+    }
+
+    private String masteryRecommendation(String name, String level, int count, double trend) {
+        if (count < 3) return "再完成 " + (3 - count) + " 题后可形成较可靠判断";
+        if ("薄弱".equals(level)) return "优先复习“" + name + "”基础概念并重做错题";
+        if ("待巩固".equals(level)) return trend < 0 ? "近期表现下降，建议进行一次专项练习" : "继续完成 3—5 道同类题巩固";
+        if ("较熟练".equals(level)) return "增加一道进阶题验证迁移能力";
+        return "掌握稳定，可降低复习频率";
+    }
+
+    private List<Map<String, Object>> wrongReasonDistribution(List<PracticeAnswerRecord> records, double averageSeconds) {
+        Map<String, Long> counts = records.stream()
+                .filter(record -> !Boolean.TRUE.equals(record.getCorrect()))
+                .collect(Collectors.groupingBy(record -> wrongReasonCode(record, averageSeconds), LinkedHashMap::new, Collectors.counting()));
+        return counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .map(entry -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("reason", entry.getKey());
+                    item.put("label", wrongReasonLabel(entry.getKey()));
+                    item.put("description", wrongReasonDescription(entry.getKey()));
+                    item.put("count", entry.getValue());
+                    item.put("inferred", true);
+                    return item;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private String wrongReasonCode(PracticeAnswerRecord record, double averageSeconds) {
+        String feedback = record.getJudgeFeedback() == null ? "" : record.getJudgeFeedback().toLowerCase(Locale.ROOT);
+        if (Boolean.TRUE.equals(record.getDoubtful()) || feedback.contains("概念") || feedback.contains("理解")) {
+            return "concept_unclear";
+        }
+        int duration = record.getDurationSeconds() == null ? 0 : record.getDurationSeconds();
+        if (duration > 0 && duration <= Math.max(8, averageSeconds * 0.35)) {
+            return "too_fast";
+        }
+        if (record.getAttemptNumber() != null && record.getAttemptNumber() > 1) {
+            return "repeated_error";
+        }
+        if (duration >= Math.max(90, averageSeconds * 1.6)) {
+            return "method_unfamiliar";
+        }
+        if ("SHORT_ANSWER".equals(record.getQuestionType()) || "FILL_BLANK".equals(record.getQuestionType())) {
+            return "expression_incomplete";
+        }
+        return "application_error";
+    }
+
+    private String wrongReasonLabel(String code) {
+        return switch (code) {
+            case "concept_unclear" -> "概念理解不清";
+            case "too_fast" -> "审题过快";
+            case "repeated_error" -> "重复出错";
+            case "method_unfamiliar" -> "解题方法不熟";
+            case "expression_incomplete" -> "答案表述不完整";
+            default -> "知识应用错误";
+        };
+    }
+
+    private String wrongReasonDescription(String code) {
+        return switch (code) {
+            case "concept_unclear" -> "疑问题或反馈中出现概念理解线索";
+            case "too_fast" -> "错误题用时明显低于个人平均水平";
+            case "repeated_error" -> "同一题或同类题发生再次错误";
+            case "method_unfamiliar" -> "错误题用时明显偏长";
+            case "expression_incomplete" -> "填空或简答题答案未完整命中";
+            default -> "选择或计算结果与标准答案不一致";
+        };
+    }
+
+    private List<String> buildRecommendations(List<PracticeAnswerRecord> records,
+                                              List<Map<String, Object>> knowledgeDistribution,
+                                              List<Map<String, Object>> questionTypeDistribution,
+                                              double accuracy,
+                                              double accuracyChange,
+                                              double averageSeconds) {
+        List<String> recommendations = new ArrayList<>();
+        if (records.isEmpty()) {
+            recommendations.add("当前周期暂无答题数据，完成至少 3 道题后生成个性化分析。");
+            return recommendations;
+        }
+        List<String> weakNames = knowledgeDistribution.stream()
+                .filter(item -> Boolean.TRUE.equals(item.get("needsReview")))
+                .map(item -> String.valueOf(item.get("name")))
+                .limit(3)
+                .collect(Collectors.toList());
+        if (!weakNames.isEmpty()) {
+            recommendations.add("优先复习：" + String.join("、", weakNames) + "，建议从错题重做开始。");
+        }
+        if (accuracy < 60) {
+            recommendations.add("当前正确率低于 60%，先降低单次练习量并在每题后复盘错误原因。");
+        } else if (accuracy >= 85) {
+            recommendations.add("整体正确率较高，可增加进阶题和跨知识点综合题。");
+        }
+        if (accuracyChange <= -5) {
+            recommendations.add("正确率较上一周期下降 " + Math.abs(accuracyChange) + " 个百分点，建议检查近期新增知识点。");
+        }
+        questionTypeDistribution.stream()
+                .filter(item -> ((Number) item.get("count")).longValue() >= 3)
+                .min(Comparator.comparingDouble(item -> ((Number) item.get("accuracy")).doubleValue()))
+                .filter(item -> ((Number) item.get("accuracy")).doubleValue() < 70)
+                .ifPresent(item -> recommendations.add("题型薄弱项为“" + statisticLabel(String.valueOf(item.get("name"))) + "”，可安排专项训练。"));
+        if (averageSeconds > 90) {
+            recommendations.add("平均每题用时超过 90 秒，建议总结常用公式和解题步骤以提升速度。");
+        }
+        if (recommendations.isEmpty()) {
+            recommendations.add("本周期表现稳定，保持练习频率并定期回顾错题即可。");
+        }
+        return recommendations;
+    }
+
+    private String statisticLabel(String value) {
+        return switch (value) {
+            case "SINGLE_CHOICE" -> "单选题";
+            case "MULTIPLE_CHOICE" -> "多选题";
+            case "FILL_BLANK" -> "填空题";
+            case "SHORT_ANSWER" -> "简答题";
+            case "BASIC" -> "基础";
+            case "ADVANCED" -> "进阶";
+            case "HARD" -> "困难";
+            default -> value;
+        };
+    }
+
+    private int bestStreak(List<PracticeAnswerRecord> records) {
+        List<LocalDate> dates = records.stream()
+                .map(PracticeAnswerRecord::getAnsweredAt)
+                .filter(Objects::nonNull)
+                .map(LocalDateTime::toLocalDate)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+        int best = 0;
+        int current = 0;
+        LocalDate previous = null;
+        for (LocalDate date : dates) {
+            current = previous != null && previous.plusDays(1).equals(date) ? current + 1 : 1;
+            best = Math.max(best, current);
+            previous = date;
+        }
+        return best;
+    }
+
+    private String normalizedGroupName(String value, String fallback) {
+        return StringUtils.hasText(value) ? value : fallback;
+    }
+
+    private double roundOne(double value) {
+        return Math.round(value * 10.0) / 10.0;
+    }
+
     private Map<String, Object> statGroup(String name, List<PracticeAnswerRecord> records) {
-        long correct = records.stream().filter(PracticeAnswerRecord::getCorrect).count();
+        long correct = records.stream().filter(record -> Boolean.TRUE.equals(record.getCorrect())).count();
         int duration = records.stream().map(PracticeAnswerRecord::getDurationSeconds).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
         Map<String, Object> map = new HashMap<>();
         map.put("name", name);
@@ -1156,85 +1446,6 @@ public class PracticeServiceImpl implements PracticeService {
         map.put("durationSeconds", duration);
         map.put("averageDurationSeconds", records.isEmpty() ? 0 : Math.round(duration * 10.0 / records.size()) / 10.0);
         return map;
-    }
-
-    private List<PracticeQuestion> parseXlsx(MultipartFile file) throws Exception {
-        List<PracticeQuestion> questions = new ArrayList<>();
-        DataFormatter formatter = new DataFormatter();
-        try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
-            Sheet sheet = workbook.getSheetAt(0);
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) {
-                    continue;
-                }
-                questions.add(rowToQuestion(index -> formatter.formatCellValue(row.getCell(index))));
-            }
-        }
-        return questions;
-    }
-
-    private List<PracticeQuestion> parseCsv(MultipartFile file) throws Exception {
-        List<PracticeQuestion> questions = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            boolean header = true;
-            while ((line = reader.readLine()) != null) {
-                if (header) {
-                    header = false;
-                    continue;
-                }
-                if (!StringUtils.hasText(line)) {
-                    continue;
-                }
-                List<String> cells = splitCsv(line);
-                questions.add(rowToQuestion(index -> index < cells.size() ? cells.get(index) : ""));
-            }
-        }
-        return questions;
-    }
-
-    private PracticeQuestion rowToQuestion(CellReader reader) {
-        PracticeQuestion q = new PracticeQuestion();
-        q.setSubject(nvl(reader.get(0), "通用"));
-        q.setGradeLevel(nvl(reader.get(1), "大学"));
-        q.setTrack(nvl(reader.get(2), q.getSubject()));
-        q.setChapter(required(reader.get(3), "章节不能为空"));
-        q.setKnowledgePoint(required(reader.get(4), "知识点不能为空"));
-        q.setQuestionType(nvl(reader.get(5), "SINGLE_CHOICE").toUpperCase(Locale.ROOT));
-        q.setDifficulty(nvl(reader.get(6), "BASIC").toUpperCase(Locale.ROOT));
-        q.setTitle(required(reader.get(7), "题目标题不能为空"));
-        q.setContent(required(reader.get(8), "题干不能为空"));
-        q.setOptionA(reader.get(9));
-        q.setOptionB(reader.get(10));
-        q.setOptionC(reader.get(11));
-        q.setOptionD(reader.get(12));
-        q.setCorrectAnswer(required(reader.get(13), "标准答案不能为空"));
-        q.setAnswerKeywords(reader.get(14));
-        q.setAnalysis(nvl(reader.get(15), ""));
-        q.setLessonId(reader.get(16));
-        q.setStatus(nvl(reader.get(17), STATUS_ENABLED).toUpperCase(Locale.ROOT));
-        q.setCreatedAt(LocalDateTime.now());
-        return q;
-    }
-
-    private List<String> splitCsv(String line) {
-        List<String> result = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        boolean quoted = false;
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (c == '"') {
-                quoted = !quoted;
-            } else if (c == ',' && !quoted) {
-                result.add(current.toString().trim());
-                current.setLength(0);
-            } else {
-                current.append(c);
-            }
-        }
-        result.add(current.toString().trim());
-        return result;
     }
 
     private String rankTitle(int points) {
@@ -1340,8 +1551,4 @@ public class PracticeServiceImpl implements PracticeService {
     private record JudgeResult(boolean correct, Double score, String feedback) {
     }
 
-    @FunctionalInterface
-    private interface CellReader {
-        String get(int index);
-    }
 }

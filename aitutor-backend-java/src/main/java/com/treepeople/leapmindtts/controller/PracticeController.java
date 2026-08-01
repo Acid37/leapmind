@@ -5,6 +5,10 @@ import com.treepeople.leapmindtts.service.PracticeService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -23,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -71,15 +76,30 @@ public class PracticeController {
 
     @GetMapping("/questions/import-template")
     public ResponseEntity<byte[]> importTemplate() {
-        String template = "subject,gradeLevel,track,chapter,knowledgePoint,questionType,difficulty,title,content,optionA,optionB,optionC,optionD,correctAnswer,answerKeywords,analysis,lessonId,status\n"
-                + "数学,大学,高数期末,函数极限,重要极限,SINGLE_CHOICE,BASIC,极限计算,lim x->0 sin(x)/x 的值是？,0,1,不存在,无穷大,B,,这是重要基本极限，值为 1。,,ENABLED\n";
-        return ResponseEntity.ok()
-                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                        .filename("practice-question-template.csv", StandardCharsets.UTF_8)
-                        .build()
-                        .toString())
-                .body(template.getBytes(StandardCharsets.UTF_8));
+        String[] headers = {"subject", "gradeLevel", "track", "chapter", "knowledgePoint", "questionType", "difficulty", "title", "content",
+                "optionA", "optionB", "optionC", "optionD", "correctAnswer", "answerKeywords", "analysis", "lessonId", "status"};
+        String[] example = {"数学", "大学", "高数期末", "函数极限", "重要极限", "SINGLE_CHOICE", "BASIC", "极限计算",
+                "lim x->0 sin(x)/x 的值是？", "0", "1", "不存在", "无穷大", "B", "", "这是重要基本极限，值为 1。", "", "ENABLED"};
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("题目导入");
+            Row headerRow = sheet.createRow(0);
+            Row exampleRow = sheet.createRow(1);
+            for (int index = 0; index < headers.length; index++) {
+                headerRow.createCell(index).setCellValue(headers[index]);
+                exampleRow.createCell(index).setCellValue(example[index]);
+                sheet.setColumnWidth(index, Math.min(50, Math.max(12, Math.max(headers[index].length(), example[index].length()) + 2)) * 256);
+            }
+            workbook.write(output);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                            .filename("practice-question-template.xlsx", StandardCharsets.UTF_8)
+                            .build()
+                            .toString())
+                    .body(output.toByteArray());
+        } catch (Exception exception) {
+            throw new IllegalStateException("导入模板生成失败", exception);
+        }
     }
 
     @GetMapping("/next")
