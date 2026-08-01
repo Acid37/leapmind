@@ -64,26 +64,6 @@ public class WeakPointsController {
         }
     }
 
-    /**
-     * 查询单个用户的薄弱点
-     */
-    @GetMapping("/weak-points/{userId}")
-    @Operation(summary = "查询单个用户薄弱点", description = "按用户ID查询所有薄弱点")
-    public ResponseEntity<ApiResponse<List<UserWeakPointVO>>> getUserWeakPoints(
-            @Parameter(description = "用户ID", required = true)
-            @PathVariable Long userId) {
-
-        log.info("查询用户薄弱点: userId={}", userId);
-        try {
-            List<UserWeakPointVO> result = weakPointsService.getUserWeakPoints(userId, null, null);
-            return ResponseEntity.ok(ApiResponse.success(result, "查询成功"));
-        } catch (Exception e) {
-            log.error("查询用户薄弱点失败: {}", e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(400, e.getMessage()));
-        }
-    }
-
     // ==================== AI 分析 ====================
 
     /**

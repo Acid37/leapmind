@@ -53,17 +53,21 @@ public class WeakPointsServiceImpl implements WeakPointsService {
 
     @Override
     public List<UserWeakPointVO> getUserWeakPoints(Long userId, String subject, String status) {
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+
+        final boolean hasSubject = subject != null && !subject.isEmpty();
+        final boolean hasStatus  = status != null && !status.isEmpty();
+
         List<UserWeakPoint> weakPoints;
 
-        if (subject != null && status != null) {
-            // 同时按学科和状态过滤
-            weakPoints = userWeakPointMapper.selectByUserId(userId);
-            weakPoints = weakPoints.stream()
-                    .filter(wp -> subject.equals(wp.getSubject()) && status.equals(wp.getStatus()))
-                    .collect(Collectors.toList());
-        } else if (subject != null) {
+        if (hasSubject && hasStatus) {
+            // 数据库层面联合过滤，避免全量查询后在内存中过滤
+            weakPoints = userWeakPointMapper.selectByUserIdSubjectStatus(userId, subject, status);
+        } else if (hasSubject) {
             weakPoints = userWeakPointMapper.selectByUserIdAndSubject(userId, subject);
-        } else if (status != null) {
+        } else if (hasStatus) {
             weakPoints = userWeakPointMapper.selectByUserIdAndStatus(userId, status);
         } else {
             weakPoints = userWeakPointMapper.selectByUserId(userId);
@@ -73,6 +77,7 @@ public class WeakPointsServiceImpl implements WeakPointsService {
             return Collections.emptyList();
         }
 
+        // 单次 stream 完成 Entity → VO 转换，避免多次遍历
         return weakPoints.stream()
                 .map(this::convertToVO)
                 .collect(Collectors.toList());
@@ -261,14 +266,12 @@ public class WeakPointsServiceImpl implements WeakPointsService {
     }
 
     private UserWeakPoint findOrCreateWeakPoint(ExerciseRecordRequest request) {
-        // 按用户+知识点查找已有记录
-        List<UserWeakPoint> existing = userWeakPointMapper.selectByUserId(request.getUserId());
-        if (existing != null) {
-            for (UserWeakPoint wp : existing) {
-                if (request.getKnowledgePoint() != null
-                        && request.getKnowledgePoint().equals(wp.getKnowledgePoint())) {
-                    return wp;
-                }
+        // 按用户+知识点精确查询已有记录（O(1) 数据库查询替代 O(n) 全表扫描+循环）
+        if (request.getKnowledgePoint() != null) {
+            UserWeakPoint existing = userWeakPointMapper.selectByUserIdAndKnowledgePoint(
+                    request.getUserId(), request.getKnowledgePoint());
+            if (existing != null) {
+                return existing;
             }
         }
 
@@ -320,19 +323,24 @@ public class WeakPointsServiceImpl implements WeakPointsService {
     }
 
     private void saveAnalysisResults(List<UserWeakPoint> weakPoints, AiAnalysisResponse response) {
-        // 将 AI 综合分析保存到每个薄弱点记录
-        for (UserWeakPoint wp : weakPoints) {
-            // 查找对应的详细分析
-            if (response.getDetailAnalyses() != null) {
-                for (AiAnalysisResponse.DetailAnalysis da : response.getDetailAnalyses()) {
-                    if (wp.getKnowledgePoint() != null && wp.getKnowledgePoint().equals(da.getKnowledgePoint())) {
-                        userWeakPointMapper.updateAiAnalysis(
-                                wp.getId(),
-                                da.getAnalysis(),
-                                da.getSuggestion());
-                        break;
-                    }
+        // 将 detailAnalyses 转为 Map，O(n+m) 替代原有的 O(n*m) 嵌套循环
+        java.util.Map<String, AiAnalysisResponse.DetailAnalysis> analysisMap =
+                new java.util.HashMap<>();
+        if (response.getDetailAnalyses() != null) {
+            for (AiAnalysisResponse.DetailAnalysis da : response.getDetailAnalyses()) {
+                if (da.getKnowledgePoint() != null) {
+                    analysisMap.put(da.getKnowledgePoint(), da);
                 }
+            }
+        }
+
+        for (UserWeakPoint wp : weakPoints) {
+            AiAnalysisResponse.DetailAnalysis da = analysisMap.get(wp.getKnowledgePoint());
+            if (da != null) {
+                userWeakPointMapper.updateAiAnalysis(
+                        wp.getId(),
+                        da.getAnalysis(),
+                        da.getSuggestion());
             }
         }
     }
@@ -403,17 +411,8 @@ public class WeakPointsServiceImpl implements WeakPointsService {
             count = 5;
         }
 
-        // 查找该知识点的薄弱点记录
-        List<UserWeakPoint> weakPoints = userWeakPointMapper.selectByUserId(userId);
-        UserWeakPoint target = null;
-        if (weakPoints != null) {
-            for (UserWeakPoint wp : weakPoints) {
-                if (wp.getKnowledgePoint() != null && wp.getKnowledgePoint().equals(knowledgePoint)) {
-                    target = wp;
-                    break;
-                }
-            }
-        }
+        // 精确查询该知识点的薄弱点记录（SQL 级别，O(1) 替代全表扫描 O(n)）
+        UserWeakPoint target = userWeakPointMapper.selectByUserIdAndKnowledgePoint(userId, knowledgePoint);
 
         // 确定题目难度：薄弱程度高→基础题，中→中等题，低→提高题
         String difficulty;

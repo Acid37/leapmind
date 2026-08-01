@@ -74,10 +74,12 @@ def get_weak_points(
     user_id: int = Query(..., alias="userId", description="用户ID"),
     top_n: int = Query(10, alias="topN", description="返回前N个薄弱点"),
 ):
-    # 1. 拉取原始数据
+    # 1. 拉取原始数据（文档 4.1.1 中列出的 4 个数据源）
     user_answers = db.fetch_user_answers(user_id)
     conversation_msgs = db.fetch_conversation_messages(user_id)
     knowledge_points = db.fetch_knowledge_points()
+    wrong_book = db.fetch_wrong_question_book(user_id)
+    user_profile = db.fetch_user_profile(user_id)
 
     if not user_answers:
         return WeakPointsResponse(
@@ -89,9 +91,10 @@ def get_weak_points(
 
     kp_map = {kp["id"]: kp["name"] for kp in knowledge_points}
 
-    # 2. 计算薄弱度
+    # 2. 计算薄弱度（多源融合：答题记录 + 对话困惑 + 错题本 + 用户画像）
     weak_points = calculate_weakness_scores(
-        user_answers, conversation_msgs, knowledge_points
+        user_answers, conversation_msgs, knowledge_points,
+        wrong_question_book=wrong_book, user_profile=user_profile,
     )
 
     # 3. 趋势分析
@@ -218,10 +221,13 @@ def get_knowledge_graph(
     # 计算用户薄弱度，用于标注节点颜色/大小
     user_answers = db.fetch_user_answers(user_id)
     conversation_msgs = db.fetch_conversation_messages(user_id)
+    wrong_book = db.fetch_wrong_question_book(user_id)
+    user_profile = db.fetch_user_profile(user_id)
 
     if user_answers:
         weak_points = calculate_weakness_scores(
-            user_answers, conversation_msgs, knowledge_points
+            user_answers, conversation_msgs, knowledge_points,
+            wrong_question_book=wrong_book, user_profile=user_profile,
         )
         weak_points = analyze_trends(user_answers, weak_points)
     else:

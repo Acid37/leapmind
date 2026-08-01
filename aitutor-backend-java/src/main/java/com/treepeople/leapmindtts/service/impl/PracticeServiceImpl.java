@@ -985,6 +985,7 @@ public class PracticeServiceImpl implements PracticeService {
                 User user = userMapper.selectById(uid);
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("rank", rank++);
+                row.put("userId", uid);
                 row.put("username", user == null ? "用户" + uid : user.getUsername());
                 row.put("studentName", user == null ? "" : user.getStudentName());
                 row.put("totalPoints", tuple.getScore() == null ? nvl(stats.getTotalPoints()) : tuple.getScore().intValue());
@@ -1040,6 +1041,7 @@ public class PracticeServiceImpl implements PracticeService {
             User user = userMapper.selectById(item.getUserId());
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("rank", rank++);
+            row.put("userId", item.getUserId());
             row.put("username", user == null ? "用户" + item.getUserId() : user.getUsername());
             row.put("studentName", user == null ? "" : user.getStudentName());
             row.put("totalPoints", nvl(item.getTotalPoints()));
