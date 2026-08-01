@@ -7,6 +7,7 @@ import { VRMLookAtSmootherLoaderPlugin } from "@/lib/VRMLookAtSmootherLoaderPlug
 import { LipSync } from "../lipSync/lipSync.js";
 import { EmoteController } from "../emoteController/emoteController.js";
 import { IdleAnimationManager } from "./idleAnimationManager.js";
+import { gestureToHeadMotion } from "@/features/virtualTeacher/animationCue.js";
 
 /**
  * 3Dキャラクターを管理するクラス（JS 版本）
@@ -24,6 +25,7 @@ export class Model {
   constructor(lookAtTargetParent) {
     this._lookAtTargetParent = lookAtTargetParent;
     this._lipSync = new LipSync(new AudioContext());
+    this._gestureTimeouts = [];
   }
 
 
@@ -111,6 +113,7 @@ export class Model {
   }
 
   unLoadVrm() {
+    this._clearScheduledGestures();
     if (this.idleAnimationManager) {
       this.idleAnimationManager.dispose();
       this.idleAnimationManager = undefined;
@@ -119,6 +122,7 @@ export class Model {
       VRMUtils.deepDispose(this.vrm.scene);
       this.vrm = null;
     }
+    this._lipSync?.dispose();
   }
 
   /**
@@ -148,38 +152,54 @@ export class Model {
     this.emoteController?.playEmotion(screenplay.expression);
     
     // 根据说话内容与"情绪"优先触发头部动作（稍微延迟，避免与表情切换冲突）
-    setTimeout(() => {
+    const headMotionTimeout = setTimeout(() => {
       this.emoteController?.playHeadMotionByMessage(screenplay.talk.message, screenplay.expression);
     }, 300);
+    this._gestureTimeouts.push(headMotionTimeout);
+    this._scheduleGestures(screenplay.gestures);
 
     await new Promise((resolve) => {
-      this._lipSync?.playFromArrayBuffer(buffer, () => {
-        resolve(true);
-      });
+      this._lipSync?.playFromArrayBuffer(
+        buffer,
+        () => {
+          this._clearScheduledGestures();
+          resolve(true);
+        },
+        screenplay.phonemes,
+      );
     });
-  }
-
-  /**
-   * 停止当前的语音播放（用于讲课暂停/停止）
-   */
-  stopSpeaking() {
-    try {
-      if (this._lipSync?.currentSource) {
-        this._lipSync.currentSource.stop();
-      }
-    } catch (_) {}
   }
 
   /**
    * 停止当前说话（如果有）
    */
   stopSpeaking() {
+    this._clearScheduledGestures();
     try {
       const src = this._lipSync?.currentSource;
       if (src) {
         src.stop();
       }
     } catch (_) {}
+  }
+
+  _scheduleGestures(gestures = []) {
+    if (!Array.isArray(gestures)) return;
+
+    gestures.forEach((gesture) => {
+      const motion = gestureToHeadMotion(gesture);
+      if (!motion) return;
+      const startMs = Math.max(0, Number(gesture.startMs ?? gesture.start ?? 0));
+      const timeout = setTimeout(() => {
+        this.emoteController?.playHeadMotion(motion);
+      }, startMs);
+      this._gestureTimeouts.push(timeout);
+    });
+  }
+
+  _clearScheduledGestures() {
+    this._gestureTimeouts.forEach((timeout) => clearTimeout(timeout));
+    this._gestureTimeouts = [];
   }
 
   /**

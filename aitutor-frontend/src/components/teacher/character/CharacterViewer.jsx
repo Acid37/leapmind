@@ -1,14 +1,18 @@
 import React from 'react';
-import VrmViewer from '@/components/character/vrmViewer';
-import { ViewerContext, sharedViewer } from '@/features/vrmViewer/viewerContext.js';
+import VirtualTeacherViewer from '@/components/virtualTeacher/VirtualTeacherViewer.jsx';
+import { sharedViewer } from '@/features/vrmViewer/viewerContext.js';
+import {
+  DEFAULT_TEACHER_AVATARS,
+  getLocalTeacherPreference,
+} from '@/services/virtualTeacherService.js';
 
 export default function CharacterViewer() {
-  const viewer = sharedViewer;
+  const preference = getLocalTeacherPreference();
+  const modelUrl = preference?.modelUrl ?? DEFAULT_TEACHER_AVATARS[2].modelUrl;
+
   return (
     <div className="absolute inset-0">
-      <ViewerContext.Provider value={{ viewer }}>
-        <VrmViewer />
-      </ViewerContext.Provider>
+      <VirtualTeacherViewer viewer={sharedViewer} modelUrl={modelUrl} />
     </div>
   );
 }

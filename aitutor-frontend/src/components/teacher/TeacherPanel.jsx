@@ -4,6 +4,11 @@ import ChatDialog from '../chat/ChatDialog';
 import CharacterViewer from './character/CharacterViewer.jsx';
 import { initPptInteractivePlayer } from '@/features/chat/ppt-interactive-player.js';
 import { askQuestion, synthesizeSpeech } from '@/features/chat/pptApi.js';
+import {
+    normalizeTeacherExpression,
+    synthesizeVirtualTeacherSpeech,
+} from '@/services/virtualTeacherService.js';
+import { normalizeAnimationPayload } from '@/features/virtualTeacher/animationCue.js';
 import { handleVoiceInterruption } from '@/features/chat/pptVoiceControl.js';
 import { state } from '@/features/chat/pptState.js';
 import { sharedViewer } from '@/features/vrmViewer/viewerContext.js';
@@ -53,12 +58,26 @@ const TeacherPanel = ({ dark = false }) => {
             });
             // TTS -> 驱动3D角色说话与头部动作
             try {
-                const tts = await synthesizeSpeech(courseId, answer);
+                let tts = null;
+                let ttsAnimation = null;
+                try {
+                    const ttsResult = await synthesizeVirtualTeacherSpeech({ courseId, text: answer });
+                    tts = ttsResult?.audioBlob;
+                    ttsAnimation = ttsResult?.animation;
+                } catch {
+                    // M8 后端未部署时兼容现有语音接口
+                    tts = await synthesizeSpeech(courseId, answer);
+                }
                 if (tts) {
                     const arrayBuf = await tts.arrayBuffer();
+                    const animation = ttsAnimation ?? normalizeAnimationPayload(result);
                     const screenplay = {
-                      expression: 'neutral',
-                      talk: { message: answer }
+                      expression: normalizeTeacherExpression(
+                          animation?.expression ?? result?.expression ?? result?.emotion
+                      ),
+                      talk: { message: answer },
+                      gestures: animation?.gestures ?? [],
+                      phonemes: animation?.phonemes ?? [],
                     };
                     sharedViewer?.model?.speak(arrayBuf, screenplay);
                 }

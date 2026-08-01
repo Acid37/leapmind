@@ -47,10 +47,12 @@ export async function request(endpoint, options = {}) {
   const apiBase = getApiBase();
   const url = `${apiBase}${endpoint}`;
 
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
   // 默认请求头
   const headers = {
-    'Content-Type': 'application/json',
     'Accept': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   };
 
@@ -86,7 +88,7 @@ export async function request(endpoint, options = {}) {
     if (contentType.includes('application/json')) {
       try {
         result = await response.json();
-      } catch (parseError) {
+      } catch {
         // JSON 解析失败，尝试获取文本
         const text = await response.text();
         console.error('JSON 解析失败，响应内容:', text);
@@ -231,4 +233,3 @@ export default {
   delete: del,
   request,
 };
-

@@ -18,17 +18,19 @@ export default function Timer({ isRunning, onTick, resetKey }) {
   useEffect(() => {
     if (isRunning) {
       intervalRef.current = setInterval(() => {
-        setSeconds((prev) => {
-          const next = prev + 1;
-          onTickRef.current?.(next);
-          return next;
-        });
+        setSeconds((prev) => prev + 1);
       }, 1000);
     } else {
       clearInterval(intervalRef.current);
     }
     return () => clearInterval(intervalRef.current);
   }, [isRunning]);
+
+  useEffect(() => {
+    if (seconds > 0) {
+      onTickRef.current?.(seconds);
+    }
+  }, [seconds]);
 
   const formatTime = (s) => {
     const mm = Math.floor(s / 60);

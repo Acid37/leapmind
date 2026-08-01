@@ -24,18 +24,21 @@ import {
   Play,
   Gift,
   CalendarCheck,
+  ListChecks,
+  Shuffle,
 } from "lucide-react";
 import QuestionCard from "../components/practice/QuestionCard";
 import ProgressBar from "../components/practice/ProgressBar";
 import Timer from "../components/practice/Timer";
 import QuestionNav from "../components/practice/QuestionNav";
-import { generateSession, submitAnswer, dailyCheckin, getCheckinStatus } from "../services/practiceService";
+import { generateSession, submitAnswer, dailyCheckin, getCheckinStatus, getFilterOptions } from "../services/practiceService";
 import { ChatPanel } from "../components/chat";
 import { getUserInfo } from "../utils/tokenManager";
 
 const SESSION_KEY = "m1_practice_session";
+const QUICK_COUNTS = [5, 10, 15, 20];
 
-export default function PracticePage({ onBack, onAskAI, embedded = false, mode = "FREE_PRACTICE", lessonId = "" }) {
+export default function PracticePage({ onBack, embedded = false, mode = "FREE_PRACTICE", lessonId = "", initialParams = {} }) {
   // --- ChatPanel 状态 ---
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const userInfo = getUserInfo();
@@ -51,6 +54,13 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [hasSavedSession, setHasSavedSession] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
+  const [setupError, setSetupError] = useState("");
+  const [availableSubjects, setAvailableSubjects] = useState([]);
+  const [setup, setSetup] = useState({
+    questionCount: Math.max(1, Math.min(50, Number(initialParams.questionCount) || 10)),
+    subject: initialParams.subject || "mixed",
+  });
 
   // --- 持久化：每次状态变化写入 localStorage ---
   useEffect(() => {
@@ -61,7 +71,7 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
           currentIndex,
           answers,
         }));
-      } catch (e) { /* quota exceeded, ignore */ }
+      } catch { /* quota exceeded, ignore */ }
     }
   }, [session, currentIndex, answers]);
 
@@ -81,23 +91,42 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
           return;
         }
       }
-    } catch (e) { /* corrupted, ignore */ }
-    // 没有保存的会话，新建
-    initSession();
+    } catch { /* corrupted, ignore */ }
+    // 没有保存的会话，先由用户选择题量和科目
+    setShowSetup(true);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    getFilterOptions()
+      .then((options) => setAvailableSubjects(options.subjects || []))
+      .catch((err) => console.warn("加载科目失败:", err));
   }, []);
 
   const initSession = async () => {
+    const questionCount = Number(setup.questionCount);
+    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50) {
+      setSetupError("题目数量需要在 1 到 50 之间");
+      return;
+    }
     setLoading(true);
     setHasSavedSession(false);
+    setShowSetup(false);
+    setSetupError("");
     localStorage.removeItem(SESSION_KEY);
     try {
       const data = await generateSession({
+        ...initialParams,
         sceneType: "free_practice",
-        questionCount: 7,
+        questionCount,
+        subject: setup.subject === "mixed" ? undefined : setup.subject,
         mode,
         lessonId: lessonId || undefined,
       });
-      setSession(data);
+      const subjectLabel = setup.subject === "mixed"
+        ? "混合科目"
+        : availableSubjects.find((item) => item.value === setup.subject)?.label || setup.subject;
+      setSession({ ...data, setup: { questionCount: data.questions.length, requestedCount: questionCount, subject: setup.subject, subjectLabel } });
       setCurrentIndex(0);
       const initial = {};
       data.questions.forEach((q) => {
@@ -111,9 +140,22 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
       setAnswers(initial);
     } catch (err) {
       console.error("生成会话失败:", err);
+      setSetupError(err.message || "生成练习失败，请调整条件后重试");
+      setShowSetup(true);
     } finally {
       setLoading(false);
     }
+  };
+
+  const openSessionSetup = () => {
+    localStorage.removeItem(SESSION_KEY);
+    setHasSavedSession(false);
+    setSession(null);
+    setCurrentIndex(0);
+    setAnswers({});
+    setSetupError("");
+    setShowSetup(true);
+    setLoading(false);
   };
 
   // 继续上次会话
@@ -244,6 +286,19 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
     );
   }
 
+  // --- 新练习配置 ---
+  if (showSetup || !session) {
+    return (
+      <PracticeSetup
+        setup={setup}
+        setSetup={setSetup}
+        subjects={availableSubjects}
+        error={setupError}
+        onStart={initSession}
+      />
+    );
+  }
+
   // --- 恢复会话提示 ---
   if (hasSavedSession) {
     const doneCount = Object.values(answers).filter((a) => a?.submitted).length;
@@ -265,7 +320,7 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
               <Play size={16} /> 继续做题
             </button>
             <button
-              onClick={initSession}
+              onClick={openSessionSetup}
               className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
             >
               <Check size={16} /> 重新开始
@@ -326,7 +381,7 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
           {/* 操作按钮 */}
           <div className="flex gap-3 justify-center flex-wrap">
             <button
-              onClick={initSession}
+              onClick={openSessionSetup}
               className="px-5 py-2.5 bg-indigo-500 text-white rounded-xl font-medium hover:bg-indigo-600 transition-colors flex items-center gap-2 cursor-pointer"
             >
               <RotateCcw size={16} /> 再练一组
@@ -390,6 +445,12 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
           total={session.questions.length}
           answerStatuses={answerStatuses}
         />
+
+        {session.availabilityNotice && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
+            {session.availabilityNotice}
+          </div>
+        )}
 
         {/* 题目卡片 */}
         <QuestionCard
@@ -461,7 +522,7 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
             {/* 最后一题答完 -> 再来一组 */}
             {currentAnswer?.submitted && currentIndex === session.questions.length - 1 && (
               <button
-                onClick={initSession}
+                onClick={openSessionSetup}
                 className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-semibold hover:bg-emerald-600 transition-colors cursor-pointer"
               >
                 <Check size={16} /> 再来一组
@@ -527,6 +588,121 @@ export default function PracticePage({ onBack, onAskAI, embedded = false, mode =
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
+  const selectedSubjectLabel = setup.subject === "mixed"
+    ? "混合科目"
+    : subjects.find((item) => item.value === setup.subject)?.label || setup.subject;
+
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="rounded-3xl border border-slate-100 bg-white p-7 shadow-sm md:p-9">
+        <div className="mb-7 flex items-start gap-4">
+          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
+            <ListChecks size={28} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">设置本次练习</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">选择题目数量和科目范围，再开始做题。</p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        )}
+
+        <section className="mb-7">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-slate-700">题目数量</h3>
+              <p className="mt-0.5 text-xs text-slate-400">可以输入 1—50 之间的任意整数</p>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-500">
+              <input
+                type="number"
+                min="1"
+                max="50"
+                step="1"
+                aria-label="题目数量"
+                value={setup.questionCount}
+                onChange={(event) => setSetup((prev) => ({ ...prev, questionCount: event.target.value }))}
+                className="w-20 rounded-xl border border-slate-200 px-3 py-2 text-center font-semibold text-slate-700 outline-none focus:border-indigo-400"
+              />
+              题
+            </label>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {QUICK_COUNTS.map((count) => (
+              <button
+                key={count}
+                type="button"
+                aria-pressed={Number(setup.questionCount) === count}
+                onClick={() => setSetup((prev) => ({ ...prev, questionCount: count }))}
+                className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                  Number(setup.questionCount) === count
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+                    : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:bg-slate-50"
+                }`}
+              >
+                {count} 题
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-7">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-700">科目范围</h3>
+            <p className="mt-0.5 text-xs text-slate-400">混合科目会尽量从不同科目中均衡抽题</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+            <button
+              type="button"
+              aria-pressed={setup.subject === "mixed"}
+              onClick={() => setSetup((prev) => ({ ...prev, subject: "mixed" }))}
+              className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors cursor-pointer ${
+                setup.subject === "mixed"
+                  ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+                  : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:bg-slate-50"
+              }`}
+            >
+              <Shuffle size={15} /> 混合科目
+            </button>
+            {subjects.map((subject) => (
+              <button
+                key={subject.value}
+                type="button"
+                aria-pressed={setup.subject === subject.value}
+                onClick={() => setSetup((prev) => ({ ...prev, subject: subject.value }))}
+                className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors cursor-pointer ${
+                  setup.subject === subject.value
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+                    : "border-slate-200 text-slate-500 hover:border-indigo-200 hover:bg-slate-50"
+                }`}
+              >
+                {subject.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <div className="flex flex-col gap-4 rounded-2xl bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-xs text-slate-400">本次练习</div>
+            <div className="mt-1 font-semibold text-slate-700">{selectedSubjectLabel} · {setup.questionCount || 0} 题</div>
+          </div>
+          <button
+            type="button"
+            onClick={onStart}
+            className="flex items-center justify-center gap-2 rounded-xl bg-indigo-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-600 cursor-pointer"
+          >
+            <Play size={17} /> 开始练习
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

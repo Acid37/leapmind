@@ -6,7 +6,7 @@
  * - 单题操作：查看解析、重做、删除、标记重点
  * - 批量操作：批量重做
  */
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   RotateCcw,
@@ -16,11 +16,19 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
-  Calendar,
-  Tag,
-  ChevronDown,
 } from "lucide-react";
 import { getWrongQuestions, toggleFocus, deleteWrongQuestion } from "../services/practiceService";
+
+const SUBJECT_LABELS = {
+  math: "数学",
+  chinese: "语文",
+  english: "英语",
+  physics: "物理",
+  chemistry: "化学",
+  biology: "生物",
+  computer: "计算机",
+  general: "通用",
+};
 
 export default function WrongQuestionBookPage({ onRedo, onExplain }) {
   const [questions, setQuestions] = useState([]);
@@ -32,12 +40,9 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
   const [subjectFilter, setSubjectFilter] = useState("");
   const [kpFilter, setKpFilter] = useState("");
   const [timeFilter, setTimeFilter] = useState("all");
+  const [filterSource, setFilterSource] = useState([]);
 
-  useEffect(() => {
-    loadData();
-  }, [statusFilter, subjectFilter, kpFilter, timeFilter]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
@@ -54,7 +59,24 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [kpFilter, searchKeyword, statusFilter, subjectFilter, timeFilter]);
+
+  const loadFilterSource = useCallback(async () => {
+    try {
+      const data = await getWrongQuestions({ size: 1000 });
+      setFilterSource(data.items);
+    } catch (err) {
+      console.error("加载错题筛选项失败:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    loadFilterSource();
+  }, [loadFilterSource]);
 
   const handleToggleFocus = async (id) => {
     await toggleFocus(id);
@@ -66,6 +88,8 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
   const handleDelete = async (id) => {
     await deleteWrongQuestion(id);
     setQuestions((prev) => prev.filter((q) => q.id !== id));
+    setFilterSource((prev) => prev.filter((q) => q.id !== id));
+    setTotal((prev) => Math.max(0, prev - 1));
   };
 
   const handleBatchRedo = () => {
@@ -99,6 +123,22 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
     formula_wrong: { label: "公式记错", color: "bg-orange-50 text-orange-600" },
     method_wrong: { label: "方法错误", color: "bg-purple-50 text-purple-600" },
   };
+
+  const subjectOptions = useMemo(() => (
+    [...new Set(filterSource.map((question) => question.subject).filter(Boolean))]
+      .sort((a, b) => (SUBJECT_LABELS[a] || a).localeCompare(SUBJECT_LABELS[b] || b, "zh-CN"))
+      .map((value) => ({ value, label: SUBJECT_LABELS[value] || value }))
+  ), [filterSource]);
+
+  const knowledgePointOptions = useMemo(() => (
+    [...new Set(
+      filterSource
+        .filter((question) => !subjectFilter || question.subject === subjectFilter)
+        .flatMap((question) => question.knowledgePoints || [])
+        .map((point) => point.name?.trim())
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, "zh-CN"))
+  ), [filterSource, subjectFilter]);
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -141,24 +181,28 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <select
           value={subjectFilter}
-          onChange={(e) => setSubjectFilter(e.target.value)}
+          onChange={(e) => {
+            setSubjectFilter(e.target.value);
+            setKpFilter("");
+          }}
+          disabled={subjectOptions.length === 0}
           className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-600 outline-none focus:border-indigo-300 cursor-pointer"
         >
-          <option value="">全部科目</option>
-          <option value="math">数学</option>
-          <option value="chinese">语文</option>
-          <option value="english">英语</option>
-          <option value="physics">物理</option>
+          <option value="">{subjectOptions.length > 0 ? "全部科目" : "暂无科目"}</option>
+          {subjectOptions.map((subject) => (
+            <option key={subject.value} value={subject.value}>{subject.label}</option>
+          ))}
         </select>
         <select
           value={kpFilter}
           onChange={(e) => setKpFilter(e.target.value)}
+          disabled={knowledgePointOptions.length === 0}
           className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-600 outline-none focus:border-indigo-300 cursor-pointer"
         >
-          <option value="">全部知识点</option>
-          <option value="勾股定理">勾股定理</option>
-          <option value="相似三角形">相似三角形</option>
-          <option value="等腰三角形性质">等腰三角形性质</option>
+          <option value="">{knowledgePointOptions.length > 0 ? "全部知识点" : "暂无知识点"}</option>
+          {knowledgePointOptions.map((knowledgePoint) => (
+            <option key={knowledgePoint} value={knowledgePoint}>{knowledgePoint}</option>
+          ))}
         </select>
         <div className="flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg">
           {[

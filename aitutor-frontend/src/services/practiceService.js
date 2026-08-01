@@ -48,6 +48,33 @@ function frontendDifficulty(be) {
   return { value: n, label: DIFF_LABEL[n] || '★' };
 }
 
+function shuffled(items = []) {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(Math.random() * (index + 1));
+    [result[index], result[target]] = [result[target], result[index]];
+  }
+  return result;
+}
+
+function selectSessionQuestions(items, count, mixedSubjects) {
+  if (!mixedSubjects) return shuffled(items).slice(0, count);
+  const grouped = new Map();
+  items.forEach((question) => {
+    const subject = question.subject || 'general';
+    if (!grouped.has(subject)) grouped.set(subject, []);
+    grouped.get(subject).push(question);
+  });
+  const queues = shuffled([...grouped.values()].map((group) => shuffled(group)));
+  const selected = [];
+  while (selected.length < count && queues.some((queue) => queue.length > 0)) {
+    queues.forEach((queue) => {
+      if (selected.length < count && queue.length > 0) selected.push(queue.shift());
+    });
+  }
+  return selected;
+}
+
 // ============================================================================
 // Transform 函数 —— 将后端 JSON 转为前端期望的数据结构
 // ============================================================================
@@ -80,6 +107,7 @@ function transformQuestion(q, includeAnswer = true) {
   const optionList = Object.entries(options).map(([k, v]) => k + '. ' + v);
   const fe = {
     questionId: q.id,
+    title: q.title || '',
     type: TYPE_BE_TO_FE[q.questionType] || 'single_choice',
     difficulty: DIFF_BE_TO_FE[q.difficulty] || 1,
     subject: SUBJECT_MAP[q.subject] || q.subject,
@@ -93,6 +121,7 @@ function transformQuestion(q, includeAnswer = true) {
     knowledgePoints: q.knowledgePoint ? [{ id: 0, name: q.knowledgePoint }] : [],
     answerSteps: [],
     explanation: q.analysis || '',
+    status: q.status || 'ENABLED',
   };
   if (includeAnswer) {
     fe.correctAnswer = q.correctAnswer || '';
@@ -151,7 +180,7 @@ function transformMistake(m) {
     knowledgePoints: m.knowledgePoint ? [{ id: 0, name: m.knowledgePoint }] : [],
     status: MISTAKE_STATUS_BE_TO_FE[m.status] || 'unresolved',
     isKeyFocus: Boolean(m.doubtful),
-    subject: SUBJECT_MAP[m.track] || 'general',
+    subject: SUBJECT_MAP[m.subject] || m.subject || SUBJECT_MAP[m.track] || 'general',
     createdAt: m.lastWrongAt || '',
     reviewCount: m.reviewCount || 0,
     lastReviewAt: m.lastReviewAt || null,
@@ -164,26 +193,61 @@ function transformMistake(m) {
  * GET /statistics → 前端 statistics
  */
 function transformStatistics(data) {
+  const transformDistribution = (items = []) => items.map(item => ({
+    name: item.name || '未分类',
+    total: item.count || 0,
+    correct: item.correct || 0,
+    accuracy: (item.accuracy || 0) / 100,
+    avgTimeSpent: item.averageDurationSeconds || 0,
+  }));
+
   return {
     summary: {
       totalQuestions: data.totalAnswers || 0,
+      correctQuestions: data.correctAnswers || 0,
+      incorrectQuestions: data.incorrectAnswers || 0,
       correctRate: (data.accuracy || 0) / 100,
+      previousCorrectRate: (data.previousAccuracy || 0) / 100,
+      accuracyChange: data.accuracyChange || 0,
+      hasPreviousPeriod: Boolean(data.hasPreviousPeriod),
       avgTimeSpent: data.averageDurationSeconds || 0,
-      streakDays: 0,  // 🔶 statistics 接口不含连签，需再调 dashboard
+      totalTimeSpent: data.totalDurationSeconds || 0,
+      activeDays: data.activeDays || 0,
+      bestStreak: data.bestStreak || 0,
+      streakDays: data.currentStreak || 0,
     },
     dailyTrend: (data.trend || []).map(t => ({
       date: (t.date || '').slice(5),
       count: t.count || 0,
       correctRate: (t.accuracy || 0) / 100,
+      avgTimeSpent: t.averageDurationSeconds || 0,
     })),
     byKnowledgePoint: (data.knowledgeDistribution || []).map(k => ({
-      kpId: 0,
+      kpId: k.id || k.name || k.knowledgePoint || 'unknown',
       kpName: k.name || k.knowledgePoint || '',
       total: k.count || 0,
       correct: k.correct || 0,
-      rate: (k.accuracy || 0) / 100,
+      accuracy: (k.accuracy || 0) / 100,
+      recentAccuracy: (k.recentAccuracy || 0) / 100,
+      recentTrend: k.recentTrend || 0,
+      sampleConfidence: (k.sampleConfidence || 0) / 100,
+      masteryScore: k.masteryScore || 0,
+      masteryLevel: k.masteryLevel || '数据不足',
+      needsReview: Boolean(k.needsReview),
+      recommendation: k.recommendation || '',
+      rate: (k.masteryScore || 0) / 100,
     })),
-    wrongReasons: [],  // 🔶 后端暂无错因归类
+    byChapter: transformDistribution(data.chapterDistribution),
+    byQuestionType: transformDistribution(data.questionTypeDistribution),
+    byDifficulty: transformDistribution(data.difficultyDistribution),
+    wrongReasons: (data.wrongReasonDistribution || []).map(item => ({
+      reason: item.reason || 'unknown',
+      label: item.label || '其他错误',
+      description: item.description || '',
+      count: item.count || 0,
+      inferred: Boolean(item.inferred),
+    })),
+    recommendations: data.recommendations || [],
   };
 }
 
@@ -194,9 +258,9 @@ function transformRanking(data) {
   return (data.trackRanking || []).map(r => ({
     rank: r.rank,
     userId: r.userId,
-    nickname: r.nickname || '',
+    nickname: r.studentName || r.username || r.nickname || '',
     avatar: r.avatar || '',
-    points: r.points || 0,
+    points: r.totalPoints ?? r.points ?? 0,
     streakDays: r.streakDays || 0,
   }));
 }
@@ -263,6 +327,66 @@ export async function getQuestionDetail(questionId) {
 }
 
 /**
+ * 获取题目管理表单所需的完整原始字段
+ */
+export async function getQuestionForEditing(questionId) {
+  const res = await request('/api/practice/questions/' + questionId);
+  const q = unwrap(res) || {};
+  const options = q.options || {};
+  return {
+    id: q.id,
+    subject: q.subject || '',
+    gradeLevel: q.gradeLevel || '',
+    track: q.track || '',
+    chapter: q.chapter || '',
+    knowledgePoint: q.knowledgePoint || '',
+    questionType: q.questionType || 'SINGLE_CHOICE',
+    difficulty: q.difficulty || 'BASIC',
+    title: q.title || '',
+    content: q.content || '',
+    optionA: options.A || '',
+    optionB: options.B || '',
+    optionC: options.C || '',
+    optionD: options.D || '',
+    correctAnswer: q.correctAnswer || '',
+    answerKeywords: q.answerKeywords || '',
+    analysis: q.analysis || '',
+    lessonId: q.lessonId || '',
+    status: q.status || 'ENABLED',
+  };
+}
+
+/**
+ * 新增题目
+ */
+export async function createQuestion(payload) {
+  const res = await request('/api/practice/questions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return unwrap(res);
+}
+
+/**
+ * 修改题目
+ */
+export async function updateQuestion(questionId, payload) {
+  const res = await request('/api/practice/questions/' + questionId, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  return unwrap(res);
+}
+
+/**
+ * 删除题目。存在答题记录时由后端归档，以保留历史统计。
+ */
+export async function deleteQuestion(questionId) {
+  await request('/api/practice/questions/' + questionId, { method: 'DELETE' });
+  return { success: true };
+}
+
+/**
  * 提交答案  ✅ POST /api/practice/submit
  * 💡 会自动检测：真实 DB ID → 后端判题；Mock ID（有 _originalId）→ 本地判题
  */
@@ -303,6 +427,7 @@ export async function submitAnswer(params = {}) {
  * 🔶 后端不可用时回退到 Mock
  */
 export async function getRanking(type = 'daily', limit = 20) {
+  void type;
   try {
     const res = await request('/api/practice/leaderboards');
     const list = transformRanking(unwrap(res));
@@ -450,7 +575,7 @@ async function _loadMock() {
  */
 async function _mockJudge(params) {
   await _loadMock();
-  const { questionId, answer, timeSpent, _originalId } = params;
+  const { questionId, answer, _originalId } = params;
   const matchId = _originalId || questionId;
   const question = _mockQuestions.find((q) => q.questionId === matchId);
   if (!question) {
@@ -512,8 +637,8 @@ export async function getNextQuestion(params = {}) {
  * 💡 后端不可用时自动回退到 Mock 数据
  */
 export async function generateSession(params = {}) {
-  const count = params.questionCount || 10;
-  const beParams = { page: 1, pageSize: count };
+  const count = Math.max(1, Math.min(50, Number(params.questionCount) || 10));
+  const beParams = { page: 1, pageSize: 100, status: 'ENABLED' };
   if (params.subject) beParams.subject = SUBJECT_REVERSE[params.subject] || params.subject;
   if (params.grade) beParams.gradeLevel = params.grade;
   if (params.chapter) beParams.chapter = params.chapter;
@@ -527,19 +652,24 @@ export async function generateSession(params = {}) {
     const res = await request('/api/practice/questions' + buildQuery(beParams));
     const data = unwrap(res);
     const items = (data.records || []).map(q => transformQuestion(q, true));
-    if (items.length === 0) throw new Error('题库无匹配题目');
-
-    // 循环填充到指定数量（后端可能返回不足 count 条）
-    const questions = [];
-    for (let i = 0; i < count; i++) {
-      questions.push({ ...items[i % items.length] });
+    if (items.length === 0) {
+      const emptyError = new Error('当前选择范围内暂无可用题目');
+      emptyError.skipMockFallback = true;
+      throw emptyError;
     }
+    const questions = selectSessionQuestions(items, count, !params.subject);
     return {
       sessionId: 'sess_' + Date.now(),
-      questions: questions.slice(0, count),
-      totalCount: count,
+      questions,
+      totalCount: questions.length,
+      requestedCount: count,
+      subject: params.subject || 'mixed',
+      availabilityNotice: questions.length < count
+        ? `当前范围只有 ${questions.length} 道可用题目，已按实际数量生成。`
+        : '',
     };
   } catch (err) {
+    if (err.skipMockFallback) throw err;
     // 🔶 后端不可用，回退到 Mock 数据
     console.warn('[M1] 后端不可用，generateSession 回退到 Mock:', err.message);
     await _loadMock();
@@ -548,13 +678,21 @@ export async function generateSession(params = {}) {
     if (params.knowledgePointIds?.length) {
       pool = pool.filter(q => q.knowledgePoints.some(kp => params.knowledgePointIds.includes(kp.id)));
     }
-    const questions = [];
-    for (let i = 0; i < count; i++) {
-      const src = pool[i % pool.length];
+    if (pool.length === 0) throw new Error('当前选择范围内暂无可用题目');
+    const questions = selectSessionQuestions(pool, count, !params.subject).map((src, index) => {
       // _originalId 标记为 Mock 来源，submitAnswer 会据此走本地判题
-      questions.push({ ...src, questionId: 100 + i, _originalId: src.questionId });
-    }
-    return { sessionId: 'sess_' + Date.now(), questions, totalCount: questions.length };
+      return { ...src, questionId: 100 + index, _originalId: src.questionId };
+    });
+    return {
+      sessionId: 'sess_' + Date.now(),
+      questions,
+      totalCount: questions.length,
+      requestedCount: count,
+      subject: params.subject || 'mixed',
+      availabilityNotice: questions.length < count
+        ? `当前范围只有 ${questions.length} 道可用题目，已按实际数量生成。`
+        : '',
+    };
   }
 }
 
@@ -667,7 +805,7 @@ export async function clearUserData() {
 
 /**
  * 导入题目  ✅ POST /api/practice/questions/import (multipart)
- * @param {File} file - .xlsx 或 .csv 文件
+ * @param {File} file - Excel、Word 或 PDF 题库文件
  */
 export async function importQuestions(file) {
   const formData = new FormData();
@@ -680,23 +818,10 @@ export async function importQuestions(file) {
   return {
     totalRows: data.totalRows || 0,
     inserted: data.inserted || 0,
+    pendingReview: data.pendingReview || 0,
     failed: data.failed || 0,
     errors: data.errors || [],
+    filename: data.filename || file.name,
+    supportedFormats: data.supportedFormats || '',
   };
 }
-
-/**
- * 下载导入模板  ✅ GET /api/practice/questions/import-template
- */
-export async function getImportTemplate() {
-  const res = await fetch('/api/practice/questions/import-template');
-  if (!res.ok) throw new Error('下载模板失败');
-  const blob = await res.blob();
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'practice-question-template.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  return { success: true };
-}
-

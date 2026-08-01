@@ -1,3 +1,5 @@
+import { normalizePhonemeTimeline } from '@/features/virtualTeacher/animationCue.js';
+
 const TIME_DOMAIN_DATA_LENGTH = 2048;
 const DEFAULT_FFT_SIZE = 2048;
 
@@ -12,6 +14,7 @@ export class LipSync {
     this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
     this.currentSource = null; // 跟踪当前音频源
     this.microphoneSource = null; // 麦克风音频源
+    this.microphoneStream = null;
     this.isMicrophoneConnected = false; // 麦克风连接状态
 
     this._prevVolume = 0; // 音量平滑（包络）
@@ -19,6 +22,8 @@ export class LipSync {
     this.mediaElementSource = null; // HTMLAudioElement 源（通过 AudioContext 输出）
     this.mediaElementGain = null; // 媒体元素的输出增益（通往 destination）
     this._mediaElementRef = null; // 保存引用用于判断播放状态
+    this.phonemeTimeline = [];
+    this.playbackStartedAt = 0;
   }
 
   update() {
@@ -62,15 +67,18 @@ export class LipSync {
       this._prevVolume = this._prevVolume + (env - this._prevVolume) * release;
     }
 
-    // 频域数据用于粗略的元音估计（A/I/U/E/O -> aa/ee/ih/oh/ou）
-    this.analyser.getByteFrequencyData(this.frequencyData);
-    const weights = this._estimateVowelWeights(this.frequencyData, this._prevVolume);
+    let weights = this._weightsFromPhonemeTimeline();
+    if (!weights) {
+      // 无音素时间轴时，继续使用频谱估算作为兼容回退
+      this.analyser.getByteFrequencyData(this.frequencyData);
+      weights = this._estimateVowelWeights(this.frequencyData, this._prevVolume);
+    }
 
     this._lastActive = active;
     return { volume: this._prevVolume, weights, active };
   }
 
-  async playFromArrayBuffer(buffer, onEnded) {
+  async playFromArrayBuffer(buffer, onEnded, phonemes = []) {
     // 确保AudioContext处于运行状态（有些浏览器需用户交互触发后resume）
     if (this.audio.state === 'suspended') {
       try { await this.audio.resume(); } catch (_) {}
@@ -90,14 +98,17 @@ export class LipSync {
     const bufferSource = this.audio.createBufferSource();
     bufferSource.buffer = audioBuffer;
     this.currentSource = bufferSource;
+    this.phonemeTimeline = normalizePhonemeTimeline(phonemes);
 
     bufferSource.connect(this.audio.destination);
     bufferSource.connect(this.analyser);
     bufferSource.start();
+    this.playbackStartedAt = this.audio.currentTime;
     
     // 音频结束时清理引用
     bufferSource.addEventListener("ended", () => {
       this.currentSource = null;
+      this.phonemeTimeline = [];
       if (onEnded) {
         onEnded();
       }
@@ -133,6 +144,7 @@ export class LipSync {
       
       // 创建麦克风音频源
       this.microphoneSource = this.audio.createMediaStreamSource(stream);
+      this.microphoneStream = stream;
       
       // 连接到分析器
       this.microphoneSource.connect(this.analyser);
@@ -158,6 +170,10 @@ export class LipSync {
       } catch (error) {
         console.warn('Error disconnecting microphone:', error);
       }
+    }
+    if (this.microphoneStream) {
+      this.microphoneStream.getTracks().forEach((track) => track.stop());
+      this.microphoneStream = null;
     }
     this.isMicrophoneConnected = false;
   }
@@ -213,6 +229,20 @@ export class LipSync {
     return Math.max(0, Math.min(1, v));
   }
 
+  _weightsFromPhonemeTimeline() {
+    if (!this.currentSource || this.phonemeTimeline.length === 0) return null;
+
+    const elapsedMs = (this.audio.currentTime - this.playbackStartedAt) * 1000;
+    const item = this.phonemeTimeline.find(
+      (entry) => elapsedMs >= entry.startMs && elapsedMs < entry.endMs,
+    );
+    if (!item) return { aa: 0, ee: 0, ih: 0, oh: 0, ou: 0 };
+
+    const weights = { aa: 0, ee: 0, ih: 0, oh: 0, ou: 0 };
+    weights[item.viseme] = Math.max(0.25, this._prevVolume);
+    return weights;
+  }
+
   // 使用现有的 <audio> 元素作为输入源，仅连接到 analyser，不改变其播放设备
   attachMediaElement(audioElement) {
     try {
@@ -256,5 +286,20 @@ export class LipSync {
       try { this._mediaElementRef.volume = 1.0; } catch {}
     }
     this._mediaElementRef = null;
+  }
+
+  dispose() {
+    if (this.currentSource) {
+      try { this.currentSource.stop(); } catch {}
+      try { this.currentSource.disconnect(); } catch {}
+      this.currentSource = null;
+    }
+    this.phonemeTimeline = [];
+    this.disconnectMicrophone();
+    this.detachMediaElement();
+    try { this.analyser.disconnect(); } catch {}
+    if (this.audio?.state !== "closed") {
+      this.audio?.close().catch(() => {});
+    }
   }
 }

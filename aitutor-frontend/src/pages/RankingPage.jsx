@@ -7,10 +7,10 @@
 import { useState, useEffect } from "react";
 import { Trophy, Medal, Crown, TrendingUp, User } from "lucide-react";
 import { getRanking } from "../services/practiceService";
-
-const CURRENT_USER_ID = 1001; // Mock 当前用户
+import { getUserInfo } from "../utils/tokenManager";
 
 export default function RankingPage() {
+  const currentUserId = Number(getUserInfo()?.id || getUserInfo()?.userId || 0);
   const [type, setType] = useState("daily");
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +38,7 @@ export default function RankingPage() {
   ];
 
   // 当前用户排名
-  const currentUserRank = ranking.findIndex((r) => r.userId === CURRENT_USER_ID) + 1;
+  const currentUserRank = ranking.findIndex((r) => Number(r.userId) === currentUserId) + 1;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -80,7 +80,7 @@ export default function RankingPage() {
           </div>
           <div className="text-right">
             <div className="font-bold text-indigo-600 text-lg">
-              {ranking.find((r) => r.userId === CURRENT_USER_ID)?.points || 0}
+              {ranking.find((r) => Number(r.userId) === currentUserId)?.points || 0}
             </div>
             <div className="text-xs text-slate-400">积分</div>
           </div>
@@ -129,11 +129,11 @@ export default function RankingPage() {
 
           {/* 4-N 名列表 */}
           <div className="divide-y divide-slate-50">
-            {ranking.slice(3).map((item) => (
+            {ranking.slice(ranking.length >= 3 ? 3 : 0).map((item) => (
               <div
                 key={item.userId}
                 className={`flex items-center gap-4 px-5 py-3.5 transition-colors
-                  ${item.userId === CURRENT_USER_ID ? "bg-indigo-50" : "hover:bg-slate-50"}`}
+                  ${Number(item.userId) === currentUserId ? "bg-indigo-50" : "hover:bg-slate-50"}`}
               >
                 <span className="w-8 text-center font-bold text-sm text-slate-400">
                   {item.rank}
@@ -144,7 +144,7 @@ export default function RankingPage() {
                 <div className="flex-1">
                   <div className="font-medium text-sm text-slate-700 flex items-center gap-1.5">
                     {item.nickname}
-                    {item.userId === CURRENT_USER_ID && (
+                    {Number(item.userId) === currentUserId && (
                       <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-500 text-white font-medium">
                         我
                       </span>

@@ -17,9 +17,15 @@ export class Viewer {
   _scene;
   _camera;
   _cameraControls;
+  _animationFrameId;
+  _resizeHandler;
+  _loadRequestId;
 
   constructor() {
     this.isReady = false;
+    this._animationFrameId = null;
+    this._resizeHandler = null;
+    this._loadRequestId = 0;
 
     // scene
     const scene = new THREE.Scene();
@@ -51,48 +57,58 @@ export class Viewer {
     this._clock.start();
   }
 
-  loadVrm(url) {
+  async loadVrm(url) {
+    const requestId = ++this._loadRequestId;
     if (this.model?.vrm) {
       this.unloadVRM();
     }
 
     // gltf and vrm
-    this.model = new Model(this._camera || new THREE.Object3D());
-    this.model.loadVRM(url).then(async () => {
-      if (!this.model?.vrm) return;
+    const model = new Model(this._camera || new THREE.Object3D());
+    this.model = model;
 
-      // Disable frustum culling
-      this.model.vrm.scene.traverse((obj) => {
-        obj.frustumCulled = false;
-      });
-
-      this._scene.add(this.model.vrm.scene);
-
-      // Avoid double-playing animations: if IdleAnimationManager exists, it will handle idling.
-      // Only load the legacy idle clip if no idle manager is available.
-      if (!this.model.idleAnimationManager) {
-        const vrma = await loadVRMAnimation(buildUrl("/idle_loop.vrma"));
-        if (vrma) this.model.loadAnimation(vrma);
+    try {
+      await model.loadVRM(url);
+      if (requestId !== this._loadRequestId || this.model !== model || !model.vrm) {
+        model.unLoadVrm();
+        return null;
       }
 
-      // 调整相机以使角色在当前面板中居中显示（略微拉近；向下偏移 12% 模型高度）
-      requestAnimationFrame(() => {
-        this.fitToModel(0.9, 0.16);//第一个参数调远近，第二个参数调上下
+      model.vrm.scene.traverse((obj) => {
+        obj.frustumCulled = false;
       });
-    });
+      this._scene.add(model.vrm.scene);
+
+      if (!model.idleAnimationManager) {
+        const vrma = await loadVRMAnimation(buildUrl("/idle_loop.vrma"));
+        if (vrma && requestId === this._loadRequestId) model.loadAnimation(vrma);
+      }
+
+      requestAnimationFrame(() => {
+        if (requestId === this._loadRequestId) this.fitToModel(0.9, 0.16);
+      });
+      return model;
+    } catch (error) {
+      if (this.model === model) this.model = undefined;
+      model.unLoadVrm();
+      throw error;
+    }
   }
 
   unloadVRM() {
     if (this.model?.vrm) {
       this._scene.remove(this.model.vrm.scene);
-      this.model?.unLoadVrm();
     }
+    this.model?.unLoadVrm();
   }
 
   /**
    * Reactで管理しているCanvasを後から設定する
    */
   setup(canvas) {
+    if (this._renderer) {
+      this.dispose();
+    }
     const parentElement = canvas.parentElement;
     const width = parentElement?.clientWidth || canvas.width;
     const height = parentElement?.clientHeight || canvas.height;
@@ -123,10 +139,10 @@ export class Viewer {
     this._cameraControls.screenSpacePanning = true;
     this._cameraControls.update();
 
-    window.addEventListener("resize", () => {
-      this.resize();
-    });
+    this._resizeHandler = () => this.resize();
+    window.addEventListener("resize", this._resizeHandler);
     this.isReady = true;
+    this._clock.start();
     this.update();
   }
 
@@ -203,7 +219,8 @@ export class Viewer {
   }
 
   update = () => {
-    requestAnimationFrame(this.update);
+    if (!this.isReady) return;
+    this._animationFrameId = requestAnimationFrame(this.update);
     const delta = this._clock.getDelta();
     // update vrm components
     if (this.model) {
@@ -214,4 +231,30 @@ export class Viewer {
       this._renderer.render(this._scene, this._camera);
     }
   };
+
+  dispose() {
+    this.isReady = false;
+    this._loadRequestId += 1;
+
+    if (this._animationFrameId !== null) {
+      cancelAnimationFrame(this._animationFrameId);
+      this._animationFrameId = null;
+    }
+    if (this._resizeHandler) {
+      window.removeEventListener("resize", this._resizeHandler);
+      this._resizeHandler = null;
+    }
+
+    this.unloadVRM();
+    this.model = undefined;
+    this._cameraControls?.dispose();
+    this._cameraControls = undefined;
+
+    if (this._renderer) {
+      this._renderer.dispose();
+      this._renderer.forceContextLoss();
+      this._renderer = undefined;
+    }
+    this._camera = undefined;
+  }
 }
