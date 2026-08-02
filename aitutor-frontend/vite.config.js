@@ -34,6 +34,8 @@ export default defineConfig(({ mode }) => {
         '/api/practice': javaProxy,
         '/api/wrong-questions': javaProxy,
         '/api/user-profile': javaProxy,
+        '/api/lesson-prep': javaProxy,
+        '/api/ppt': javaProxy,
       },
     },
   }

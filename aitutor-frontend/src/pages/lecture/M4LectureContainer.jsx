@@ -22,7 +22,7 @@ import LectureWaitingPage from './LectureWaitingPage';
 import LecturePresentPage from './LecturePresentPage';
 import LectureHistoryPage from './LectureHistoryPage';
 
-export default function M4LectureContainer({ onExit }) {
+export default function M4LectureContainer({ onExit, onM1Practice }) {
   const [route, setRoute] = useState('create'); // create | waiting | present | history
   const [params, setParams] = useState(null);
   const [result, setResult] = useState(null);
@@ -45,9 +45,22 @@ export default function M4LectureContainer({ onExit }) {
   }, []);
   const handleLectureFinish = useCallback((info) => {
     console.log('讲课完成:', info);
-    // TODO-REAL: 跳转 M1 做题（带知识点参数）
+    // 跳转 M1 做题（带知识点参数，供做题会话按知识点筛选题目）
+    const lectureId = info?.lectureId ?? result?.lectureId;
+    const knowledgePoints = info?.knowledgePoints ?? result?.knowledgePoints ?? params?.knowledgePoints ?? [];
+    const kpIds = Array.isArray(knowledgePoints)
+      ? knowledgePoints.map((kp) => kp?.id ?? kp?.kpId).filter((id) => id != null)
+      : [];
+    if (typeof onM1Practice === 'function') {
+      onM1Practice({
+        mode: 'AFTER_CLASS',
+        lessonId: lectureId != null ? String(lectureId) : '',
+        knowledgePoints: kpIds,
+        ...(params || {}),
+      });
+    }
     onExit?.();
-  }, [onExit]);
+  }, [onExit, onM1Practice, result, params]);
 
   if (route === 'create') {
     return (

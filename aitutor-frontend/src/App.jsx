@@ -87,6 +87,8 @@ export default function App() {
     const handleLaunchM4 = () => setM4Page('active');
     const handleExitM4 = () => setM4Page(null);
     const handleLaunchM1 = (params) => {
+      // M4 讲完跳 M1 时，同时退出 M4 全屏容器，避免路由互斥
+      setM4Page(null);
       if (params && typeof params === 'object') {
         setM1PracticeParams(params);
       }
@@ -97,7 +99,7 @@ export default function App() {
         <div className={isAuthed ? "flex h-screen bg-slate-100 text-slate-800" : "w-full h-screen"}>
             <GlobalStyles />
             {m4Page === 'active' ? (
-                <M4LectureContainer onExit={handleExitM4} />
+                <M4LectureContainer onExit={handleExitM4} onM1Practice={handleLaunchM1} />
             ) : m1Page ? (
                 <div className="flex flex-col w-full h-full bg-slate-50">
                     <header className="shrink-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-4 flex-wrap shadow-sm">

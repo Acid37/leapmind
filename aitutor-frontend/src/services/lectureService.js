@@ -4,16 +4,67 @@
  * Mock 模式：返回 mock 数据（前端独立开发用）
  * 真实模式：调用后端 API（联调时切换）
  * 
- * 搜索 TODO-REAL 切换为真实接口
+ * 已对接真实后端（2026-08-03）：
+ *   - 讲课内容 CRUD（历史列表/详情/删除/发布）→ Java GET/PUT/DELETE /api/lesson-prep/contents
+ *   - 讲课文件解析 / 讲课生成 SSE → 等许沣睿的 /api/lecture/*（backend-M4 尚未实现）
  */
 
 import { mockParseResult, mockPPTStructure, mockGenerationEvents, mockHistoryList } from '../data/mockLecture';
-import { get, post, request } from './api';
+import { get, request } from './api';
 
 // ─── 模式开关 ──────────────────────────────────────
 
 /** 是否使用 Mock 数据（联调时改为 false） */
 const USE_MOCK = import.meta.env.VITE_LECTURE_MOCK !== 'false';
+
+/**
+ * 解包后端统一响应 ApiResponse：{ code, message, data, timestamp }
+ * 与 m2.js 的对接模式保持一致
+ */
+function unwrap(res) {
+  if (res && res.code === 200) return res.data;
+  return res;
+}
+
+/**
+ * 后端 TeachingContentVO（prepId 等）→ 前端历史卡片（lectureId 等）
+ */
+function toLectureItem(vo = {}) {
+  return {
+    lectureId: vo.prepId ?? vo.id,
+    title: vo.title || '',
+    status: vo.status || 'draft',
+    createdAt: vo.createdAt || '',
+    // pptStructure 是 JSON 字符串，解析为 slides
+    slides: parsePptStructure(vo.pptStructure),
+  };
+}
+
+/**
+ * 后端 pptStructure（JSON 字符串）→ 前端 slides 数组
+ * 格式见 SlideRenderer_接口约定.md：page_num/bullet_points/...（snake_case 扁平）
+ */
+function parsePptStructure(pptStructure) {
+  if (!pptStructure) return [];
+  try {
+    const parsed = typeof pptStructure === 'string' ? JSON.parse(pptStructure) : pptStructure;
+    const slides = Array.isArray(parsed) ? parsed : parsed?.slides;
+    if (!Array.isArray(slides)) return [];
+    // 后端 snake_case → 前端 SlideData 驼峰
+    return slides.map((s) => ({
+      pageNum: s.page_num ?? s.pageNum,
+      type: s.type || 'content',
+      title: s.title || '',
+      bulletPoints: s.bullet_points ?? s.bulletPoints ?? [],
+      imageSuggestion: s.image_suggestion ?? s.imageSuggestion,
+      formula: s.formula,
+      highlightPoints: s.highlight_points ?? s.highlightPoints ?? [],
+      interaction: s.interaction ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 // ─── 1. 文件解析 ───────────────────────────────────
 
@@ -123,19 +174,23 @@ export async function generateLecture(params, onEvent) {
 
 /**
  * 获取讲课内容列表
- * GET /api/lecture/contents
+ * 后端 Java：GET /api/lesson-prep/contents?userId=
  */
-export async function getLectureList(userId, { page = 1, size = 20 } = {}) {
+export async function getLectureList(userId) {
   if (USE_MOCK) {
     await new Promise(r => setTimeout(r, 500));
     return { total: mockHistoryList.length, items: mockHistoryList };
   }
-  return get(`/api/lecture/contents?userId=${userId}&page=${page}&size=${size}`);
+  // 后端 Java：GET /api/lesson-prep/contents?userId= &status=
+  // 返回 ApiResponse<List<TeachingContentVO>>
+  const res = unwrap(await get(`/api/lesson-prep/contents?userId=${userId}`));
+  const list = Array.isArray(res) ? res : res?.list || [];
+  return { total: list.length, items: list.map(toLectureItem) };
 }
 
 /**
  * 获取讲课内容详情（含完整 PPT 结构）
- * GET /api/lecture/contents/{lectureId}
+ * 后端 Java：GET /api/lesson-prep/contents/{prepId}
  */
 export async function getLectureDetail(lectureId) {
   if (USE_MOCK) {
@@ -145,12 +200,13 @@ export async function getLectureDetail(lectureId) {
       ? { ...item, pptStructure: mockPPTStructure }
       : null;
   }
-  return get(`/api/lecture/contents/${lectureId}`);
+  const vo = unwrap(await get(`/api/lesson-prep/contents/${lectureId}`));
+  return vo ? { ...toLectureItem(vo), pptStructure: vo.pptStructure } : null;
 }
 
 /**
  * 删除讲课内容
- * DELETE /api/lecture/contents/{lectureId}
+ * 后端 Java：DELETE /api/lesson-prep/contents/{prepId}
  */
 export async function deleteLecture(lectureId) {
   if (USE_MOCK) {
@@ -159,17 +215,20 @@ export async function deleteLecture(lectureId) {
     if (idx !== -1) mockHistoryList.splice(idx, 1);
     return { success: true };
   }
-  return request(`/api/lecture/contents/${lectureId}`, { method: 'DELETE' });
+  return request(`/api/lesson-prep/contents/${lectureId}`, { method: 'DELETE' });
 }
 
 /**
  * 发布讲课内容
- * POST /api/lecture/contents/{lectureId}/publish
+ * 后端 Java：PUT /api/lesson-prep/contents/{prepId}（status → published）
  */
 export async function publishLecture(lectureId) {
   if (USE_MOCK) {
     await new Promise(r => setTimeout(r, 300));
     return { success: true };
   }
-  return post(`/api/lecture/contents/${lectureId}/publish`);
+  return request(`/api/lesson-prep/contents/${lectureId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ status: 'published' }),
+  });
 }
