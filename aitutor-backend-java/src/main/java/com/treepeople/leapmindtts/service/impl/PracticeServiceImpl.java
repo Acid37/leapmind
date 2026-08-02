@@ -467,7 +467,7 @@ public class PracticeServiceImpl implements PracticeService {
         dashboard.put("correctAnswers", nvl(stats.getCorrectAnswers()));
         dashboard.put("accuracy", stats.getTotalAnswers() == null || stats.getTotalAnswers() == 0 ? 0 :
                 Math.round(stats.getCorrectAnswers() * 1000.0 / stats.getTotalAnswers()) / 10.0);
-        dashboard.put("currentStreak", nvl(stats.getCurrentStreak()));
+        dashboard.put("currentStreak", effectiveCurrentStreak(stats));
         dashboard.put("conqueredMistakes", nvl(stats.getConqueredMistakes()));
         dashboard.put("leaderboardHidden", Boolean.TRUE.equals(stats.getLeaderboardHidden()));
         dashboard.put("preferredTrack", stats.getPreferredTrack());
@@ -558,7 +558,7 @@ public class PracticeServiceImpl implements PracticeService {
         result.put("averageDurationSeconds", avgSeconds);
         result.put("activeDays", activeDays);
         result.put("bestStreak", bestStreak(records));
-        result.put("currentStreak", nvl(userStats.getCurrentStreak()));
+        result.put("currentStreak", effectiveCurrentStreak(userStats));
         result.put("knowledgeDistribution", knowledgeDistribution);
         result.put("chapterDistribution", chapterDistribution);
         result.put("questionTypeDistribution", questionTypeDistribution);
@@ -632,6 +632,7 @@ public class PracticeServiceImpl implements PracticeService {
     @Override
     public Map<String, Object> getCheckinStatus(Long userId) {
         LocalDate today = LocalDate.now();
+        PracticeUserStats stats = ensureStats(userId);
         boolean checkedToday = checkinMapper.selectCount(new QueryWrapper<PracticeCheckin>()
                 .eq("user_id", userId)
                 .eq("checkin_date", today)) > 0;
@@ -642,6 +643,8 @@ public class PracticeServiceImpl implements PracticeService {
         result.put("checkedToday", checkedToday);
         result.put("checkinPoints", CHECKIN_POINTS);
         result.put("monthCheckins", monthly);
+        result.put("streakDays", effectiveCurrentStreak(stats));
+        result.put("totalPoints", nvl(stats.getTotalPoints()));
         return result;
     }
 
@@ -979,6 +982,17 @@ public class PracticeServiceImpl implements PracticeService {
                 .le("answered_at", LocalDateTime.of(LocalDate.now(), LocalTime.MAX)));
     }
 
+    private int effectiveCurrentStreak(PracticeUserStats stats) {
+        if (stats == null || stats.getLastPracticeDate() == null) {
+            return 0;
+        }
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        if (stats.getLastPracticeDate().isBefore(yesterday)) {
+            return 0;
+        }
+        return nvl(stats.getCurrentStreak());
+    }
+
     private void applyRange(QueryWrapper<PracticeAnswerRecord> wrapper, String range) {
         if ("today".equalsIgnoreCase(range)) {
             wrapper.ge("answered_at", LocalDate.now().atStartOfDay());
@@ -1027,6 +1041,7 @@ public class PracticeServiceImpl implements PracticeService {
                 row.put("username", user == null ? "用户" + uid : user.getUsername());
                 row.put("studentName", user == null ? "" : user.getStudentName());
                 row.put("totalPoints", tuple.getScore() == null ? nvl(stats.getTotalPoints()) : tuple.getScore().intValue());
+                row.put("streakDays", effectiveCurrentStreak(stats));
                 row.put("rankTitle", rankTitle(nvl(stats.getTotalPoints())));
                 result.add(row);
             }
@@ -1083,6 +1098,7 @@ public class PracticeServiceImpl implements PracticeService {
             row.put("username", user == null ? "用户" + item.getUserId() : user.getUsername());
             row.put("studentName", user == null ? "" : user.getStudentName());
             row.put("totalPoints", nvl(item.getTotalPoints()));
+            row.put("streakDays", effectiveCurrentStreak(item));
             row.put("rankTitle", rankTitle(nvl(item.getTotalPoints())));
             rows.add(row);
         }
@@ -1166,6 +1182,7 @@ public class PracticeServiceImpl implements PracticeService {
         map.put("questionId", mistake.getQuestionId());
         map.put("questionTitle", question == null ? "题目已删除" : question.getTitle());
         map.put("content", question == null ? "" : question.getContent());
+        map.put("correctAnswer", question == null ? "" : question.getCorrectAnswer());
         map.put("analysis", question == null ? "" : question.getAnalysis());
         map.put("chapter", question == null ? "" : question.getChapter());
         map.put("knowledgePoint", question == null ? "" : question.getKnowledgePoint());
