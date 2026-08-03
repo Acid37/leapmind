@@ -205,25 +205,6 @@ export const mockPPTStructure = {
   ],
 };
 
-// ─── 讲课风格选项 ──────────────────────────────────
-
-export const lectureStyles = [
-  { value: 'concise', label: '简洁风', desc: '直奔主题，适合复习' },
-  { value: 'detailed', label: '详细风', desc: '步步深入，适合新课' },
-  { value: 'interactive', label: '互动风', desc: '穿插提问，适合课堂' },
-  { value: 'storytelling', label: '故事风', desc: '情境引入，适合启蒙' },
-];
-
-// ─── 讲课时长选项 ──────────────────────────────────
-
-export const durationOptions = [
-  { value: 5, label: '5 分钟' },
-  { value: 10, label: '10 分钟' },
-  { value: 15, label: '15 分钟' },
-  { value: 20, label: '20 分钟' },
-  { value: 30, label: '30 分钟' },
-];
-
 // ─── 模拟薄弱点 ────────────────────────────────────
 
 export const mockWeakPoints = [
