@@ -43,6 +43,7 @@ export default function LearningApp({
   onM2Explain,
   onOpenLearningProfile,
   onM1Practice,
+  onM4Lecture,
 }) {
   // UI 状态
   const [isGradeOpen, setIsGradeOpen] = useState(false)
@@ -477,7 +478,7 @@ export default function LearningApp({
   }, [])
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-purple-700 via-purple-600 via-blue-600 via-blue-700 to-blue-900 text-white overflow-hidden" style={{backgroundImage: "linear-gradient(135deg, #861FCE 0%, #861FCE 16%, #731CCD 16%, #731CCD 32%, #6B1CCF 32%, #6B1CCF 48%, #631DCE 48%, #631DCE 64%, #5A1BCE 64%, #5A1BCE 80%,rgb(86, 43, 205) 80%,rgb(47, 8, 154) 100%)"}}>
+    <div className="min-h-screen w-full bg-gradient-to-br from-purple-700 via-purple-600 via-blue-600 via-blue-700 to-blue-900 text-white overflow-x-hidden overflow-y-auto" style={{backgroundImage: "linear-gradient(135deg, #861FCE 0%, #861FCE 16%, #731CCD 16%, #731CCD 32%, #6B1CCF 32%, #6B1CCF 48%, #631DCE 48%, #631DCE 64%, #5A1BCE 64%, #5A1BCE 80%,rgb(86, 43, 205) 80%,rgb(47, 8, 154) 100%)"}}>
       <style>{scrollbarStyles}</style>
       <header className="px-10 py-6 flex items-center justify-between border-b border-purple-400/20">
         <div className="flex items-center gap-4">
@@ -503,6 +504,16 @@ export default function LearningApp({
           </nav>
         </div>
         <div className="relative inline-flex items-center gap-4">
+          {/* AI 讲课入口（M4，与虚拟教师同风格的顶栏入口） */}
+          <button
+            type="button"
+            onClick={() => onM4Lecture?.()}
+            className="relative inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-bold text-white shadow-lg backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white/20"
+            title="AI 即时讲课"
+          >
+            <span className="text-base leading-none">🎓</span>
+            AI 讲课
+          </button>
           <button
             type="button"
             onClick={() => onOpenTeacherAvatar?.()}

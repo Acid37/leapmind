@@ -186,7 +186,6 @@ export default function App() {
                 ) : showProfile ? (
                     <ProfilePage onBack={() => setShowProfile(false)} />
                 ) : (
-                    <div className="relative w-full h-full">
                     <TemHomePage 
                         onEnterProject={(courseId) => setCurrentCourseId(courseId)}
                         onOpenProfile={handleOpenProfile}
@@ -195,17 +194,8 @@ export default function App() {
                         onM2Explain={() => { setM2Params({}); setM2Page('explain'); }}
                         onOpenLearningProfile={handleOpenLearningProfile}
                         onM1Practice={handleLaunchM1}
+                        onM4Lecture={handleLaunchM4}
                     />
-                    {/* M4 讲课入口（浮动按钮，联调后可移除或整合到首页） */}
-                    <button
-                        onClick={handleLaunchM4}
-                        className="absolute bottom-6 right-6 flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 active:scale-95 transition-all text-sm font-medium z-40"
-                        title="AI 即时讲课"
-                    >
-                        <span className="text-lg">🎓</span>
-                        AI 讲课
-                    </button>
-                    </div>
                 )
             )}
         </div>
