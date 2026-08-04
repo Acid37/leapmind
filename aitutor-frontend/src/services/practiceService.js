@@ -26,6 +26,10 @@ const DIFF_LABEL = { 1: '★', 2: '★★', 3: '★★★', 4: '★★★★', 5
 const MISTAKE_STATUS_BE_TO_FE = { 'UNRESOLVED': 'unresolved', 'REVIEWING': 'reviewing', 'RESOLVED': 'resolved' };
 const MISTAKE_STATUS_FE_TO_BE = Object.fromEntries(Object.entries(MISTAKE_STATUS_BE_TO_FE).map(([k, v]) => [v, k]));
 
+// Mock 仅供显式开启的离线演示使用。正常运行时接口失败必须直接提示，
+// 否则用户会误以为本地判题结果已经写入数据库。
+const PRACTICE_MOCK_ENABLED = import.meta.env.VITE_ENABLE_PRACTICE_MOCK === 'true';
+
 // ============================================================================
 // 工具函数
 // ============================================================================
@@ -33,6 +37,16 @@ const MISTAKE_STATUS_FE_TO_BE = Object.fromEntries(Object.entries(MISTAKE_STATUS
 function unwrap(res) {
   if (res && typeof res === 'object' && 'data' in res) return res.data;
   return res;
+}
+
+function persistentApiError(action, err) {
+  let reason = err?.message || '请求失败';
+  if (err?.code === 401) reason = '登录状态已失效，请重新登录';
+  if (err?.code === 0) reason = '无法连接后端服务';
+  const wrapped = new Error(`${action}失败：${reason}`);
+  wrapped.code = err?.code;
+  wrapped.cause = err;
+  return wrapped;
 }
 
 function buildQuery(params) {
@@ -174,9 +188,10 @@ function transformMistake(m) {
       options: [],
       images: [],
     },
-    correctAnswer: '',               // 🔶 后端 toMistakeMap 不含 correctAnswer
+    correctAnswer: m.correctAnswer || '',
     userAnswer: { selected: '' },    // 🔶 同上，需额外查询答题记录
     wrongReasonTag: '',              // 🔶 后端暂无错因标签
+    explanation: m.analysis || '',
     knowledgePoints: m.knowledgePoint ? [{ id: 0, name: m.knowledgePoint }] : [],
     status: MISTAKE_STATUS_BE_TO_FE[m.status] || 'unresolved',
     isKeyFocus: Boolean(m.doubtful),
@@ -278,6 +293,7 @@ export async function getFilterOptions() {
     const res = await request('/api/practice/filters');
     return transformFilterOptions(unwrap(res));
   } catch (err) {
+    if (!PRACTICE_MOCK_ENABLED) throw persistentApiError('加载科目', err);
     console.warn('[M1] getFilterOptions 后端不可用，使用 Mock:', err.message);
     await _loadMock();
     return _mockFilterOptions;
@@ -301,6 +317,7 @@ export async function getQuestions(params = {}) {
     const res = await request('/api/practice/questions' + buildQuery(beParams));
     return transformQuestionList(unwrap(res));
   } catch (err) {
+    if (!PRACTICE_MOCK_ENABLED) throw persistentApiError('加载题库', err);
     // 🔶 后端不可用，回退到 Mock
     console.warn('[M1] getQuestions 后端不可用，使用 Mock:', err.message);
     await _loadMock();
@@ -391,6 +408,10 @@ export async function deleteQuestion(questionId) {
  * 💡 会自动检测：真实 DB ID → 后端判题；Mock ID（有 _originalId）→ 本地判题
  */
 export async function submitAnswer(params = {}) {
+  if (params._originalId && !PRACTICE_MOCK_ENABLED) {
+    throw new Error('这组练习来自旧的临时数据，答题记录无法保存。请重新开始生成练习。');
+  }
+
   let userAnswer = '';
   if (typeof params.answer?.selected === 'string') {
     userAnswer = params.answer.selected;
@@ -414,11 +435,11 @@ export async function submitAnswer(params = {}) {
     return transformSubmitResult(unwrap(res));
   } catch (err) {
     // Mock 会话回退：generateSession 使用 Mock 时 questionId 为假 ID，后端会返回 400/404
-    if (params._originalId) {
+    if (params._originalId && PRACTICE_MOCK_ENABLED) {
       console.warn('[M1] submitAnswer 后端不可用，使用本地 Mock 判题');
       return _mockJudge(params);
     }
-    throw err;
+    throw persistentApiError('保存答题记录', err);
   }
 }
 
@@ -433,6 +454,7 @@ export async function getRanking(type = 'daily', limit = 20) {
     const list = transformRanking(unwrap(res));
     return list.slice(0, limit);
   } catch (err) {
+    if (!PRACTICE_MOCK_ENABLED) throw persistentApiError('加载排行榜', err);
     console.warn('[M1] getRanking 后端不可用，使用 Mock:', err.message);
     await _loadMock();
     return (_mockRanking?.daily || []).slice(0, limit);
@@ -471,6 +493,34 @@ export async function getCheckinStatus() {
   }
 }
 
+/**
+ * 获取当前登录用户已到期的 AI 复习提醒。
+ * 用户身份由后端从 JWT 中读取，前端不传 userId。
+ */
+export async function getReviewReminders() {
+  const res = await request('/api/practice/review-reminders');
+  return (unwrap(res) || []).map((item) => ({
+    id: item.id,
+    courseId: item.courseId || '',
+    type: item.reminderType || 'REVIEW',
+    content: item.content || '知识点复习',
+    scheduledDate: item.scheduledDate || '',
+    priority: Number(item.priority) || 0,
+    isReviewed: Number(item.isReviewed) === 1,
+  }));
+}
+
+/**
+ * 完成一条 AI 复习提醒。
+ */
+export async function completeReviewReminder(reminderId, notes = '') {
+  const res = await request(`/api/practice/review-reminders/${reminderId}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
+  });
+  return unwrap(res);
+}
+
 // ============================================================================
 // 🔶 部分对接（数据字段不全，后续需要完善）
 // ============================================================================
@@ -496,6 +546,7 @@ export async function getWrongQuestions(params = {}) {
     const start = (page - 1) * size;
     return { total: list.length, page, size, items: list.slice(start, start + size) };
   } catch (err) {
+    if (!PRACTICE_MOCK_ENABLED) throw persistentApiError('加载错题本', err);
     // 🔶 后端不可用，回退到 Mock
     console.warn('[M1] getWrongQuestions 后端不可用，使用 Mock:', err.message);
     await _loadMock();
@@ -540,6 +591,7 @@ export async function getStatistics(params = {}) {
     const res = await request('/api/practice/statistics?range=' + range);
     return transformStatistics(unwrap(res));
   } catch (err) {
+    if (!PRACTICE_MOCK_ENABLED) throw persistentApiError('加载统计数据', err);
     console.warn('[M1] getStatistics 后端不可用，使用 Mock:', err.message);
     await _loadMock();
     return _mockStatistics;
@@ -670,6 +722,7 @@ export async function generateSession(params = {}) {
     };
   } catch (err) {
     if (err.skipMockFallback) throw err;
+    if (!PRACTICE_MOCK_ENABLED) throw persistentApiError('生成练习', err);
     // 🔶 后端不可用，回退到 Mock 数据
     console.warn('[M1] 后端不可用，generateSession 回退到 Mock:', err.message);
     await _loadMock();

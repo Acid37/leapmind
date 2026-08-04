@@ -26,19 +26,30 @@ import {
   CalendarCheck,
   ListChecks,
   Shuffle,
+  AlertCircle,
+  CalendarClock,
+  CheckCircle2,
 } from "lucide-react";
 import QuestionCard from "../components/practice/QuestionCard";
 import ProgressBar from "../components/practice/ProgressBar";
 import Timer from "../components/practice/Timer";
 import QuestionNav from "../components/practice/QuestionNav";
-import { generateSession, submitAnswer, dailyCheckin, getCheckinStatus, getFilterOptions } from "../services/practiceService";
+import {
+  generateSession,
+  submitAnswer,
+  dailyCheckin,
+  getCheckinStatus,
+  getFilterOptions,
+  getReviewReminders,
+  completeReviewReminder,
+} from "../services/practiceService";
 import { ChatPanel } from "../components/chat";
 import { getUserInfo } from "../utils/tokenManager";
 
 const SESSION_KEY = "m1_practice_session";
 const QUICK_COUNTS = [5, 10, 15, 20];
 
-export default function PracticePage({ onBack, embedded = false, mode = "FREE_PRACTICE", lessonId = "", initialParams = {} }) {
+export default function PracticePage({ onBack, onViewStatistics, embedded = false, mode = "FREE_PRACTICE", lessonId = "", initialParams = {} }) {
   // --- ChatPanel 状态 ---
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const userInfo = getUserInfo();
@@ -47,12 +58,19 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
   const [checkinStatus, setCheckinStatus] = useState(null);
   const [checkinLoading, setCheckinLoading] = useState(false);
 
+  // --- AI 记忆复习提醒 ---
+  const [reviewReminders, setReviewReminders] = useState([]);
+  const [reviewLoading, setReviewLoading] = useState(true);
+  const [reviewError, setReviewError] = useState("");
+  const [completingReminderId, setCompletingReminderId] = useState(null);
+
   // --- 会话状态 ---
   const [session, setSession] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [hasSavedSession, setHasSavedSession] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [setupError, setSetupError] = useState("");
@@ -65,6 +83,11 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
   // --- 持久化：每次状态变化写入 localStorage ---
   useEffect(() => {
     if (session && Object.keys(answers).length > 0) {
+      const completed = session.questions.every((question) => answers[question.questionId]?.submitted);
+      if (completed) {
+        localStorage.removeItem(SESSION_KEY);
+        return;
+      }
       try {
         localStorage.setItem(SESSION_KEY, JSON.stringify({
           session,
@@ -83,6 +106,21 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.session?.questions?.length > 0) {
+          if (parsed.session.questions.some((question) => question._originalId)) {
+            localStorage.removeItem(SESSION_KEY);
+            setShowSetup(true);
+            setLoading(false);
+            return;
+          }
+          const completed = parsed.session.questions.every(
+            (question) => parsed.answers?.[question.questionId]?.submitted
+          );
+          if (completed) {
+            localStorage.removeItem(SESSION_KEY);
+            setShowSetup(true);
+            setLoading(false);
+            return;
+          }
           setHasSavedSession(true);
           setSession(parsed.session);
           setCurrentIndex(parsed.currentIndex || 0);
@@ -103,6 +141,41 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
       .catch((err) => console.warn("加载科目失败:", err));
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    setReviewLoading(true);
+    getReviewReminders()
+      .then((items) => {
+        if (!active) return;
+        setReviewReminders(items);
+        setReviewError("");
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.warn("加载复习提醒失败:", err);
+        setReviewError("复习提醒暂时无法加载");
+      })
+      .finally(() => {
+        if (active) setReviewLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const handleCompleteReminder = async (reminderId) => {
+    if (completingReminderId) return;
+    setCompletingReminderId(reminderId);
+    setReviewError("");
+    try {
+      await completeReviewReminder(reminderId, "已在做题模块完成本次复习");
+      setReviewReminders((items) => items.filter((item) => item.id !== reminderId));
+    } catch (err) {
+      console.error("完成复习提醒失败:", err);
+      setReviewError(err.message || "复习状态保存失败，请重试");
+    } finally {
+      setCompletingReminderId(null);
+    }
+  };
+
   const initSession = async () => {
     const questionCount = Number(setup.questionCount);
     if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50) {
@@ -113,6 +186,7 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
     setHasSavedSession(false);
     setShowSetup(false);
     setSetupError("");
+    setSubmitError("");
     localStorage.removeItem(SESSION_KEY);
     try {
       const data = await generateSession({
@@ -154,6 +228,7 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
     setCurrentIndex(0);
     setAnswers({});
     setSetupError("");
+    setSubmitError("");
     setShowSetup(true);
     setLoading(false);
   };
@@ -198,6 +273,7 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
   const handleSelectAnswer = useCallback(
     (answer) => {
       if (!currentQuestion || currentAnswer?.submitted) return;
+      setSubmitError("");
       setAnswers((prev) => ({
         ...prev,
         [currentQuestion.questionId]: {
@@ -212,6 +288,7 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
   // --- 提交答案 ---
   const handleSubmit = async () => {
     if (!currentQuestion || !currentAnswer?.selectedAnswer || submitting) return;
+    setSubmitError("");
     setSubmitting(true);
     try {
       const result = await submitAnswer({
@@ -232,6 +309,7 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
       }));
     } catch (err) {
       console.error("提交失败:", err);
+      setSubmitError(err.message || "答案提交失败，答题记录尚未保存，请重试");
     } finally {
       setSubmitting(false);
     }
@@ -240,12 +318,14 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
   // --- 下一题 ---
   const handleNext = () => {
     if (currentIndex < session.questions.length - 1) {
+      setSubmitError("");
       setCurrentIndex((i) => i + 1);
     }
   };
 
   // --- 跳转题目 ---
   const handleJump = (index) => {
+    setSubmitError("");
     setCurrentIndex(index);
   };
 
@@ -295,6 +375,11 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
         subjects={availableSubjects}
         error={setupError}
         onStart={initSession}
+        reviewReminders={reviewReminders}
+        reviewLoading={reviewLoading}
+        reviewError={reviewError}
+        completingReminderId={completingReminderId}
+        onCompleteReminder={handleCompleteReminder}
       />
     );
   }
@@ -387,7 +472,7 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
               <RotateCcw size={16} /> 再练一组
             </button>
             <button
-              onClick={onBack}
+              onClick={onViewStatistics}
               className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
             >
               <BarChart3 size={16} /> 查看统计
@@ -460,6 +545,13 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
           isSubmitted={currentAnswer?.submitted}
           isCorrect={currentAnswer?.isCorrect}
         />
+
+        {submitError && (
+          <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <AlertCircle size={17} className="mt-0.5 flex-shrink-0" />
+            <span>{submitError}</span>
+          </div>
+        )}
 
         {/* 底部操作栏 */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -592,7 +684,18 @@ export default function PracticePage({ onBack, embedded = false, mode = "FREE_PR
   );
 }
 
-function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
+function PracticeSetup({
+  setup,
+  setSetup,
+  subjects,
+  error,
+  onStart,
+  reviewReminders,
+  reviewLoading,
+  reviewError,
+  completingReminderId,
+  onCompleteReminder,
+}) {
   const selectedSubjectLabel = setup.subject === "mixed"
     ? "混合科目"
     : subjects.find((item) => item.value === setup.subject)?.label || setup.subject;
@@ -613,6 +716,51 @@ function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
         {error && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
         )}
+
+        <section className="mb-7 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CalendarClock size={18} className="text-indigo-500" />
+              <div>
+                <h3 className="font-semibold text-slate-700">AI 复习提醒</h3>
+                <p className="mt-0.5 text-xs text-slate-400">根据学习记忆与遗忘规律生成的到期任务</p>
+              </div>
+            </div>
+            {!reviewLoading && (
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-indigo-500">
+                {reviewReminders.length} 项待复习
+              </span>
+            )}
+          </div>
+
+          {reviewLoading && <div className="py-3 text-sm text-slate-400">正在加载复习提醒...</div>}
+          {!reviewLoading && reviewReminders.length === 0 && !reviewError && (
+            <div className="rounded-xl bg-white/80 px-4 py-3 text-sm text-slate-500">今天暂无到期复习任务，可以开始自由练习。</div>
+          )}
+          {reviewError && (
+            <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">{reviewError}</div>
+          )}
+          {!reviewLoading && reviewReminders.slice(0, 3).map((reminder) => (
+            <div key={reminder.id} className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 shadow-sm">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-slate-700">{reminder.content}</div>
+                <div className="mt-1 text-xs text-slate-400">
+                  {reminder.scheduledDate || "今日到期"}
+                  {reminder.priority >= 2 ? " · 紧急" : reminder.priority === 1 ? " · 重要" : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onCompleteReminder(reminder.id)}
+                disabled={completingReminderId === reminder.id}
+                className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 disabled:opacity-50 cursor-pointer"
+              >
+                <CheckCircle2 size={14} />
+                {completingReminderId === reminder.id ? "保存中" : "完成复习"}
+              </button>
+            </div>
+          ))}
+        </section>
 
         <section className="mb-7">
           <div className="mb-3 flex items-center justify-between gap-3">
