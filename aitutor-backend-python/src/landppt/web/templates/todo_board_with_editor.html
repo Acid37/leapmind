@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TODO进度 - {{ todo_board.title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .main-container {
+            background: var(--glass-bg);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-xl);
+            box-shadow: var(--glass-shadow);
+            margin: var(--spacing-lg);
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            color: #1a202c;
+            padding: 24px 32px;
+            position: relative;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border-radius: var(--border-radius-xl) var(--border-radius-xl) 0 0;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 100%;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .header-text {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .header h1,
+        .header h2 {
+            font-weight: 700;
+            font-size: 1.75rem;
+            color: #1a202c;
+            margin: 0;
+            line-height: 1.2;
+        }
+
+        .header-subtitle {
+            font-size: 0.875rem;
+            color: #64748b;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .content-area {
+            min-height: calc(100vh - 140px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0; /* 允许子元素收缩 */
+        }
+        
+        .editor-toolbar {
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+            padding: 24px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+
+        .editor-toolbar::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #667eea 100%);
+            background-size: 200% 100%;
+            animation: gradientShift 3s ease-in-out infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .toolbar-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .toolbar-title i {
+            color: #667eea;
+            filter: drop-shadow(0 2px 4px rgba(102, 126, 234, 0.3));
+        }
+
+        .toolbar-title h4 {
+            margin: 0;
+            color: #2c3e50;
+            font-weight: 700;
+            font-size: 1.4rem;
+            background: linear-gradient(135deg, #2c3e50 0%, #667eea 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status-indicator {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f8f9fa 100%);
+            border-left: 5px solid #2196f3;
+            padding: 20px 25px;
+            margin: 25px 32px;
+            border-radius: 0 12px 12px 0;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-indicator::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, rgba(33, 150, 243, 0.05) 50%, transparent 70%);
+            animation: statusShimmer 2s ease-in-out infinite;
+        }
+
+        @keyframes statusShimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .status-indicator h6 {
+            color: #1976d2;
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .status-indicator #statusMessage {
+            color: #2c3e50;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .slides-container {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+            background:
+                linear-gradient(135deg, #f8f9fa 0%, #ffffff 50%, #f1f3f4 100%),
+                radial-gradient(circle at 20% 80%, rgba(102, 126, 234, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(118, 75, 162, 0.05) 0%, transparent 50%);
+            max-height: calc(100vh - 300px);
+            /* 优化的网格布局 - 固定卡片尺寸，居中对齐 */
+            display: grid;
+            grid-template-columns: repeat(auto-fit, 400px);
+            gap: 28px;
+            justify-content: center;
+            align-content: start;
+            position: relative;
+        }
+
+        .slides-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 50px,
+                    rgba(102, 126, 234, 0.02) 50px,
+                    rgba(102, 126, 234, 0.02) 100px
+                );
+            pointer-events: none;
+        }
+
+        .welcome-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+            grid-column: 1 / -1; /* 占据整个网格宽度 */
+        }
+
+        .welcome-message i {
+            color: #007bff;
+            margin-bottom: 20px;
+        }
+
+        .welcome-message h4 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .slide-card {
+            background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 16px;
+            box-shadow:
+                0 8px 32px rgba(0,0,0,0.08),
+                0 2px 8px rgba(0,0,0,0.04),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+            overflow: hidden;
+            border: 2px solid transparent;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            /* 固定卡片尺寸，确保一致性 */
+            width: 400px;
+            height: fit-content;
+            position: relative;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        .slide-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .slide-card:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow:
+                0 16px 48px rgba(0,0,0,0.12),
+                0 8px 24px rgba(102, 126, 234, 0.15),
+                inset 0 1px 0 rgba(255,255,255,0.9);
+            border-color: #667eea;
+        }
+
+        .slide-card:hover::before {
+            opacity: 1;
+        }
+        
+        .slide-card.generating {
+            border-color: #007bff;
+            animation: pulse 2s infinite;
+        }
+        
+        .slide-card.completed {
+            border-color: #28a745;
+        }
+        
+        .slide-card.error {
+            border-color: #dc3545;
+        }
+
+        .slide-preview.error {
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide-preview.error::before {
+            content: "⚠️ 内容加载失败";
+            color: #dc3545;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .slide-card.height-adjusted {
+            transition: height 0.5s ease;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 123, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); }
+        }
+        
+        .slide-header {
+            padding: 18px 26px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 50%, #f1f3f4 100%);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            flex-shrink: 0;
+            min-height: 68px;
+            backdrop-filter: blur(15px);
+            z-index: 2;
+        }
+
+        .slide-header::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent 0%, #667eea 50%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .slide-card:hover .slide-header::before {
+            opacity: 1;
+        }
+
+        .slide-header h6 {
+            margin: 0;
+            font-weight: 700;
+            color: #2c3e50;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .slide-header h6 i {
+            color: #667eea;
+            font-size: 17px;
+            filter: drop-shadow(0 1px 2px rgba(102, 126, 234, 0.3));
+        }
+
+        .slide-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .slide-actions .badge {
+            background: linear-gradient(135deg, #007bff, #0056b3) !important;
+            color: white;
+            font-weight: 500;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+        }
+
+        .fullscreen-btn {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .fullscreen-btn:hover {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,123,255,0.4);
+        }
+
+        .fullscreen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .fullscreen-content {
+            width: 90vw;
+            height: 90vh;
+            background: white;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .fullscreen-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .close-fullscreen {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .close-fullscreen:hover {
+            background: #c82333;
+            transform: scale(1.1);
+        }
+        
+        .slide-preview {
+            width: 100%;
+            height: 225px; /* 400px * 9/16 = 225px，固定高度 */
+            border: none;
+            background: white;
+            border-radius: 0 0 16px 16px;
+            overflow: hidden;
+            position: relative;
+            /* 平滑过渡效果 */
+            transition: all 0.3s ease;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .slide-preview:hover {
+            box-shadow:
+                inset 0 1px 3px rgba(0,0,0,0.1),
+                0 4px 20px rgba(102, 126, 234, 0.15);
+        }
+
+        .slide-preview iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            border: none;
+            background: white;
+            /* 设置iframe为标准PPT尺寸1280x720，然后缩放到容器大小 */
+            width: 1280px;
+            height: 720px;
+            transform-origin: top left;
+            /* 计算缩放比例：400px / 1280px = 0.3125 */
+            transform: scale(0.3125);
+            pointer-events: none;
+        }
+
+        /* iframe加载状态 */
+        .slide-preview.loading {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        .slide-placeholder {
+            aspect-ratio: 16/9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+            color: #6c757d;
+            font-size: 18px;
+        }
+        
+        .generation-status {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .btn-group-custom {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60, #229954);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+        }
+
+        .btn-outline-light {
+            background: white;
+            color: #475569;
+            border: 2px solid #e2e8f0;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-outline-light:hover {
+            background: #f8fafc;
+            border-color: #667eea;
+            color: #667eea;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+
+        .btn-outline-light:active {
+            transform: translateY(0);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 1400px) {
+            .slides-container {
+                grid-template-columns: repeat(auto-fit, 360px);
+                gap: 24px;
+                padding: 28px;
+            }
+
+            .slide-card {
+                width: 360px;
+            }
+
+            .slide-preview {
+                height: 203px; /* 360px * 9/16 = 202.5px */
+            }
+
+            .slide-preview iframe {
+                /* 计算缩放比例：360px / 1280px = 0.28125 */
+                transform: scale(0.28125);
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .slides-container {
+                grid-template-columns: repeat(auto-fit, 340px);
+                gap: 22px;
+                padding: 24px;
+            }
+
+            .slide-card {
+                width: 340px;
+            }
+
+            .slide-preview {
+                height: 191px; /* 340px * 9/16 = 191.25px */
+            }
+
+            .slide-preview iframe {
+                /* 计算缩放比例：340px / 1280px = 0.265625 */
+                transform: scale(0.265625);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .slides-container {
+                grid-template-columns: 1fr;
+                gap: 16px;
+                padding: 16px;
+                justify-content: stretch;
+            }
+
+            .slide-card {
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
+            }
+
+            .slide-preview {
+                /* 动态计算高度，保持16:9比例 */
+                height: calc((100vw - 32px) * 9 / 16);
+                max-height: 300px;
+            }
+
+            .slide-preview iframe {
+                /* 动态计算缩放比例 */
+                transform: scale(calc((100vw - 32px) / 1280));
+            }
+
+            .slide-header {
+                padding: 12px 16px;
+                min-height: 56px;
+            }
+
+            .slide-header h6 {
+                font-size: 13px;
+            }
+
+            .slide-actions .badge {
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+
+            .fullscreen-btn {
+                padding: 6px 8px;
+                font-size: 11px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .slides-container {
+                padding: 12px;
+                gap: 12px;
+            }
+
+            .slide-card {
+                width: 100%;
+            }
+
+            .slide-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+                min-height: auto;
+                padding: 12px 16px;
+            }
+
+            .slide-actions {
+                align-self: flex-end;
+            }
+
+            .slide-preview {
+                /* 小屏幕上的高度计算 */
+                height: calc((100vw - 24px) * 9 / 16);
+                max-height: 250px;
+            }
+
+            .slide-preview iframe {
+                /* 小屏幕上的缩放比例 */
+                transform: scale(calc((100vw - 24px) / 1280));
+            }
+        }
+
+        /* 加载动画优化 */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .slide-card {
+            animation: slideIn 0.5s ease-out;
+        }
+
+        /* 滚动条美化 */
+        .slides-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .slides-container::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+
+        .slides-container::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+
+        .slides-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="header-icon">
+                        <i class="fas fa-tasks"></i>
+                    </div>
+                    <div class="header-text">
+                        <h2>{{ todo_board.title }}</h2>
+                        <div class="header-subtitle">
+                            <i class="fas fa-chart-line"></i>
+                            项目进度跟踪与实时编辑
+                        </div>
+                    </div>
+                </div>
+                <div class="header-controls">
+                    <a href="/projects" class="btn btn-outline-light" onclick="return true;">
+                        <i class="fas fa-arrow-left"></i>
+                        返回项目列表
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <!-- Editor Section -->
+            <div class="editor-section">
+                <div class="editor-toolbar">
+                    <div class="toolbar-title">
+                        <i class="fas fa-magic fa-2x"></i>
+                        <h4>PPT 智能生成器</h4>
+                    </div>
+                    <div class="btn-group-custom">
+                        <button class="btn btn-primary" id="startBtn">
+                            <i class="fas fa-play"></i> 开始生成
+                        </button>
+                        <button class="btn btn-success" id="editorBtn" style="display: none;">
+                            <i class="fas fa-edit"></i> 打开编辑器
+                        </button>
+                        <button class="btn btn-info" id="slideshowBtn" style="display: none;">
+                            <i class="fas fa-presentation-screen"></i> 幻灯片放映
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Generation Status -->
+                <div class="status-indicator" id="generationStatus" style="display: none;">
+                    <h6><i class="fas fa-cogs"></i> 生成状态</h6>
+                    <div id="statusMessage">准备开始生成...</div>
+                    <div class="progress mt-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="generationProgress" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="slides-container" id="slidesContainer">
+                    <div class="welcome-message">
+                        <div style="position: relative; display: inline-block; margin-bottom: 35px;">
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 120px; height: 120px; background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 70%); border-radius: 50%; animation: pulseGlow 3s ease-in-out infinite;"></div>
+                            <i class="fas fa-rocket fa-4x" style="color: #667eea; filter: drop-shadow(0 6px 12px rgba(102, 126, 234, 0.4)); animation: rocketFloat 3s ease-in-out infinite; position: relative; z-index: 1;"></i>
+                        </div>
+                        <h4 style="color: #2c3e50; font-weight: 800; margin-bottom: 25px; font-size: 2.2em; background: linear-gradient(135deg, #2c3e50 0%, #667eea 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">准备创建精彩的演示文稿</h4>
+                        <p class="lead" style="color: #7f8c8d; font-size: 1.3em; line-height: 1.7; margin-bottom: 35px; font-weight: 500;">点击"开始生成"按钮，AI 将为您创建专业的 PPT 幻灯片</p>
+                        <div class="mt-4" style="display: flex; gap: 18px; justify-content: center; flex-wrap: wrap;">
+                            <span class="feature-badge" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 12px 24px; border-radius: 30px; font-weight: 700; box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); display: flex; align-items: center; gap: 10px; transition: all 0.3s ease; cursor: default;"><i class="fas fa-brain"></i> AI 驱动</span>
+                            <span class="feature-badge" style="background: linear-gradient(135deg, #27ae60, #229954); color: white; padding: 12px 24px; border-radius: 30px; font-weight: 700; box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4); display: flex; align-items: center; gap: 10px; transition: all 0.3s ease; cursor: default;"><i class="fas fa-bolt"></i> 快速生成</span>
+                            <span class="feature-badge" style="background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 12px 24px; border-radius: 30px; font-weight: 700; box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4); display: flex; align-items: center; gap: 10px; transition: all 0.3s ease; cursor: default;"><i class="fas fa-palette"></i> 精美设计</span>
+                        </div>
+                    </div>
+                </div>
+
+                <style>
+                @keyframes rocketFloat {
+                    0%, 100% { transform: translateY(0px) rotate(0deg); }
+                    50% { transform: translateY(-12px) rotate(8deg); }
+                }
+
+                @keyframes pulseGlow {
+                    0%, 100% {
+                        transform: translate(-50%, -50%) scale(1);
+                        opacity: 0.6;
+                    }
+                    50% {
+                        transform: translate(-50%, -50%) scale(1.2);
+                        opacity: 0.3;
+                    }
+                }
+
+                .feature-badge:hover {
+                    transform: translateY(-3px) scale(1.05);
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+                }
+
+                /* 进度条美化 */
+                .progress {
+                    height: 8px;
+                    border-radius: 10px;
+                    background: linear-gradient(90deg, #e9ecef 0%, #f8f9fa 100%);
+                    overflow: hidden;
+                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+                }
+
+                .progress-bar {
+                    background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #667eea 100%);
+                    background-size: 200% 100%;
+                    animation: progressShine 2s ease-in-out infinite;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+                }
+
+                @keyframes progressShine {
+                    0% { background-position: 200% 0; }
+                    100% { background-position: -200% 0; }
+                }
+                </style>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全屏覆盖层 -->
+    <div class="fullscreen-overlay" id="fullscreenOverlay">
+        <div class="fullscreen-content">
+            <button class="close-fullscreen" id="closeFullscreenBtn">
+                <i class="fas fa-times"></i>
+            </button>
+            <iframe class="fullscreen-iframe" id="fullscreenIframe" src=""></iframe>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let eventSource = null;
+        let slidesData = [];
+        let currentSlideIndex = 0;
+
+        async function startGeneration() {
+            // Prevent multiple simultaneous generations
+            if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
+                return;
+            }
+
+            // 检查全局模板设置
+            console.log('开始检查全局模板设置...');
+            try {
+                const templateUrl = `/api/projects/{{ todo_board.task_id }}/selected-global-template`;
+                console.log('请求模板API:', templateUrl);
+
+                const templateResponse = await fetch(templateUrl);
+                console.log('模板API响应状态:', templateResponse.status);
+
+                if (!templateResponse.ok) {
+                    throw new Error(`API请求失败: ${templateResponse.status} ${templateResponse.statusText}`);
+                }
+
+                const templateData = await templateResponse.json();
+                console.log('模板API响应数据:', templateData);
+
+                // 检查是否用户主动选择了模板，而不是使用默认模板
+                if (!templateData.template || !templateData.is_user_selected) {
+                    const templateName = templateData.template ? templateData.template.template_name : '无';
+                    console.log('未检测到用户选择的全局模板，当前使用:', templateName, '是否用户选择:', templateData.is_user_selected);
+
+                    // 未检测到用户选择的全局模板ID，跳转到模板选择页面
+                    if (confirm('检测到您还未选择全局模板，需要先选择模板才能开始生成PPT。是否跳转到模板选择页面？')) {
+                        console.log('用户确认跳转到模板选择页面');
+                        window.location.href = `/projects/{{ todo_board.task_id }}/template-selection`;
+                        return;
+                    } else {
+                        console.log('用户取消跳转，停止生成');
+                        return; // 用户取消，不继续生成
+                    }
+                } else {
+                    console.log('检测到用户已选择的全局模板:', templateData.template.template_name);
+                }
+            } catch (error) {
+                console.error('检查全局模板时出错:', error);
+                // 如果检查失败，询问用户是否继续
+                if (!confirm('无法检查全局模板设置，是否继续生成PPT？')) {
+                    console.log('用户选择不继续生成');
+                    return;
+                } else {
+                    console.log('用户选择继续生成，忽略模板检查错误');
+                }
+            }
+
+            const startBtn = document.getElementById('startBtn');
+            const statusDiv = document.getElementById('generationStatus');
+            const slidesContainer = document.getElementById('slidesContainer');
+
+            // Mark as started
+            generationStarted = true;
+
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 生成中...';
+            statusDiv.style.display = 'block';
+
+            // 断点续生：不清空已有数据，而是保留现有的幻灯片
+            // 如果有已生成的幻灯片数据，保留它们
+            if (projectSlidesData && projectSlidesData.length > 0) {
+                // 清空容器但保留数据，稍后重新渲染
+                slidesContainer.innerHTML = '';
+
+                // 重新显示已有的幻灯片
+                projectSlidesData.forEach((slideData, index) => {
+                    // 确保每个幻灯片都有正确的page_number
+                    if (!slideData.page_number) {
+                        slideData.page_number = index + 1;
+                    }
+                    addSlideToContainer(slideData);
+                });
+
+                // 更新本地数据
+                slidesData = [...projectSlidesData];
+            } else {
+                // 如果没有已生成的数据，清空容器
+                slidesContainer.innerHTML = '';
+                slidesData = [];
+            }
+
+            // 显示生成状态指示器
+            const generationIndicatorDiv = document.getElementById('generationIndicator');
+            if (generationIndicatorDiv) {
+                generationIndicatorDiv.style.display = 'inline-block';
+            }
+
+            // Close existing EventSource if any
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            // Start streaming
+            eventSource = new EventSource('/api/projects/{{ todo_board.task_id }}/slides/stream');
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleStreamData(data);
+                } catch (e) {
+                    console.error('Error parsing stream data:', e);
+                    console.error('Raw event data:', event.data);
+                }
+            };
+
+            eventSource.onerror = function(event) {
+                console.error('Stream error:', event);
+                console.error('EventSource readyState:', eventSource.readyState);
+                console.error('EventSource url:', eventSource.url);
+
+                // Check if this is a normal completion or an actual error
+                if (eventSource.readyState === EventSource.CLOSED) {
+                    console.log('Stream closed normally');
+                    return;
+                }
+
+                eventSource.close();
+
+                // Reset generation state to allow retry
+                generationStarted = false;
+                sessionStorage.removeItem(generationKey);
+
+                const startBtn = document.getElementById('startBtn');
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '<i class="fas fa-play"></i> 重新开始';
+                }
+
+                updateStatus('连接错误，请刷新页面重试', 'error');
+            };
+        }
+
+        function handleStreamData(data) {
+            const statusMessage = document.getElementById('statusMessage');
+            const progressBar = document.getElementById('generationProgress');
+            const slidesContainer = document.getElementById('slidesContainer');
+            
+            switch(data.type) {
+                case 'progress':
+                    updateStatus(data.message, 'progress');
+                    const progress = (data.current / data.total) * 100;
+                    progressBar.style.width = progress + '%';
+                    break;
+                    
+                case 'slide':
+                    if (data.slide_data) {
+                        addSlideToContainer(data.slide_data);
+                        // 每生成一页就检查是否可以显示编辑器按钮
+                        checkAndShowEditorButton();
+                    }
+                    break;
+
+                case 'slide_skipped':
+                    // 处理跳过的幻灯片（断点续生或用户编辑）
+                    updateStatus(data.message, 'progress');
+                    const skipProgress = (data.current / data.total) * 100;
+                    progressBar.style.width = skipProgress + '%';
+
+                    // 对于跳过的幻灯片，我们不需要重新添加到容器中
+                    // 因为在startGeneration中已经重新渲染了所有已有的幻灯片
+                    // 只需要确保数据同步即可
+                    if (data.slide_data) {
+                        // 确保slidesData中包含这个幻灯片数据
+                        const existingDataIndex = slidesData.findIndex(slide => slide.page_number === data.slide_data.page_number);
+                        if (existingDataIndex === -1) {
+                            // 如果数据中没有，添加进去（按页码顺序插入）
+                            const insertIndex = slidesData.findIndex(slide => slide.page_number > data.slide_data.page_number);
+                            if (insertIndex === -1) {
+                                slidesData.push(data.slide_data);
+                            } else {
+                                slidesData.splice(insertIndex, 0, data.slide_data);
+                            }
+                        }
+                        checkAndShowEditorButton();
+                    }
+                    break;
+                    
+                case 'complete':
+                    updateStatus(data.message, 'complete');
+                    progressBar.style.width = '100%';
+
+                    // Close EventSource properly
+                    if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
+                        eventSource.close();
+                    }
+
+                    showEditorButton();
+
+                    // 隐藏生成状态指示器
+                    const completeIndicatorDiv = document.getElementById('generationIndicator');
+                    if (completeIndicatorDiv) {
+                        completeIndicatorDiv.style.display = 'none';
+                    }
+
+                    // 清除生成标志，允许下次重新生成
+                    sessionStorage.removeItem(generationKey);
+
+                    console.log('PPT generation completed successfully');
+                    break;
+
+                case 'error':
+                    updateStatus(data.message, 'error');
+
+                    // Close EventSource properly
+                    if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
+                        eventSource.close();
+                    }
+
+                    // Reset generation state to allow retry
+                    generationStarted = false;
+                    sessionStorage.removeItem(generationKey);
+
+                    const startBtn = document.getElementById('startBtn');
+                    if (startBtn) {
+                        startBtn.disabled = false;
+                        startBtn.innerHTML = '<i class="fas fa-play"></i> 重新开始';
+                    }
+
+                    // 隐藏生成状态指示器
+                    const errorIndicatorDiv = document.getElementById('generationIndicator');
+                    if (errorIndicatorDiv) {
+                        errorIndicatorDiv.style.display = 'none';
+                    }
+
+                    console.error('PPT generation error:', data.message);
+                    break;
+
+                default:
+                    console.log('Unknown stream data type:', data.type, data);
+                    break;
+            }
+        }
+
+        function updateStatus(message, type) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.innerHTML = message;
+            
+            const statusDiv = document.getElementById('generationStatus');
+            statusDiv.className = 'generation-status';
+            
+            if (type === 'error') {
+                statusDiv.style.borderLeftColor = '#dc3545';
+                statusDiv.style.background = '#f8d7da';
+            } else if (type === 'complete') {
+                statusDiv.style.borderLeftColor = '#28a745';
+                statusDiv.style.background = '#d4edda';
+            }
+        }
+
+        function addSlideToContainer(slideData) {
+            const slidesContainer = document.getElementById('slidesContainer');
+
+            // 确保page_number存在，如果不存在则根据当前幻灯片数量推断
+            if (!slideData.page_number) {
+                slideData.page_number = slidesData.length + 1;
+            }
+
+            // 检查是否已经存在这个幻灯片
+            const existingSlide = document.getElementById(`slide-${slideData.page_number}`);
+            if (existingSlide) {
+                return;
+            }
+
+            const slideCard = document.createElement('div');
+            slideCard.className = 'slide-card generating';
+            slideCard.id = `slide-${slideData.page_number}`;
+            slideCard.setAttribute('data-slide-index', slideData.page_number - 1);
+
+            slideCard.innerHTML = `
+                <div class="slide-header">
+                    <h6><i class="fas fa-file-alt"></i> ${slideData.title}</h6>
+                    <div class="slide-actions">
+                        <span class="badge">第${slideData.page_number}页</span>
+                        <button class="fullscreen-btn" data-page-number="${slideData.page_number}" title="全屏查看">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="slide-preview loading">
+                    <iframe title="Slide ${slideData.page_number}"
+                            srcdoc="${slideData.html_content.replace(/"/g, '&quot;')}"
+                            onload="adjustIframeHeight(this)"></iframe>
+                </div>
+            `;
+
+            // 添加全屏按钮事件监听器
+            const fullscreenBtn = slideCard.querySelector('.fullscreen-btn');
+            if (fullscreenBtn) {
+                fullscreenBtn.addEventListener('click', function() {
+                    const pageNumber = parseInt(this.getAttribute('data-page-number'));
+                    openFullscreen(pageNumber);
+                });
+            }
+
+            slidesContainer.appendChild(slideCard);
+
+            // Animate to completed state
+            setTimeout(() => {
+                slideCard.classList.remove('generating');
+                slideCard.classList.add('completed');
+            }, 1000);
+
+            // Store slide data - 检查是否已存在相同页码的数据
+            const existingDataIndex = slidesData.findIndex(slide => slide.page_number === slideData.page_number);
+            if (existingDataIndex >= 0) {
+                // 更新现有数据
+                slidesData[existingDataIndex] = slideData;
+            } else {
+                // 添加新数据
+                slidesData.push(slideData);
+            }
+        }
+
+        function checkAndShowEditorButton() {
+            // 如果已经有幻灯片生成，就显示编辑器按钮
+            if (slidesData.length > 0) {
+                showEditorButton();
+            }
+        }
+
+        function showEditorButton() {
+            const startBtn = document.getElementById('startBtn');
+            const editorBtn = document.getElementById('editorBtn');
+            const slideshowBtn = document.getElementById('slideshowBtn');
+
+            startBtn.style.display = 'none';
+            editorBtn.style.display = 'inline-block';
+            slideshowBtn.style.display = 'inline-block';
+        }
+
+        function openFullEditor() {
+            window.open('/projects/{{ todo_board.task_id }}/edit', '_blank');
+        }
+
+        function openSlideshow() {
+            window.open('/projects/{{ todo_board.task_id }}/fullscreen', '_blank');
+        }
+
+        // 优化的iframe加载完成处理函数
+        function adjustIframeHeight(iframe) {
+            try {
+                const slidePreview = iframe.closest('.slide-preview');
+                const slideCard = iframe.closest('.slide-card');
+
+                if (!slidePreview || !slideCard) return;
+
+                // 移除加载状态
+                slidePreview.classList.remove('loading');
+
+                // 内容加载完成，更新卡片状态
+                setTimeout(() => {
+                    if (slideCard.classList.contains('generating')) {
+                        slideCard.classList.remove('generating');
+                        slideCard.classList.add('completed');
+                    }
+                }, 300);
+
+            } catch (error) {
+                console.error('Error in adjustIframeHeight:', error);
+                // 出错时也要移除生成状态
+                const slidePreview = iframe.closest('.slide-preview');
+                const slideCard = iframe.closest('.slide-card');
+
+                if (slidePreview) {
+                    slidePreview.classList.remove('loading');
+                    slidePreview.classList.add('error');
+                }
+
+                if (slideCard && slideCard.classList.contains('generating')) {
+                    slideCard.classList.remove('generating');
+                    slideCard.classList.add('error');
+                }
+            }
+        }
+
+
+        // 全屏功能
+        function openFullscreen(pageNumber) {
+            const slideData = slidesData.find(slide => slide.page_number === pageNumber);
+            if (!slideData) {
+                console.error('Slide data not found for page:', pageNumber);
+                return;
+            }
+
+            const overlay = document.getElementById('fullscreenOverlay');
+            const iframe = document.getElementById('fullscreenIframe');
+
+            // 设置 iframe 内容
+            iframe.srcdoc = slideData.html_content;
+
+            // 显示全屏覆盖层
+            overlay.style.display = 'flex';
+
+            // 添加 ESC 键关闭功能
+            document.addEventListener('keydown', handleEscapeKey);
+
+            // 防止背景滚动
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeFullscreen() {
+            const overlay = document.getElementById('fullscreenOverlay');
+            const iframe = document.getElementById('fullscreenIframe');
+
+            // 隐藏覆盖层
+            overlay.style.display = 'none';
+
+            // 清空 iframe 内容
+            iframe.srcdoc = '';
+
+            // 移除 ESC 键监听
+            document.removeEventListener('keydown', handleEscapeKey);
+
+            // 恢复背景滚动
+            document.body.style.overflow = 'auto';
+        }
+
+        function handleEscapeKey(event) {
+            if (event.key === 'Escape') {
+                closeFullscreen();
+            }
+        }
+
+        // 点击覆盖层背景关闭全屏
+        document.addEventListener('DOMContentLoaded', function() {
+            const overlay = document.getElementById('fullscreenOverlay');
+            overlay.addEventListener('click', function(event) {
+                if (event.target === overlay) {
+                    closeFullscreen();
+                }
+            });
+
+            // 添加按钮事件监听器
+            const startBtn = document.getElementById('startBtn');
+            const editorBtn = document.getElementById('editorBtn');
+            const slideshowBtn = document.getElementById('slideshowBtn');
+            const closeFullscreenBtn = document.getElementById('closeFullscreenBtn');
+
+            if (startBtn) {
+                startBtn.addEventListener('click', startGeneration);
+            }
+            if (editorBtn) {
+                editorBtn.addEventListener('click', openFullEditor);
+            }
+            if (slideshowBtn) {
+                slideshowBtn.addEventListener('click', openSlideshow);
+            }
+            if (closeFullscreenBtn) {
+                closeFullscreenBtn.addEventListener('click', closeFullscreen);
+            }
+        });
+
+        // Auto-start generation logic
+        let generationStarted = false;
+        const projectId = '{{ todo_board.task_id }}';
+        const generationKey = `ppt_generation_started_${projectId}`;
+
+        // Check if PPT is already generated
+        const projectSlidesData = {{ (project.slides_data | tojson | safe) if project and project.slides_data else '[]' }};
+        const projectOutline = {{ (project.outline | tojson | safe) if project and project.outline else 'null' }};
+        const projectStatus = '{{ project.status if project else "draft" }}';
+
+        // 判断PPT是否真正完成：需要检查slides_data数量是否与outline中的slides数量一致
+        function isPPTCompleted() {
+            if (!projectSlidesData || projectSlidesData.length === 0) {
+                return false;
+            }
+
+            if (!projectOutline || !projectOutline.slides) {
+                // 如果没有大纲信息，但有slides_data，可能是从文件生成的，检查项目状态
+                return projectStatus === 'completed';
+            }
+
+            // 检查slides_data数量是否与大纲中的slides数量一致
+            const expectedSlideCount = projectOutline.slides.length;
+            const actualSlideCount = projectSlidesData.length;
+
+            return actualSlideCount >= expectedSlideCount;
+        }
+
+        let checkAndStartGenerationCalled = false;
+
+        function checkAndStartGeneration() {
+            if (checkAndStartGenerationCalled) {
+                return;
+            }
+            checkAndStartGenerationCalled = true;
+
+            const isCompleted = isPPTCompleted();
+
+            // 如果PPT真正完成，显示现有幻灯片
+            if (isCompleted) {
+                displayExistingSlides();
+                showEditorButton();
+
+                // Update start button to show "重新生成"
+                const startBtn = document.getElementById('startBtn');
+                if (startBtn) {
+                    startBtn.innerHTML = '<i class="fas fa-redo"></i> 重新生成';
+                    startBtn.disabled = false;
+                }
+                return;
+            }
+
+            // 如果有部分slides但未完成，显示部分内容并继续生成
+            if (projectSlidesData && projectSlidesData.length > 0) {
+                displayPartialSlides();
+                // 继续检查是否需要自动开始生成
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const autoStartParam = urlParams.get('auto_start') === 'true';
+
+            // 检查是否需要自动开始或继续生成
+            const shouldAutoStart = autoStartParam || (projectSlidesData && projectSlidesData.length > 0 && !isCompleted);
+
+            if (shouldAutoStart) {
+                setTimeout(() => {
+                    startGeneration();
+                }, 500);
+            }
+        }
+
+        function displayExistingSlides() {
+            const slidesContainer = document.getElementById('slidesContainer');
+            const statusDiv = document.getElementById('generationStatus');
+
+            // Clear welcome message
+            slidesContainer.innerHTML = '';
+
+            // Show status as completed
+            statusDiv.style.display = 'block';
+            updateStatus('PPT已生成完成', 'complete');
+            const progressBar = document.getElementById('generationProgress');
+            progressBar.style.width = '100%';
+
+            // Display each slide
+            projectSlidesData.forEach(slideData => {
+                addSlideToContainer(slideData);
+            });
+
+            // Update slides data
+            slidesData = projectSlidesData;
+        }
+
+        function displayPartialSlides() {
+            const slidesContainer = document.getElementById('slidesContainer');
+            const statusDiv = document.getElementById('generationStatus');
+
+            // Clear welcome message
+            slidesContainer.innerHTML = '';
+
+            // Show status as in progress
+            statusDiv.style.display = 'block';
+            const expectedCount = projectOutline && projectOutline.slides ? projectOutline.slides.length : projectSlidesData.length;
+            const currentCount = projectSlidesData.length;
+            const progress = (currentCount / expectedCount) * 100;
+
+            updateStatus(`PPT生成中... (${currentCount}/${expectedCount} 页已完成)`, 'progress');
+            const progressBar = document.getElementById('generationProgress');
+            progressBar.style.width = progress + '%';
+
+            // Display existing slides
+            projectSlidesData.forEach((slideData, index) => {
+                // 确保每个幻灯片都有正确的page_number
+                if (!slideData.page_number) {
+                    slideData.page_number = index + 1;
+                }
+                addSlideToContainer(slideData);
+            });
+
+            // Update slides data
+            slidesData = [...projectSlidesData];
+        }
+
+        // 实时检查PPT生成状态
+        function checkPPTStatus() {
+            // 如果PPT已经完成或者正在生成中，不需要检查
+            if (isPPTCompleted() || (eventSource && eventSource.readyState !== EventSource.CLOSED)) {
+                return;
+            }
+
+            fetch(`/api/projects/{{ todo_board.task_id }}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.slides_data && data.slides_data.length > slidesData.length) {
+                        console.log('发现新的幻灯片，刷新页面...');
+                        window.location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('检查PPT状态失败:', error);
+                });
+        }
+
+        // Auto-start when page loads
+        document.addEventListener('DOMContentLoaded', checkAndStartGeneration);
+        // Also try on window load as fallback
+        window.addEventListener('load', checkAndStartGeneration);
+
+        // 定期检查PPT状态（每10秒检查一次）
+        setInterval(checkPPTStatus, 10000);
+    </script>
+</body>
+</html>

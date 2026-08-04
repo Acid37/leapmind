@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeapMind 教育管理平台</title>
+    <link rel="stylesheet" href="css/style-modern.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- 登录页面 -->
+    <div id="loginPage" class="page active">
+        <div class="login-container">
+            <div class="login-left">
+                <div class="login-brand">
+                    <div class="brand-logo">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <h1>LeapMind</h1>
+                    <p>智能教育管理平台</p>
+                </div>
+                <div class="login-features">
+                    <div class="feature-item">
+                        <i class="fas fa-chart-line"></i>
+                        <span>数据分析</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-users"></i>
+                        <span>用户管理</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-book"></i>
+                        <span>课程管理</span>
+                    </div>
+                </div>
+            </div>
+            <div class="login-right">
+                <div class="login-form">
+                    <div class="form-header">
+                        <h2>管理员登录</h2>
+                        <p>请输入您的管理员凭据以访问系统</p>
+                    </div>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <div class="input-group-external">
+                                <i class="fas fa-user"></i>
+                                <input type="text" id="username" name="username" placeholder="用户名" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group-external">
+                                <i class="fas fa-lock"></i>
+                                <input type="password" id="password" name="password" placeholder="密码" required>
+                            </div>
+                        </div>
+                        <div class="form-options">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="rememberMe">
+                                记住我
+                            </label>
+                            <a href="#" class="forgot-password">忘记密码？</a>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            <span>登录</span>
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </form>
+                    <div id="loginError" class="error-message" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理后台页面 -->
+    <div id="adminPage" class="page">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <span>LeapMind</span>
+            </div>
+            <nav class="nav">
+                <ul class="nav-list">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link active" data-tab="dashboard">
+                            <i class="nav-icon fas fa-chart-pie"></i>
+                            <span>仪表盘</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-tab="users">
+                            <i class="nav-icon fas fa-users"></i>
+                            <span>用户管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-tab="stages">
+                            <i class="nav-icon fas fa-layer-group"></i>
+                            <span>阶段管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-tab="courses">
+                            <i class="nav-icon fas fa-book-open"></i>
+                            <span>课程管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-tab="outlines">
+                            <i class="nav-icon fas fa-list-alt"></i>
+                            <span>大纲管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-tab="ppt">
+                            <i class="nav-icon fas fa-file-powerpoint"></i>
+                            <span>PPT管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-tab="speech">
+                            <i class="nav-icon fas fa-microphone"></i>
+                            <span>语音管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-tab="session-review">
+                            <i class="nav-icon fas fa-clipboard-check"></i>
+                            <span>会话审查</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- 顶部导航 -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <button class="sidebar-toggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1>管理后台</h1>
+                </div>
+                <div class="header-actions">
+                    <div class="header-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="搜索...">
+                    </div>
+                    <div class="header-notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">3</span>
+                    </div>
+                    <div class="header-user">
+                        <div class="admin-avatar">
+                            <i class="fas fa-user-shield"></i>
+                        </div>
+                        <span id="adminUsername" class="admin-info">管理员</span>
+                        <div class="user-dropdown">
+                            <button id="logoutBtn" class="btn btn-secondary">
+                                <i class="fas fa-sign-out-alt"></i>
+                                退出登录
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 仪表盘 -->
+            <div id="dashboardTab" class="tab-content active">
+                <div class="content-header">
+                    <div class="header-left">
+                        <h2>仪表盘</h2>
+                        <p class="header-subtitle">欢迎回到 LeapMind 教育管理平台</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-primary">
+                            <i class="fas fa-download"></i>
+                            导出报告
+                        </button>
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-sync-alt"></i>
+                            刷新数据
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 概览卡片 -->
+                <div class="overview-cards">
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalUsers">1,234</h3>
+                            <p>总用户数</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> +12% 本月
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-graduation-cap"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalStages">8</h3>
+                            <p>教育阶段</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> +2 新增
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-book"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalCourses">156</h3>
+                            <p>课程总数</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> +8 本周
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="growthRate">+15%</h3>
+                            <p>增长率</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 持续增长
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 图表区域 -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>用户增长趋势</h3>
+                            <div class="chart-controls">
+                                <button class="btn-chart active" data-period="week">周</button>
+                                <button class="btn-chart" data-period="month">月</button>
+                                <button class="btn-chart" data-period="year">年</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="userGrowthChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>阶段分布</h3>
+                            <div class="chart-controls">
+                                <button class="btn-chart active" data-chart="pie">饼图</button>
+                                <button class="btn-chart" data-chart="doughnut">环形图</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="stageDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 最近活动 -->
+                <div class="recent-activity">
+                    <div class="section-header">
+                        <h3>最近活动</h3>
+                        <a href="#" class="view-all">查看全部</a>
+                    </div>
+                    <div class="activity-list">
+                        <div class="activity-item">
+                            <div class="activity-icon">
+                                <i class="fas fa-user-plus"></i>
+                            </div>
+                            <div class="activity-content">
+                                <p><strong>张三</strong> 注册了新账户</p>
+                                <small>2 分钟前</small>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="activity-icon">
+                                <i class="fas fa-book"></i>
+                            </div>
+                            <div class="activity-content">
+                                <p>新增课程 <strong>高等数学</strong></p>
+                                <small>15 分钟前</small>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="activity-icon">
+                                <i class="fas fa-edit"></i>
+                            </div>
+                            <div class="activity-content">
+                                <p>更新了 <strong>初中阶段</strong> 配置</p>
+                                <small>1 小时前</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 用户管理 -->
+            <div id="usersTab" class="tab-content">
+                <div class="content-header">
+                    <div class="header-left">
+                        <h2>用户管理</h2>
+                        <p class="header-subtitle">管理系统中的所有用户账户</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="batchImportBtn" class="btn btn-success">
+                            <i class="fas fa-file-excel"></i>
+                            批量导入
+                        </button>
+                        <button id="downloadTemplateBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i>
+                            下载模板
+                        </button>
+                        <button id="addUserBtn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            添加用户
+                        </button>
+                    </div>
+                </div>
+
+                <div class="search-bar">
+                    <div class="search-group">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="userSearchName" placeholder="按姓名搜索用户">
+                    </div>
+                    <select id="userSearchStage">
+                        <option value="">选择阶段</option>
+                        <option value="PRIMARY">小学</option>
+                        <option value="JUNIOR">初中</option>
+                        <option value="SENIOR">高中</option>
+                    </select>
+                    <button id="searchUsersBtn" class="btn btn-primary">搜索</button>
+                    <button id="clearUserSearchBtn" class="btn btn-secondary">清空</button>
+                </div>
+
+                <div class="table-container">
+                    <table id="usersTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="selectAllUsers">
+                                </th>
+                                <th>ID</th>
+                                <th>用户名</th>
+                                <th>学生姓名</th>
+                                <th>年级</th>
+                                <th>邮箱</th>
+                                <th>手机号</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 阶段管理 -->
+            <div id="stagesTab" class="tab-content">
+                <div class="content-header">
+                    <div class="header-left">
+                        <h2>阶段管理</h2>
+                        <p class="header-subtitle">管理教育阶段和年级配置</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="refreshStagesBtn" class="btn btn-secondary">
+                            <i class="fas fa-sync-alt"></i>
+                            刷新数据
+                        </button>
+                        <button id="addStageBtn" class="btn btn-success">
+                            <i class="fas fa-plus"></i>
+                            添加阶段
+                        </button>
+                        <button id="manageUsersBtn" class="btn btn-primary">
+                            <i class="fas fa-users"></i>
+                            用户管理
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 数据概览卡片 -->
+                <div class="overview-cards">
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalUsers">0</h3>
+                            <p>总用户数</p>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-graduation-cap"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalStages">0</h3>
+                            <p>教育阶段</p>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalGrades">0</h3>
+                            <p>年级数量</p>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="growthRate">+0%</h3>
+                            <p>增长率</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 图表区域 -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>阶段用户分布</h3>
+                            <div class="chart-controls">
+                                <button class="btn-chart active" data-chart="pie">饼图</button>
+                                <button class="btn-chart" data-chart="doughnut">环形图</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="stageDistributionChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>年级用户统计</h3>
+                            <div class="chart-controls">
+                                <button class="btn-chart active" data-chart="bar">柱状图</button>
+                                <button class="btn-chart" data-chart="line">折线图</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="gradeStatisticsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 阶段管理表格 -->
+                <div class="management-section">
+                    <div class="section-header">
+                        <h3>阶段配置</h3>
+                        <div class="section-actions">
+                            <input type="text" id="stageSearchInput" placeholder="搜索阶段..." class="search-input">
+                            <button id="exportStagesBtn" class="btn btn-outline">
+                                <i class="fas fa-download"></i>
+                                导出
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="stagesTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <input type="checkbox" id="selectAllStages">
+                                    </th>
+                                    <th>阶段代码</th>
+                                    <th>阶段名称</th>
+                                    <th>包含年级</th>
+                                    <th>用户数量</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 年级管理表格 -->
+                <div class="management-section">
+                    <div class="section-header">
+                        <h3>年级配置</h3>
+                        <div class="section-actions">
+                            <input type="text" id="gradeSearchInput" placeholder="搜索年级..." class="search-input">
+                            <button id="addGradeBtn" class="btn btn-success">
+                                <i class="fas fa-plus"></i>
+                                添加年级
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="gradesTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <input type="checkbox" id="selectAllGrades">
+                                    </th>
+                                    <th>年级代码</th>
+                                    <th>年级名称</th>
+                                    <th>所属阶段</th>
+                                    <th>用户数量</th>
+                                    <th>排序</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 课程管理 -->
+            <div id="coursesTab" class="tab-content">
+                <div class="content-header">
+                    <div class="header-left">
+                        <h2>课程管理</h2>
+                        <p class="header-subtitle">管理系统中的所有课程内容</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="addCourseBtn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            添加课程
+                        </button>
+                    </div>
+                </div>
+
+                <div class="search-bar">
+                    <div class="search-group">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="courseSearchStage" placeholder="按阶段搜索">
+                    </div>
+                    <div class="search-group">
+                        <i class="fas fa-book"></i>
+                        <input type="text" id="courseSearchSubject" placeholder="按学科搜索">
+                    </div>
+                    <button id="searchCoursesBtn" class="btn btn-primary">搜索</button>
+                    <button id="clearCourseSearchBtn" class="btn btn-secondary">清空</button>
+                </div>
+
+                <div class="table-container">
+                    <table id="coursesTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Course ID</th>
+                                <th>学科</th>
+                                <th>阶段</th>
+                                <th>年级</th>
+                                <th>学期</th>
+                                <th>章节</th>
+                                <th>章节标题</th>
+                                <th>小节</th>
+                                <th>小节标题</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 大纲管理 -->
+            <div id="outlinesTab" class="tab-content">
+                <div class="content-header">
+                    <div class="header-left">
+                        <h2>大纲管理</h2>
+                        <p class="header-subtitle">管理项目大纲的增删改查</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="refreshOutlinesBtn" class="btn btn-secondary">
+                            <i class="fas fa-sync-alt"></i>
+                            刷新数据
+                        </button>
+                        <button id="addOutlineBtn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            添加大纲
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 概览卡片 -->
+                <div class="overview-cards">
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-list-alt"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalOutlines">0</h3>
+                            <p>总大纲数</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 持续增长
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-project-diagram"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalProjects">0</h3>
+                            <p>关联项目</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 项目覆盖
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="completedOutlines">0</h3>
+                            <p>已完成大纲</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 完成进度
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="recentOutlines">0</h3>
+                            <p>本周新增</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 新增趋势
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 搜索栏 -->
+                <div class="search-bar">
+                    <div class="search-group">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="outlineSearchProject" placeholder="按项目ID搜索">
+                    </div>
+                    <div class="search-group">
+                        <i class="fas fa-list"></i>
+                        <input type="text" id="outlineSearchTitle" placeholder="按标题搜索">
+                    </div>
+                    <button id="searchOutlinesBtn" class="btn btn-primary">搜索</button>
+                    <button id="clearOutlineSearchBtn" class="btn btn-secondary">清空</button>
+                </div>
+
+                <!-- 大纲列表 -->
+                <div class="table-container">
+                    <table id="outlinesTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="selectAllOutlines">
+                                </th>
+                                <th>ID</th>
+                                <th>项目ID</th>
+                                <th>标题</th>
+                                <th>内容预览</th>
+                                <th>创建时间</th>
+                                <th>更新时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PPT管理 -->
+            <div id="pptTab" class="tab-content">
+                <div class="content-header">
+                    <div class="header-left">
+                        <h2>PPT管理</h2>
+                        <p class="header-subtitle">管理PPT幻灯片的增删改查</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="refreshPptBtn" class="btn btn-secondary">
+                            <i class="fas fa-sync-alt"></i>
+                            刷新数据
+                        </button>
+                        <button id="addPptSlideBtn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            添加幻灯片
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 概览卡片 -->
+                <div class="overview-cards">
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-presentation"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalSlides">0</h3>
+                            <p>总幻灯片数</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 持续增长
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-project-diagram"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalPptProjects">0</h3>
+                            <p>关联项目</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 项目覆盖
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="htmlSlides">0</h3>
+                            <p>HTML幻灯片</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 富媒体内容
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="recentSlides">0</h3>
+                            <p>本周新增</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 新增趋势
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 搜索栏 -->
+                <div class="search-bar">
+                    <div class="search-group">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="pptSearchProject" placeholder="按项目ID搜索">
+                    </div>
+                    <div class="search-group">
+                        <i class="fas fa-tag"></i>
+                        <input type="text" id="pptSearchTitle" placeholder="按标题搜索">
+                    </div>
+                    <div class="search-group">
+                        <i class="fas fa-filter"></i>
+                        <select id="pptSearchType">
+                            <option value="">所有类型</option>
+                            <option value="html">HTML</option>
+                            <option value="text">文本</option>
+                            <option value="image">图片</option>
+                        </select>
+                    </div>
+                    <button id="searchPptBtn" class="btn btn-primary">搜索</button>
+                    <button id="clearPptSearchBtn" class="btn btn-secondary">清空</button>
+                </div>
+
+                <!-- PPT幻灯片列表 -->
+                <div class="table-container">
+                    <table id="pptSlidesTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="selectAllSlides">
+                                </th>
+                                <th>ID</th>
+                                <th>项目ID</th>
+                                <th>幻灯片ID</th>
+                                <th>索引</th>
+                                <th>标题</th>
+                                <th>内容类型</th>
+                                <th>内容预览</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 语音管理 -->
+            <div id="speechTab" class="tab-content">
+                <div class="content-header">
+                    <div class="header-left">
+                        <h2>音频片段管理</h2>
+                        <p class="header-subtitle">管理系统中的音频片段数据</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="viewToggleBtn" class="btn btn-info">
+                            <i class="fas fa-tasks"></i>
+                            查看语音任务
+                        </button>
+                        <button id="refreshSpeechBtn" class="btn btn-secondary">
+                            <i class="fas fa-sync-alt"></i>
+                            刷新数据
+                        </button>
+                        <button id="bulkSynthesisBtn" class="btn btn-primary">
+                            <i class="fas fa-microphone"></i>
+                            批量语音合成
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 概览卡片 -->
+                <div class="overview-cards">
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-list"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalAudioFiles">0</h3>
+                            <p>音频片段总数</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 持续增长
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalDuration">0分钟</h3>
+                            <p>总时长</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 音频时长
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-file-audio"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="processingTasks">0</h3>
+                            <p>有音频数据</p>
+                            <small class="card-trend">
+                                <i class="fas fa-music"></i> 音频状态
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="completedTasks">0</h3>
+                            <p>课程数量</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 课程覆盖
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 搜索栏 -->
+                <div class="search-bar">
+                    <div class="search-group">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="speechSearchCourse" placeholder="按课程ID搜索音频片段">
+                    </div>
+                    <div class="search-group">
+                        <i class="fas fa-filter"></i>
+                        <select id="speechSearchStatus">
+                            <option value="">所有状态</option>
+                            <option value="COMPLETED">已完成</option>
+                            <option value="PROCESSING">处理中</option>
+                            <option value="FAILED">失败</option>
+                        </select>
+                    </div>
+                    <button id="searchSpeechBtn" class="btn btn-primary">搜索</button>
+                    <button id="clearSpeechSearchBtn" class="btn btn-secondary">清空</button>
+                </div>
+
+                <!-- 音频片段列表 -->
+                <div class="table-container">
+                    <table id="speechTasksTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="selectAllSegments">
+                                </th>
+                                <th>课程ID</th>
+                                <th>原始文本</th>
+                                <th>润色文本</th>
+                                <th>音频</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 会话审查 -->
+            <div id="session-reviewTab" class="tab-content">
+                <div class="content-header">
+                    <div class="header-left">
+                        <h2>会话审查</h2>
+                        <p class="header-subtitle">管理会话的文本预处理、审查和语音合成</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="refreshSessionsBtn" class="btn btn-secondary">
+                            <i class="fas fa-sync-alt"></i>
+                            刷新数据
+                        </button>
+                        <button id="bulkPreprocessingBtn" class="btn btn-info">
+                            <i class="fas fa-edit"></i>
+                            批量文本预处理
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 概览卡片 -->
+                <div class="overview-cards">
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-clipboard-list"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalSessions">0</h3>
+                            <p>总会话数</p>
+                            <small class="card-trend">
+                                <i class="fas fa-arrow-up"></i> 持续增长
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-hourglass-half"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="pendingSessions">0</h3>
+                            <p>待审核会话</p>
+                            <small class="card-trend">
+                                <i class="fas fa-clock"></i> 等待处理
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="approvedSessions">0</h3>
+                            <p>已审核通过</p>
+                            <small class="card-trend">
+                                <i class="fas fa-thumbs-up"></i> 审核完成
+                            </small>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-microphone"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="synthesizedSessions">0</h3>
+                            <p>已合成语音</p>
+                            <small class="card-trend">
+                                <i class="fas fa-volume-up"></i> 合成完成
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 搜索和过滤栏 -->
+                <div class="search-bar">
+                    <div class="search-group">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="sessionSearchId" placeholder="按会话ID搜索">
+                    </div>
+                    <div class="search-group">
+                        <i class="fas fa-filter"></i>
+                        <select id="sessionSearchStatus">
+                            <option value="">所有状态</option>
+                            <option value="PENDING_REVIEW">待审核</option>
+                            <option value="APPROVED">已审核通过</option>
+                            <option value="REJECTED">已拒绝</option>
+                            <option value="SYNTHESIZED">已合成</option>
+                        </select>
+                    </div>
+                    <div class="search-group">
+                        <i class="fas fa-calendar"></i>
+                        <input type="date" id="sessionSearchDate" placeholder="按日期搜索">
+                    </div>
+                    <button id="searchSessionsBtn" class="btn btn-primary">搜索</button>
+                    <button id="clearSessionSearchBtn" class="btn btn-secondary">清空</button>
+                </div>
+
+                <!-- 会话列表 -->
+                <div class="table-container">
+                    <table id="sessionsTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="selectAllSessions">
+                                </th>
+                                <th>会话ID</th>
+                                <th>PPT标题</th>
+                                <th>原文预览</th>
+                                <th>润色文本预览</th>
+                                <th>片段数</th>
+                                <th>状态</th>
+                                <th>创建时间</th>
+                                <th>审核人</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 模态框 -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">标题</h3>
+                <button id="closeModal" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- 动态内容 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知容器 -->
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/users.js"></script>
+    <script src="js/stages.js"></script>
+    <script src="js/courses.js"></script>
+    <script src="js/course-management.js"></script>
+    <script src="js/course-management-workflow-patch.js"></script>
+    <script src="js/outlines.js"></script>
+    <script src="js/ppt.js"></script>
+    <script src="js/speech.js"></script>
+    <script src="js/session-review.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/modern-ui.js"></script>
+    <script src="js/demo-data.js"></script>
+
+    <script>
+        // 确保token在页面加载时被正确设置
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('adminToken');
+            if (token && window.api) {
+                console.log('页面加载时设置token到API实例');
+                window.api.setToken(token);
+            }
+        });
+
+        // 监听存储变化，确保token同步
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'adminToken') {
+                if (e.newValue && window.api) {
+                    console.log('检测到token变化，更新API实例');
+                    window.api.setToken(e.newValue);
+                } else if (!e.newValue && window.authManager) {
+                    console.log('检测到token被清除，跳转到登录页');
+                    window.authManager.showLoginPage();
+                }
+            }
+        });
+    </script>
+
+    <!-- 课程管理工作流自动修复脚本 -->
+    <script>
+    (function() {
+        // 等待CourseManagementModule加载
+        const initFix = () => {
+            if (typeof CourseManagementModule === 'undefined') {
+                setTimeout(initFix, 100);
+                return;
+            }
+            
+            console.log('[AUTO-FIX] 应用课程管理工作流修复');
+            
+            const proto = CourseManagementModule.prototype;
+            const originalSwitchToStep = proto.switchToStep;
+            
+            // 重写switchToStep以自动加载审核内容
+            proto.switchToStep = function(stepNumber) {
+                if (originalSwitchToStep) {
+                    originalSwitchToStep.call(this, stepNumber);
+                } else {
+                    document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
+                    const stepElement = document.querySelector(`[data-step="${stepNumber}"]`);
+                    if (stepElement) stepElement.classList.add('active');
+                    document.querySelectorAll('.step-content').forEach(content => content.classList.remove('active'));
+                    const contentElement = document.getElementById(`step${stepNumber}Content`);
+                    if (contentElement) contentElement.classList.add('active');
+                    this.workflowStep = stepNumber;
+                }
+                // 步骤2：自动加载审核内容
+                if (stepNumber === 2) {
+                    setTimeout(() => this.loadReviewContent && this.loadReviewContent(), 200);
+                }
+                // 步骤3：检查并启用语音合成
+                if (stepNumber === 3) {
+                    setTimeout(() => this.checkSynthesisStatus && this.checkSynthesisStatus(), 200);
+                }
+            };
+            
+            // 添加loadReviewContent方法
+            proto.loadReviewContent = async function() {
+                const reviewContent = document.getElementById('reviewContent');
+                if (!reviewContent || !this.workflowData?.step1?.courseId) {
+                    if (reviewContent) reviewContent.innerHTML = '<p style="color: orange; padding: 20px;">请先完成步骤1的大纲润色处理</p>';
+                    return;
+                }
+                try {
+                    this.showLoading && this.showLoading('正在加载审核内容...');
+                    const response = await window.api.getPendingSessionByCourseId(this.workflowData.step1.courseId);
+                    this.displayReviewContent(response.data || response);
+                    this.workflowData.step2 = { sessionData: response.data || response };
+                    this.saveWorkflowState && this.saveWorkflowState();
+                } catch (error) {
+                    reviewContent.innerHTML = `<p style="color: red; padding: 20px;">加载失败：${error.message}</p>`;
+                } finally {
+                    this.hideLoading && this.hideLoading();
+                }
+            };
+            
+            // 添加displayReviewContent方法
+            proto.displayReviewContent = function(data) {
+                const reviewContent = document.getElementById('reviewContent');
+                if (!reviewContent) return;
+                const escapeHtml = (text) => String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                reviewContent.innerHTML = `<div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><h4 style="margin: 0 0 15px 0; color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px;">会话信息</h4><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;"><div><strong>会话ID:</strong> <span style="font-family: monospace; background: #f8f9fa; padding: 2px 8px; border-radius: 3px;">${data.courseId || data.id || '未知'}</span></div><div><strong>PPT标题:</strong> ${data.pptTitle || data.title || '未设置'}</div><div><strong>状态:</strong> <span style="background: #ffc107; color: #856404; padding: 2px 8px; border-radius: 3px; font-size: 12px;">${data.status || data.processingStatus || '未知'}</span></div><div><strong>片段数:</strong> <span style="background: #007bff; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px;">${data.totalSegments || 0}</span></div></div></div><div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><h4 style="margin: 0 0 15px 0; color: #333; border-bottom: 2px solid #17a2b8; padding-bottom: 10px;">会话文本审核</h4><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;"><div><label style="font-weight: 600; margin-bottom: 8px; display: block; color: #495057;">原始文本:</label><div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; min-height: 200px; max-height: 400px; overflow-y: auto; font-size: 14px; line-height: 1.6;">${escapeHtml(data.originalText || data.content)}</div></div><div><label style="font-weight: 600; margin-bottom: 8px; display: block; color: #495057;">润色文本:</label><textarea id="polishedTextArea" style="width: 100%; min-height: 200px; max-height: 400px; border: 2px solid #dee2e6; border-radius: 4px; padding: 12px; font-family: inherit; font-size: 14px; line-height: 1.6; resize: vertical;">${data.polishedText || data.processedContent || ''}</textarea></div></div></div><div style="background: #fff3cd; padding: 20px; border-radius: 8px; border: 2px solid #ffc107; margin-bottom: 20px;"><h4 style="margin: 0 0 15px 0; color: #856404;"><span style="font-size: 20px;">⚠️</span> 审核决定</h4><div style="margin-bottom: 15px;"><label style="font-weight: 600; margin-bottom: 8px; display: block; color: #856404;">审核结果:</label><div style="display: flex; gap: 15px;"><label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 20px; border: 2px solid #28a745; border-radius: 6px; background: white;"><input type="radio" name="reviewApproved" value="true" style="width: 18px; height: 18px;"><span style="font-weight: 500; color: #28a745;">✓ 通过</span></label><label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 20px; border: 2px solid #dc3545; border-radius: 6px; background: white;"><input type="radio" name="reviewApproved" value="false" style="width: 18px; height: 18px;"><span style="font-weight: 500; color: #dc3545;">✗ 拒绝</span></label></div></div><div><label style="font-weight: 600; margin-bottom: 8px; display: block; color: #856404;">审核意见:</label><textarea id="reviewCommentsArea" style="width: 100%; min-height: 100px; border: 2px solid #ffc107; border-radius: 4px; padding: 12px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="请输入审核意见（拒绝时必填）..."></textarea></div></div><div style="display: flex; gap: 12px; justify-content: flex-end; padding: 15px; background: #f8f9fa; border-radius: 8px;"><button id="saveReviewBtn" style="padding: 10px 24px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500;">💾 保存修改</button><button id="submitReviewBtn" style="padding: 10px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500;">📤 提交审核</button></div>`;
+                document.getElementById('saveReviewBtn').onclick = () => this.saveReviewChanges();
+                document.getElementById('submitReviewBtn').onclick = () => this.submitReview();
+            };
+            
+            // 添加saveReviewChanges方法
+            proto.saveReviewChanges = async function() {
+                if (!this.workflowData?.step1?.courseId) { alert('缺少会话信息'); return; }
+                const polishedText = document.getElementById('polishedTextArea')?.value.trim();
+                if (!polishedText) { alert('润色文本不能为空'); return; }
+                try {
+                    this.showLoading && this.showLoading('正在保存...');
+                    const response = await window.api.adminReviewSession(this.workflowData.step1.courseId, {
+                        reviewerId: 'admin', approved: null, comments: document.getElementById('reviewCommentsArea')?.value.trim() || '管理员修改',
+                        updatedPolishedText: polishedText, reviewTime: new Date().toISOString()
+                    });
+                    if (response.success || response.status === 'SUCCESS') {
+                        this.showMessage ? this.showMessage('保存成功', 'success') : alert('保存成功');
+                    } else { alert('保存失败：' + (response.message || '未知错误')); }
+                } catch (error) { alert('保存失败：' + error.message); } finally { this.hideLoading && this.hideLoading(); }
+            };
+            
+            // 添加submitReview方法
+            proto.submitReview = async function() {
+                if (!this.workflowData?.step1?.courseId) { alert('缺少会话信息'); return; }
+                const approvedRadio = document.querySelector('input[name="reviewApproved"]:checked');
+                if (!approvedRadio) { alert('请选择审核结果'); return; }
+                const approved = approvedRadio.value === 'true';
+                const polishedText = document.getElementById('polishedTextArea')?.value.trim();
+                const comments = document.getElementById('reviewCommentsArea')?.value.trim();
+                if (!polishedText) { alert('润色文本不能为空'); return; }
+                if (!approved && !comments) { alert('审核拒绝时必须填写原因'); return; }
+                try {
+                    this.showLoading && this.showLoading(approved ? '提交审核通过...' : '提交审核拒绝...');
+                    const response = await window.api.adminReviewSession(this.workflowData.step1.courseId, {
+                        reviewerId: 'admin', approved: approved, comments: comments || (approved ? '审核通过' : '审核拒绝'),
+                        updatedPolishedText: polishedText, reviewTime: new Date().toISOString()
+                    });
+                    if (response.success || response.status === 'SUCCESS') {
+                        this.showMessage ? this.showMessage(approved ? '审核通过成功' : '审核拒绝成功', 'success') : alert(approved ? '审核通过成功' : '审核拒绝成功');
+                        // 保存审核结果到workflowData
+                        this.workflowData.step2 = this.workflowData.step2 || {};
+                        this.workflowData.step2.reviewResult = { approved: approved, comments: comments, reviewTime: new Date().toISOString() };
+                        this.saveWorkflowState && this.saveWorkflowState();
+                        if (approved && this.switchToStep) setTimeout(() => this.switchToStep(3), 1000);
+                    } else { alert('提交失败：' + (response.message || '未知错误')); }
+                } catch (error) { alert('提交失败：' + error.message); } finally { this.hideLoading && this.hideLoading(); }
+            };
+            
+            // 添加checkSynthesisStatus方法
+            proto.checkSynthesisStatus = function() {
+                const synthesisStatus = document.getElementById('synthesisStatus');
+                const startBtn = document.getElementById('startSynthesisBtn');
+                if (!synthesisStatus) return;
+                
+                // 检查是否通过审核
+                const reviewApproved = this.workflowData?.step2?.reviewResult?.approved;
+                if (!reviewApproved) {
+                    synthesisStatus.innerHTML = '<p style="color: orange; padding: 20px;">请先完成前面的步骤并通过审核</p>';
+                    if (startBtn) startBtn.disabled = true;
+                    return;
+                }
+                
+                // 显示可以开始合成
+                synthesisStatus.innerHTML = `<div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin-bottom: 20px;"><div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;"><i class="fas fa-check-circle" style="color: #28a745; font-size: 24px;"></i><span style="font-weight: 600; color: #155724;">审核已通过，可以开始语音合成</span></div><div style="color: #155724;"><p><strong>会话ID:</strong> ${this.workflowData.step1.courseId}</p><p><strong>审核时间:</strong> ${new Date(this.workflowData.step2.reviewResult.reviewTime).toLocaleString('zh-CN')}</p><p><strong>审核意见:</strong> ${this.workflowData.step2.reviewResult.comments || '无'}</p></div></div>`;
+                if (startBtn) startBtn.disabled = false;
+            };
+            
+            // 添加startSynthesis方法
+            proto.startSynthesis = async function() {
+                if (!this.workflowData?.step1?.courseId) { alert('缺少会话信息'); return; }
+                if (!this.workflowData?.step2?.reviewResult?.approved) { alert('请先完成审核并通过'); return; }
+                try {
+                    this.showLoading && this.showLoading('正在执行语音合成，请稍候...');
+                    const response = await window.api.executeBulkSynthesis(this.workflowData.step1.courseId);
+                    if (response.success || response.status === 'SUCCESS' || response.status === 'COMPLETED') {
+                        this.showMessage ? this.showMessage('语音合成成功', 'success') : alert('语音合成成功');
+                        this.workflowData.step3 = { synthesisResult: response, synthesisTime: new Date().toISOString() };
+                        this.saveWorkflowState && this.saveWorkflowState();
+                        setTimeout(() => this.switchToStep && this.switchToStep(4), 1000);
+                    } else { alert('语音合成失败：' + (response.message || '未知错误')); }
+                } catch (error) { alert('语音合成失败：' + error.message); } finally { this.hideLoading && this.hideLoading(); }
+            };
+            
+            console.log('[AUTO-FIX] 修复已应用，工作流将自动运行');
+        };
+        
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFix);
+        } else {
+            initFix();
+        }
+    })();
+    </script>
+</body>
+
+</html>

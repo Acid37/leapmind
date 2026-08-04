@@ -1,0 +1,29 @@
+package com.treepeople.leapmindtts.pojo.dto;
+
+import com.treepeople.leapmindtts.pojo.enums.SemesterEnum;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * @ Author：YangYu
+ * @ Package：com.treepeople.leapmindtts.pojo.vo
+ * @ Project：leapmind-tts - 语音分段
+ * @ Description:
+ * @ Date：2025/11/2  20:48
+ */
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class AdminCourseSectionDTO {
+
+    private String subject;
+    // 阶段
+    private String stageName;
+    // 年级
+    private String gradeName;
+    // 学期
+    private SemesterEnum semester;
+    // 章节
+    private Integer chapterNumber;
+}

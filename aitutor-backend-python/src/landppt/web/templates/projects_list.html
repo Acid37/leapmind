@@ -1,0 +1,753 @@
+{% extends "base.html" %}
+
+{% block title %}项目列表 - LandPPT{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 现代化项目列表页面 */
+.projects-hero {
+    background: var(--glass-bg);
+    backdrop-filter: blur(30px);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: var(--spacing-2xl) var(--spacing-lg);
+    margin: calc(-1 * var(--spacing-lg)) calc(-1 * var(--spacing-lg)) var(--spacing-2xl) calc(-1 * var(--spacing-lg));
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0 0 var(--border-radius-xl) var(--border-radius-xl);
+}
+
+.projects-hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+        radial-gradient(circle at 25% 25%, rgba(52, 152, 219, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 75% 75%, rgba(155, 89, 182, 0.1) 0%, transparent 50%);
+    animation: projectsFloat 20s ease-in-out infinite;
+}
+
+@keyframes projectsFloat {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.02) rotate(-1deg); }
+}
+
+.projects-hero h2 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: var(--spacing-md);
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+    z-index: 1;
+    letter-spacing: -0.02em;
+}
+
+.projects-hero p {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin: 0;
+    position: relative;
+    z-index: 1;
+    font-weight: 500;
+}
+
+/* 美化状态筛选下拉框 */
+.status-filter-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    position: relative;
+}
+
+.status-filter-label {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 1rem;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.status-filter-label::before {
+    content: '🔍';
+    font-size: 1.1em;
+}
+
+.status-filter-select {
+    min-width: 180px;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--border-radius-md);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    outline: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23667eea' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 12px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    padding-right: 44px;
+}
+
+.status-filter-select:hover {
+    border-color: rgba(102, 126, 234, 0.4);
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.status-filter-select:focus {
+    border-color: rgba(102, 126, 234, 0.6);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1), 0 4px 20px rgba(102, 126, 234, 0.2);
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 1);
+}
+
+.status-filter-select option {
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--text-primary);
+    padding: var(--spacing-sm);
+    font-weight: 500;
+}
+
+/* 筛选容器动画效果 */
+.filter-actions-container {
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-xl);
+    margin-bottom: var(--spacing-2xl);
+    box-shadow: var(--glass-shadow);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filter-actions-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-gradient);
+    transform: scaleX(0);
+    transition: transform 0.4s ease;
+}
+
+.filter-actions-container:hover::before {
+    transform: scaleX(1);
+}
+
+.filter-actions-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(31, 38, 135, 0.25);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .filter-actions-container {
+        flex-direction: column;
+        gap: var(--spacing-lg);
+        align-items: stretch !important;
+    }
+
+    .status-filter-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+    }
+
+    .status-filter-label {
+        text-align: center;
+    }
+
+    .status-filter-select {
+        min-width: 100%;
+    }
+}
+
+/* 加载状态样式 */
+.status-filter-select.loading {
+    opacity: 0.7;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23667eea' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M10 2v6m0 4v6m6-10h-6M4 10h6'/%3e%3c/svg%3e");
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* 筛选结果提示 */
+.filter-result-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    border-radius: var(--border-radius-sm);
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-left: var(--spacing-sm);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.filter-result-hint:hover {
+    background: rgba(102, 126, 234, 0.15);
+    transform: translateY(-1px);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="projects-hero">
+    <h2>📋 项目列表</h2>
+    <p>管理您的所有 PPT 项目</p>
+</div>
+
+<div style="max-width: 1400px; margin: 0 auto; padding: var(--spacing-lg);">`
+
+    <!-- Filter and Actions -->
+    <div class="filter-actions-container" style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="status-filter-container">
+            <label for="statusFilter" class="status-filter-label">状态筛选</label>
+            <select id="statusFilter" onchange="filterProjects()" class="status-filter-select">
+                <option value="">全部状态</option>
+                <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>📝 草稿</option>
+                <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>🔄 进行中</option>
+                <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>✅ 已完成</option>
+                <option value="archived" {% if status_filter == 'archived' %}selected{% endif %}>📦 已归档</option>
+            </select>
+            {% if status_filter %}
+            <span class="filter-result-hint">
+                <span>当前筛选:</span>
+                <strong>
+                    {% if status_filter == 'draft' %}📝 草稿
+                    {% elif status_filter == 'in_progress' %}🔄 进行中
+                    {% elif status_filter == 'completed' %}✅ 已完成
+                    {% elif status_filter == 'archived' %}📦 已归档
+                    {% endif %}
+                </strong>
+            </span>
+            {% endif %}
+        </div>
+
+        <div style="display: flex; gap: var(--spacing-md);">
+            <a href="/scenarios" class="btn btn-primary">🎯 创建新项目</a>
+            <a href="/dashboard" class="btn btn-success">📊 仪表板</a>
+        </div>
+    </div>
+
+    <!-- Projects List -->
+    {% if projects %}
+    <div style="margin-bottom: var(--spacing-2xl);">
+        <!-- List Header -->
+        <div style="display: grid; grid-template-columns: 60px 1fr 120px 100px 120px 150px 120px; gap: var(--spacing-lg); padding: var(--spacing-lg) var(--spacing-xl); background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: var(--border-radius-md) var(--border-radius-md) 0 0; font-weight: 600; color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;">
+            <div>状态</div>
+            <div>项目信息</div>
+            <div>场景</div>
+            <div>版本</div>
+            <div>进度</div>
+            <div>更新时间</div>
+            <div>操作</div>
+        </div>
+
+        <!-- Projects List Items -->
+        <div style="background: var(--glass-bg); backdrop-filter: blur(15px); border: 1px solid var(--glass-border); border-top: none; border-radius: 0 0 var(--border-radius-md) var(--border-radius-md); box-shadow: var(--glass-shadow);">
+            {% for project in projects %}
+            <div class="project-list-item" style="display: grid; grid-template-columns: 60px 1fr 120px 100px 120px 150px 120px; gap: var(--spacing-lg); padding: var(--spacing-lg) var(--spacing-xl); border-bottom: 1px solid var(--glass-border); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onclick="window.location.href='/projects/{{ project.project_id }}'">
+                <!-- Status Icon -->
+                <div style="display: flex; align-items: center; justify-content: center;">
+                    {% if project.status == 'completed' %}
+                        <div class="status-icon completed" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2em; background: var(--success-gradient); box-shadow: 0 4px 15px rgba(67, 233, 123, 0.3);">
+                            ✅
+                        </div>
+                    {% elif project.status == 'in_progress' %}
+                        <div class="status-icon in-progress" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2em; background: var(--accent-gradient); box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);">
+                            🔄
+                        </div>
+                    {% elif project.status == 'draft' %}
+                        <div class="status-icon draft" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2em; background: linear-gradient(135deg, #95a5a6, #7f8c8d); box-shadow: 0 4px 15px rgba(149, 165, 166, 0.3);">
+                            📝
+                        </div>
+                    {% elif project.status == 'archived' %}
+                        <div class="status-icon archived" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2em; background: linear-gradient(135deg, #7f8c8d, #95a5a6); box-shadow: 0 4px 15px rgba(127, 140, 141, 0.3);">
+                            📦
+                        </div>
+                    {% else %}
+                        <div class="status-icon error" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2em; background: var(--secondary-gradient); box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);">
+                            ❌
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Project Info -->
+                <div style="display: flex; flex-direction: column; justify-content: center; min-width: 0;">
+                    <h4 style="color: var(--text-primary); margin: 0 0 var(--spacing-xs) 0; font-size: 1.1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ project.title }}</h4>
+                    <p style="color: var(--text-secondary); margin: 0; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ project.topic }}</p>
+                </div>
+
+                <!-- Scenario -->
+                <div style="display: flex; align-items: center; color: var(--text-secondary); font-size: 0.9rem;">
+                    {{ project.scenario }}
+                </div>
+
+                <!-- Version -->
+                <div style="display: flex; align-items: center; color: var(--text-primary); font-weight: 600; font-size: 0.9rem;">
+                    v{{ project.version }}
+                </div>
+
+                <!-- Progress -->
+                <div style="display: flex; align-items: center;">
+                    {% if project.status == 'in_progress' and project.todo_board %}
+                        <div style="width: 100%; display: flex; flex-direction: column; gap: var(--spacing-xs);">
+                            <div style="background: rgba(255,255,255,0.3); border-radius: var(--border-radius-sm); overflow: hidden; height: 6px;">
+                                <div style="background: var(--accent-gradient); height: 100%; width: {{ project.todo_board.overall_progress }}%; transition: width 0.3s ease; border-radius: var(--border-radius-sm);"></div>
+                            </div>
+                            <span style="color: var(--text-secondary); font-size: 0.8rem; text-align: center;">{{ "%.0f" | format(project.todo_board.overall_progress) }}%</span>
+                        </div>
+                    {% elif project.status == 'completed' %}
+                        <span style="color: var(--text-primary); font-size: 0.9rem; font-weight: 600;">已完成</span>
+                    {% elif project.status == 'draft' %}
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">草稿</span>
+                    {% elif project.status == 'archived' %}
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">已归档</span>
+                    {% else %}
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">错误</span>
+                    {% endif %}
+                </div>
+
+                <!-- Update Time -->
+                <div style="display: flex; align-items: center; color: var(--text-secondary); font-size: 0.85rem;">
+                    {{ project.updated_at | strftime('%m-%d %H:%M') }}
+                </div>
+
+                <!-- Actions -->
+                <div style="display: flex; align-items: center; gap: var(--spacing-xs);" onclick="event.stopPropagation();">
+                    <!-- Quick Action Button -->
+                    {% if project.status == 'completed' %}
+                        <a href="/projects/{{ project.project_id }}/edit" class="btn-icon" title="编辑PPT" style="width: 32px; height: 32px; border-radius: 50%; background: var(--warning-gradient); color: white; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(250, 112, 154, 0.3); transition: all 0.3s ease;">
+                            ✏️
+                        </a>
+                        <a href="/projects/{{ project.project_id }}/fullscreen" class="btn-icon" title="预览PPT" target="_blank" style="width: 32px; height: 32px; border-radius: 50%; background: var(--success-gradient); color: white; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(67, 233, 123, 0.3); transition: all 0.3s ease;">
+                            👁️
+                        </a>
+                    {% elif project.status == 'in_progress' %}
+                        <a href="/projects/{{ project.project_id }}/todo" class="btn-icon" title="TODO看板" style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent-gradient); color: white; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(79, 172, 254, 0.3); transition: all 0.3s ease;">
+                            📋
+                        </a>
+                    {% endif %}
+
+                    <!-- Delete Button -->
+                    <button onclick="event.stopPropagation(); confirmDeleteProject('{{ project.project_id }}', '{{ project.title }}')" class="btn-icon" title="删除项目" style="width: 32px; height: 32px; border-radius: 50%; background: var(--secondary-gradient); color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3); transition: all 0.3s ease;">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if total > page_size %}
+    <div style="text-align: center; margin-bottom: var(--spacing-2xl);">
+        <div style="display: inline-flex; gap: var(--spacing-md); align-items: center; background: var(--glass-bg); backdrop-filter: blur(15px); border: 1px solid var(--glass-border); padding: var(--spacing-lg); border-radius: var(--border-radius-lg); box-shadow: var(--glass-shadow);">
+            {% if page > 1 %}
+            <a href="?page={{ page - 1 }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="btn btn-secondary">
+                ← 上一页
+            </a>
+            {% endif %}
+
+            <span style="color: var(--text-secondary); margin: 0 var(--spacing-lg); font-weight: 500;">
+                第 {{ page }} 页，共 {{ (total + page_size - 1) // page_size }} 页
+            </span>
+
+            {% if page * page_size < total %}
+            <a href="?page={{ page + 1 }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="btn btn-secondary">
+                下一页 →
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- Empty State -->
+    <div style="text-align: center; padding: var(--spacing-2xl); background: var(--glass-bg); backdrop-filter: blur(15px); border: 1px solid var(--glass-border); border-radius: var(--border-radius-xl); box-shadow: var(--glass-shadow);">
+        <div style="font-size: 5em; margin-bottom: var(--spacing-xl); opacity: 0.6;">📋</div>
+        <h3 style="color: var(--text-primary); margin-bottom: var(--spacing-lg); font-weight: 600;">
+            {% if status_filter %}
+                没有找到 "{{ status_filter }}" 状态的项目
+            {% else %}
+                暂无项目
+            {% endif %}
+        </h3>
+        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-2xl); font-size: 1.1rem;">
+            {% if status_filter %}
+                尝试切换其他状态筛选或创建新项目
+            {% else %}
+                开始创建您的第一个 PPT 项目
+            {% endif %}
+        </p>
+        <div style="display: flex; gap: var(--spacing-md); justify-content: center; flex-wrap: wrap;">
+            <a href="/scenarios" class="btn btn-primary">🎯 创建项目</a>
+            {% if status_filter %}
+            <a href="/projects" class="btn btn-secondary">查看全部</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+</style>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); padding: var(--spacing-2xl); border-radius: var(--border-radius-xl); max-width: 500px; width: 90%; text-align: center; box-shadow: var(--glass-shadow);">
+        <div style="font-size: 3em; margin-bottom: var(--spacing-xl);">⚠️</div>
+        <h3 style="color: var(--text-primary); margin-bottom: var(--spacing-lg); font-weight: 600;">确认删除项目</h3>
+        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-lg); line-height: 1.6;">
+            您确定要删除项目 "<span id="deleteProjectTitle" style="font-weight: bold; color: var(--text-primary);"></span>" 吗？
+        </p>
+        <p style="color: #e74c3c; font-size: 0.9em; margin-bottom: var(--spacing-2xl); line-height: 1.6;">
+            ⚠️ 此操作不可撤销，将永久删除项目及其所有相关数据！
+        </p>
+        <div style="display: flex; gap: var(--spacing-lg); justify-content: center;">
+            <button onclick="closeDeleteModal()" class="btn btn-secondary" style="padding: var(--spacing-md) var(--spacing-xl);">
+                取消
+            </button>
+            <button onclick="executeDeleteProject()" class="btn" style="background: var(--secondary-gradient); color: white; padding: var(--spacing-md) var(--spacing-xl); box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);">
+                确认删除
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); z-index: 1001; align-items: center; justify-content: center;">
+    <div style="background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); padding: var(--spacing-2xl); border-radius: var(--border-radius-xl); text-align: center; box-shadow: var(--glass-shadow);">
+        <div class="spinner" style="margin-bottom: var(--spacing-xl);"></div>
+        <p style="color: var(--text-primary); font-weight: 600; font-size: 1.1rem;">正在删除项目...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentDeleteProjectId = null;
+
+function filterProjects() {
+    const selectElement = document.getElementById('statusFilter');
+    const status = selectElement.value;
+
+    // 添加加载状态
+    selectElement.classList.add('loading');
+
+    // 显示加载提示
+    showFilterNotification('正在筛选项目...', 'info');
+
+    const url = new URL(window.location);
+
+    if (status) {
+        url.searchParams.set('status', status);
+    } else {
+        url.searchParams.delete('status');
+    }
+
+    url.searchParams.delete('page'); // Reset to first page
+
+    // 延迟跳转以显示加载效果
+    setTimeout(() => {
+        window.location.href = url.toString();
+    }, 300);
+}
+
+function showFilterNotification(message, type = 'info') {
+    // 移除现有的筛选通知
+    const existingNotification = document.querySelector('.filter-notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+
+    // 创建新的通知元素
+    const notification = document.createElement('div');
+    notification.className = 'filter-notification';
+    notification.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: var(--border-radius-md);
+        color: white;
+        font-weight: 500;
+        font-size: 0.9rem;
+        z-index: 1002;
+        max-width: 300px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.2);
+        transform: translateX(100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    `;
+
+    // 设置背景颜色和图标
+    if (type === 'success') {
+        notification.style.background = 'var(--success-gradient)';
+        notification.innerHTML = '✅ ' + message;
+    } else if (type === 'error') {
+        notification.style.background = 'var(--secondary-gradient)';
+        notification.innerHTML = '❌ ' + message;
+    } else {
+        notification.style.background = 'var(--accent-gradient)';
+        notification.innerHTML = '🔍 ' + message;
+    }
+
+    document.body.appendChild(notification);
+
+    // 动画显示
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+
+    // 自动移除
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 2000);
+}
+
+function confirmDeleteProject(projectId, projectTitle) {
+    currentDeleteProjectId = projectId;
+    const titleElement = document.getElementById('deleteProjectTitle');
+    if (titleElement) {
+        titleElement.textContent = projectTitle;
+    } else {
+        console.error('Element with id "deleteProjectTitle" not found');
+    }
+    const modalElement = document.getElementById('deleteModal');
+    if (modalElement) {
+        modalElement.style.display = 'flex';
+    } else {
+        console.error('Element with id "deleteModal" not found');
+    }
+}
+
+function closeDeleteModal() {
+    const modalElement = document.getElementById('deleteModal');
+    if (modalElement) {
+        modalElement.style.display = 'none';
+    }
+    currentDeleteProjectId = null;
+}
+
+async function executeDeleteProject() {
+    if (!currentDeleteProjectId) return;
+
+    // Show loading overlay
+    const modalElement = document.getElementById('deleteModal');
+    if (modalElement) {
+        modalElement.style.display = 'none';
+    }
+    const loadingElement = document.getElementById('loadingOverlay');
+    if (loadingElement) {
+        loadingElement.style.display = 'flex';
+    }
+
+    try {
+        const response = await fetch(`/api/database/projects/${currentDeleteProjectId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            // Show success message
+            showNotification('项目删除成功！', 'success');
+
+            // Refresh the page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            throw new Error(result.detail || '删除失败');
+        }
+
+    } catch (error) {
+        console.error('Delete error:', error);
+        showNotification('删除失败：' + error.message, 'error');
+        const loadingElement = document.getElementById('loadingOverlay');
+        if (loadingElement) {
+            loadingElement.style.display = 'none';
+        }
+    }
+
+    currentDeleteProjectId = null;
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 8px;
+        color: white;
+        font-weight: bold;
+        z-index: 1002;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    `;
+
+    // Set background color based on type
+    if (type === 'success') {
+        notification.style.background = '#27ae60';
+    } else if (type === 'error') {
+        notification.style.background = '#e74c3c';
+    } else {
+        notification.style.background = '#3498db';
+    }
+
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Close modal when clicking outside
+    const deleteModal = document.getElementById('deleteModal');
+    if (deleteModal) {
+        deleteModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDeleteModal();
+            }
+        });
+    }
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeDeleteModal();
+        }
+
+        // 键盘快捷键支持
+        if (e.ctrlKey || e.metaKey) {
+            switch(e.key) {
+                case 'f': // Ctrl+F 聚焦到筛选框
+                    e.preventDefault();
+                    const statusFilter = document.getElementById('statusFilter');
+                    if (statusFilter) {
+                        statusFilter.focus();
+                        showFilterNotification('使用方向键选择筛选状态', 'info');
+                    }
+                    break;
+                case 'n': // Ctrl+N 创建新项目
+                    e.preventDefault();
+                    window.location.href = '/scenarios';
+                    break;
+                case 'd': // Ctrl+D 返回仪表板
+                    e.preventDefault();
+                    window.location.href = '/dashboard';
+                    break;
+            }
+        }
+    });
+
+    // 增强筛选框的键盘导航
+    const statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) {
+        statusFilter.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                filterProjects();
+            }
+        });
+
+        // 添加焦点样式
+        statusFilter.addEventListener('focus', function() {
+            this.parentElement.style.transform = 'scale(1.02)';
+            this.parentElement.style.transition = 'transform 0.2s ease';
+        });
+
+        statusFilter.addEventListener('blur', function() {
+            this.parentElement.style.transform = 'scale(1)';
+        });
+    }
+
+    // Add loading animation for project cards
+    const cards = document.querySelectorAll('.project-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.5s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+
+    // 显示键盘快捷键提示
+    setTimeout(() => {
+        if (!localStorage.getItem('keyboardShortcutsShown')) {
+            showFilterNotification('💡 提示: Ctrl+F 快速筛选, Ctrl+N 创建项目', 'info');
+            localStorage.setItem('keyboardShortcutsShown', 'true');
+        }
+    }, 2000);
+});
+
+// Auto-refresh for in-progress projects
+const hasInProgressProjects = {{ projects | selectattr('status', 'equalto', 'in_progress') | list | length }} > 0;
+if (hasInProgressProjects) {
+    setInterval(() => {
+        window.location.reload();
+    }, 30000); // Refresh every 30 seconds
+}
+</script>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}LandPPT - AI PPT Generator{% endblock %}
+
+{% block content %}
+<div style="text-align: center; margin-bottom: 40px;">
+    <h2 style="color: #2c3e50; margin-bottom: 20px;"><i class="fas fa-rocket" style="color: #3498db;"></i> 欢迎使用 LandPPT</h2>
+    <p style="font-size: 1.2em; color: #7f8c8d; margin-bottom: 20px;">
+        只需输入主题和需求，AI 即可自动生成专业的 PPT 演示文稿
+    </p>
+    {% if ai_provider %}
+    <div style="background: linear-gradient(135deg, #3498db22, #3498db11); padding: 15px; border-radius: 10px; display: inline-block; margin-bottom: 20px;">
+        <p style="margin: 0; color: #2c3e50;">
+            <strong>🤖 当前 AI 提供者:</strong>
+            <span style="background: #3498db; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.9em;">
+                {{ ai_provider }}
+            </span>
+            <a href="/ai-config" style="margin-left: 10px; color: #3498db; text-decoration: none;">⚙️ 配置</a>
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="grid">
+    <div class="card">
+        <h3 style="color: #3498db; margin-bottom: 15px;"><i class="fas fa-bullseye"></i> 快速生成</h3>
+        <p style="margin-bottom: 20px;">选择场景模板，输入主题，一键生成专业PPT</p>
+        <a href="/scenarios" class="btn btn-primary">开始创建 PPT</a>
+    </div>
+    
+    <div class="card">
+        <h3 style="color: #9b59b6; margin-bottom: 15px;"><i class="fas fa-chart-bar"></i> 项目仪表板</h3>
+        <p style="margin-bottom: 20px;">管理项目、查看 TODO 看板和进度跟踪</p>
+        <a href="/dashboard" class="btn" style="background: #9b59b6;">项目仪表板</a>
+    </div>
+</div>
+
+<div style="margin-top: 40px; padding: 30px; background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 15px;">
+    <h3 style="color: #2c3e50; margin-bottom: 20px; text-align: center;"><i class="fas fa-star" style="color: #f39c12;"></i> 核心功能特色</h3>
+    
+    <div class="grid">
+        <div style="text-align: center;">
+            <div style="font-size: 3em; margin-bottom: 10px; color: #3498db;"><i class="fas fa-tasks"></i></div>
+            <h4 style="color: #3498db; margin-bottom: 10px;">TODO 看板管理</h4>
+            <p style="color: #7f8c8d;">可视化5阶段工作流程：大纲生成→主题设计→内容生成→排版校验→导出分享</p>
+        </div>
+
+        <div style="text-align: center;">
+            <div style="font-size: 3em; margin-bottom: 10px; color: #27ae60;"><i class="fas fa-palette"></i></div>
+            <h4 style="color: #27ae60; margin-bottom: 10px;">7种专业场景</h4>
+            <p style="color: #7f8c8d;">通用、旅游观光、儿童科普、深入分析、历史文化、科技技术、方案汇报</p>
+        </div>
+
+        <div style="text-align: center;">
+            <div style="font-size: 3em; margin-bottom: 10px; color: #e74c3c;"><i class="fas fa-sync-alt"></i></div>
+            <h4 style="color: #e74c3c; margin-bottom: 10px;">实时迭代优化</h4>
+            <p style="color: #7f8c8d;">支持单页重新生成、内容锁定、版本历史管理和项目协作</p>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 30px; text-align: center; padding: 20px; background: rgba(52, 152, 219, 0.1); border-radius: 10px;">
+    <h4 style="color: #2c3e50; margin-bottom: 15px;"><i class="fas fa-link" style="color: #3498db;"></i> API 接口支持</h4>
+    <p style="color: #7f8c8d; margin-bottom: 15px;">
+        LandPPT 提供完整的 OpenAI 兼容 API，支持与现有工具和客户端无缝集成
+    </p>
+    <a href="/docs" class="btn btn-primary">查看 API 文档</a>
+</div>
+{% endblock %}

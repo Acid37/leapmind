@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}图片生成测试{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+    <h2 style="text-align: center; color: #2c3e50; margin-bottom: 30px;">🎨 AI图片生成测试</h2>
+    
+    <!-- 提供者状态 -->
+    <div id="provider-status" style="margin-bottom: 30px;">
+        <h3>提供者状态</h3>
+        <div id="status-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+            <!-- 状态卡片将通过JavaScript动态生成 -->
+        </div>
+    </div>
+    
+    <!-- 图片生成表单 -->
+    <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 30px;">
+        <h3 style="margin-bottom: 20px;">生成图片</h3>
+        
+        <form id="generation-form">
+            <!-- 提示词输入 -->
+            <div style="margin-bottom: 20px;">
+                <label for="prompt" style="display: block; margin-bottom: 8px; font-weight: bold;">提示词：</label>
+                <textarea id="prompt" name="prompt" rows="3" 
+                         style="width: 100%; padding: 12px; border: 2px solid #e9ecef; border-radius: 6px; font-size: 14px;"
+                         placeholder="描述您想要生成的图片..."></textarea>
+            </div>
+            
+            <!-- 提供者选择 -->
+            <div style="margin-bottom: 20px;">
+                <label for="provider" style="display: block; margin-bottom: 8px; font-weight: bold;">AI提供者：</label>
+                <select id="provider" name="provider" 
+                        style="width: 100%; padding: 12px; border: 2px solid #e9ecef; border-radius: 6px; font-size: 14px;">
+                    <option value="">选择提供者...</option>
+                    <option value="dalle">DALL-E</option>
+                    <option value="stable_diffusion">Stable Diffusion</option>
+                    <option value="siliconflow">SiliconFlow (Kolors)</option>
+                </select>
+            </div>
+            
+            <!-- 尺寸选择 -->
+            <div style="margin-bottom: 20px;">
+                <label for="size" style="display: block; margin-bottom: 8px; font-weight: bold;">图片尺寸：</label>
+                <select id="size" name="size" 
+                        style="width: 100%; padding: 12px; border: 2px solid #e9ecef; border-radius: 6px; font-size: 14px;">
+                    <option value="1024x1024">1024x1024 (正方形)</option>
+                    <option value="1792x1024">1792x1024 (16:9横向)</option>
+                    <option value="1024x1792">1024x1792 (9:16竖向)</option>
+                </select>
+            </div>
+            
+            <!-- 生成按钮 -->
+            <button type="submit" id="generate-btn"
+                    style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                           color: white; border: none; padding: 15px; border-radius: 8px; 
+                           font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s ease;">
+                🎨 生成图片
+            </button>
+        </form>
+    </div>
+    
+    <!-- 生成进度 -->
+    <div id="generation-progress" style="display: none; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 30px;">
+        <div style="text-align: center;">
+            <div style="font-size: 2em; margin-bottom: 15px;">⏳</div>
+            <div id="progress-text">正在生成图片，请稍候...</div>
+            <div style="width: 100%; background: #f0f0f0; border-radius: 10px; margin-top: 15px; overflow: hidden;">
+                <div id="progress-bar" style="width: 0%; height: 8px; background: linear-gradient(90deg, #667eea, #764ba2); transition: width 0.3s ease;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 生成结果 -->
+    <div id="generation-result" style="display: none; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <h3 style="margin-bottom: 20px;">生成结果</h3>
+        <div id="result-content">
+            <!-- 结果内容将通过JavaScript动态生成 -->
+        </div>
+    </div>
+</div>
+
+<script>
+// 页面加载时获取提供者状态
+document.addEventListener('DOMContentLoaded', function() {
+    loadProviderStatus();
+});
+
+// 加载提供者状态
+async function loadProviderStatus() {
+    try {
+        const response = await fetch('/api/image/status');
+        const data = await response.json();
+        
+        const statusCards = document.getElementById('status-cards');
+        statusCards.innerHTML = '';
+        
+        // 创建状态卡片
+        const providers = [
+            { key: 'dalle', name: 'DALL-E', icon: '🎨' },
+            { key: 'stable_diffusion', name: 'Stable Diffusion', icon: '🖼️' },
+            { key: 'siliconflow', name: 'SiliconFlow', icon: '⚡' }
+        ];
+        
+        providers.forEach(provider => {
+            const isAvailable = data.available_providers.includes(provider.key);
+            const card = document.createElement('div');
+            card.style.cssText = `
+                background: ${isAvailable ? '#d4edda' : '#f8d7da'};
+                border: 2px solid ${isAvailable ? '#c3e6cb' : '#f5c6cb'};
+                border-radius: 8px;
+                padding: 15px;
+                text-align: center;
+            `;
+            
+            card.innerHTML = `
+                <div style="font-size: 2em; margin-bottom: 10px;">${provider.icon}</div>
+                <div style="font-weight: bold; margin-bottom: 5px;">${provider.name}</div>
+                <div style="color: ${isAvailable ? '#155724' : '#721c24'}; font-size: 0.9em;">
+                    ${isAvailable ? '✅ 可用' : '❌ 未配置'}
+                </div>
+            `;
+            
+            statusCards.appendChild(card);
+        });
+        
+    } catch (error) {
+        console.error('Failed to load provider status:', error);
+    }
+}
+
+// 处理表单提交
+document.getElementById('generation-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const prompt = formData.get('prompt');
+    const provider = formData.get('provider');
+    const size = formData.get('size');
+    
+    if (!prompt.trim()) {
+        alert('请输入提示词');
+        return;
+    }
+    
+    if (!provider) {
+        alert('请选择AI提供者');
+        return;
+    }
+    
+    // 显示进度
+    showProgress();
+    
+    try {
+        const response = await fetch('/api/image/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                prompt: prompt,
+                provider: provider,
+                size: size
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showResult(data, prompt, provider);
+        } else {
+            showError(data.message || '生成失败');
+        }
+        
+    } catch (error) {
+        console.error('Generation failed:', error);
+        showError('生成失败: ' + error.message);
+    } finally {
+        hideProgress();
+    }
+});
+
+// 显示进度
+function showProgress() {
+    document.getElementById('generation-progress').style.display = 'block';
+    document.getElementById('generation-result').style.display = 'none';
+    document.getElementById('generate-btn').disabled = true;
+    document.getElementById('generate-btn').textContent = '生成中...';
+    
+    // 模拟进度条动画
+    let progress = 0;
+    const progressBar = document.getElementById('progress-bar');
+    const interval = setInterval(() => {
+        progress += Math.random() * 10;
+        if (progress > 90) progress = 90;
+        progressBar.style.width = progress + '%';
+    }, 500);
+    
+    // 存储interval以便后续清理
+    window.progressInterval = interval;
+}
+
+// 隐藏进度
+function hideProgress() {
+    document.getElementById('generation-progress').style.display = 'none';
+    document.getElementById('generate-btn').disabled = false;
+    document.getElementById('generate-btn').textContent = '🎨 生成图片';
+    
+    if (window.progressInterval) {
+        clearInterval(window.progressInterval);
+    }
+}
+
+// 显示结果
+function showResult(data, prompt, provider) {
+    const resultDiv = document.getElementById('generation-result');
+    const resultContent = document.getElementById('result-content');
+    
+    resultContent.innerHTML = `
+        <div style="margin-bottom: 20px;">
+            <strong>提示词：</strong> ${prompt}<br>
+            <strong>提供者：</strong> ${provider}<br>
+            <strong>状态：</strong> <span style="color: #28a745;">✅ 生成成功</span>
+        </div>
+        <div style="text-align: center;">
+            <img src="${data.image_path}" alt="Generated Image" 
+                 style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+        </div>
+        <div style="margin-top: 20px; text-align: center;">
+            <a href="${data.image_path}" download style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                📥 下载图片
+            </a>
+        </div>
+    `;
+    
+    resultDiv.style.display = 'block';
+}
+
+// 显示错误
+function showError(message) {
+    const resultDiv = document.getElementById('generation-result');
+    const resultContent = document.getElementById('result-content');
+    
+    resultContent.innerHTML = `
+        <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 5px; text-align: center;">
+            <strong>❌ 生成失败</strong><br>
+            ${message}
+        </div>
+    `;
+    
+    resultDiv.style.display = 'block';
+}
+</script>
+{% endblock %}

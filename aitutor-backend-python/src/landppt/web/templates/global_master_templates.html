@@ -1,0 +1,1659 @@
+{% extends "base.html" %}
+
+{% block title %}全局母版管理{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 现代化全局母版管理页面 - 优化布局 */
+.templates-hero {
+    background: var(--glass-bg);
+    backdrop-filter: blur(30px);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: var(--spacing-lg) var(--spacing-lg);
+    margin: calc(-1 * var(--spacing-lg)) calc(-1 * var(--spacing-lg)) var(--spacing-lg) calc(-1 * var(--spacing-lg));
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0 0 var(--border-radius-lg) var(--border-radius-lg);
+}
+
+.templates-hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+        radial-gradient(circle at 25% 25%, rgba(240, 147, 251, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 75% 75%, rgba(79, 172, 254, 0.1) 0%, transparent 50%);
+    animation: templatesFloat 20s ease-in-out infinite;
+}
+
+@keyframes templatesFloat {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.02) rotate(1deg); }
+}
+
+.templates-hero h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: var(--spacing-sm);
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+    z-index: 1;
+    letter-spacing: -0.02em;
+}
+
+.templates-hero p {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    margin: 0;
+    position: relative;
+    z-index: 1;
+    font-weight: 500;
+}
+
+.templates-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-lg);
+    box-shadow: var(--glass-shadow);
+}
+
+.templates-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* 现代化输入框和表单样式 - 白色背景优化 */
+.glass-input, input[type="text"], input[type="email"], input[type="password"],
+textarea, select {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: var(--border-radius-sm);
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.glass-input:focus, input[type="text"]:focus, input[type="email"]:focus,
+input[type="password"]:focus, textarea:focus, select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: #ffffff;
+}
+
+.glass-input::placeholder, input::placeholder, textarea::placeholder {
+    color: rgba(0, 0, 0, 0.5);
+    font-weight: 400;
+}
+
+/* 表单标签样式 */
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+/* 复选框样式 */
+input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+    accent-color: #667eea;
+    cursor: pointer;
+}
+
+/* 表单组样式 - 优化间距 */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+/* 选择框特殊样式 */
+select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 12px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    padding-right: 40px;
+    appearance: none;
+}
+
+/* 搜索和过滤区域样式 - 优化紧凑布局 */
+.search-filter-container {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--glass-shadow);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-input-wrapper {
+    flex: 1;
+    min-width: 220px;
+    position: relative;
+}
+
+.search-input {
+    padding: 10px 14px;
+    transition: all 0.3s ease;
+}
+
+.search-input:focus {
+    padding: 10px 14px;
+}
+
+.filter-wrapper {
+    min-width: 160px;
+}
+
+.filter-select {
+    min-width: 100%;
+    padding: 10px 14px;
+}
+
+.refresh-btn {
+    white-space: nowrap;
+    min-width: auto;
+    padding: 10px 16px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="templates-hero">
+    <h1>🎨 全局母版管理</h1>
+    <p>管理和创建PPT全局母版模板</p>
+</div>
+
+<div style="max-width: 1400px; margin: 0 auto; padding: var(--spacing-md);">
+    <!-- Header Actions -->
+    <div class="templates-header">
+        <div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <h2 style="color: var(--text-primary); margin: 0; font-size: 1.3rem; font-weight: 600;">模板管理</h2>
+                <a href="https://landppt-template.52yyds.top" target="_blank" style="color: #667eea; text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.3s ease;">模板市场</a>
+            </div>
+            <p style="color: var(--text-secondary); margin: 4px 0 0 0; font-size: 0.95rem;">创建、编辑和管理您的PPT母版模板</p>
+        </div>
+        <div class="templates-actions">
+            <button id="createTemplateBtn" class="btn btn-primary">
+                ➕ 新建母版
+            </button>
+            <button id="generateWithAIBtn" class="btn btn-success">
+                🤖 AI生成母版
+            </button>
+            <input type="file" id="importTemplateInput" accept=".html,.json" style="display: none;">
+            <button id="importTemplateBtn" class="btn btn-secondary" onclick="document.getElementById('importTemplateInput').click()">
+                📥 导入母版
+            </button>
+        </div>
+    </div>
+
+    <!-- Filter and Search -->
+    <div class="search-filter-container">
+        <div class="search-input-wrapper">
+            <input type="text" id="searchInput" placeholder="搜索母版名称..." class="glass-input search-input">
+        </div>
+        <div class="filter-wrapper">
+            <select id="tagFilter" class="glass-input filter-select">
+                <option value="">所有标签</option>
+            </select>
+        </div>
+        <button id="refreshBtn" class="btn btn-info refresh-btn"><i class="fas fa-sync-alt"></i> 刷新</button>
+    </div>
+
+    <!-- Templates Grid -->
+    <div id="templatesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: var(--spacing-lg);">
+        <!-- Templates will be loaded here -->
+    </div>
+
+    <!-- Pagination -->
+    <div id="paginationContainer" style="margin-top: var(--spacing-lg);">
+        <div class="pagination-wrapper">
+            <div class="pagination-info">
+                <span id="paginationInfo">显示第 1-12 项，共 0 项</span>
+            </div>
+            <div class="pagination-controls">
+                <button id="prevPageBtn" class="btn btn-sm btn-secondary" disabled>
+                    <i class="fas fa-chevron-left"></i> 上一页
+                </button>
+                <div id="pageNumbers" class="page-numbers">
+                    <!-- Page numbers will be generated here -->
+                </div>
+                <button id="nextPageBtn" class="btn btn-sm btn-secondary" disabled>
+                    下一页 <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div class="pagination-size">
+                <label for="pageSizeSelect">每页显示：</label>
+                <select id="pageSizeSelect" class="glass-input" style="width: auto; min-width: 80px;">
+                    <option value="6" selected>6</option>
+                    <option value="12">12</option>
+                    <option value="24">24</option>
+                    <option value="48">48</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loadingIndicator" class="loading-container" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">加载中...</p>
+    </div>
+</div>
+
+<!-- Create/Edit Template Modal -->
+<div id="templateModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 850px; width: 90%;">
+        <div class="modal-header">
+            <h2 id="modalTitle">新建母版</h2>
+            <button class="close" id="closeModal" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="templateForm">
+                <div class="form-group">
+                    <label for="templateName">模板名称 *</label>
+                    <input type="text" id="templateName" name="template_name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="templateDescription">描述</label>
+                    <textarea id="templateDescription" name="description" rows="3"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="templateTags">标签 (用逗号分隔)</label>
+                    <input type="text" id="templateTags" name="tags" placeholder="例如: 商务, 简约, 现代">
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="isDefault" name="is_default">
+                        设为默认模板
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="htmlTemplate">HTML模板代码 *</label>
+                    <textarea id="htmlTemplate" name="html_template" required rows="15" style="font-family: 'Fira Code', 'Monaco', 'Consolas', monospace; font-size: 13px; line-height: 1.4;"></textarea>
+                </div>
+
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                    <button type="button" id="previewTemplateBtn" class="btn btn-secondary">👁️ 预览</button>
+                    <button type="button" id="cancelBtn" class="btn btn-secondary">取消</button>
+                    <button type="submit" class="btn btn-primary">💾 保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- AI Generation Modal -->
+<div id="aiGenerationModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 850px; width: 90%;">
+        <div class="modal-header">
+            <h2>AI生成母版</h2>
+            <button class="close" id="closeAIModal" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- 表单区域 -->
+            <div id="aiFormContainer">
+                <form id="aiGenerationForm">
+                    <div class="form-group">
+                        <label for="aiPrompt">描述您想要的母版风格 *</label>
+                        <textarea id="aiPrompt" name="prompt" required rows="4" placeholder="例如: 创建一个现代简约风格的商务PPT母版，使用蓝色主色调，包含卡片式布局..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="aiTemplateName">模板名称 *</label>
+                        <input type="text" id="aiTemplateName" name="template_name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="aiTemplateDescription">描述</label>
+                        <textarea id="aiTemplateDescription" name="description" rows="2"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="aiTemplateTags">标签 (用逗号分隔)</label>
+                        <input type="text" id="aiTemplateTags" name="tags" placeholder="AI生成, 现代, 商务">
+                    </div>
+
+                    <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                        <button type="button" id="cancelAIBtn" class="btn btn-secondary">取消</button>
+                        <button type="submit" class="btn btn-success">🤖 生成</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- AI生成进度区域 -->
+            <div id="aiGenerationProgress" style="display: none;">
+                <div class="ai-generation-header">
+                    <h3 style="margin: 0; color: var(--text-primary); font-size: 1.3rem;">🤖 AI正在生成您的模板...</h3>
+                    <div class="generation-status">
+                        <div class="status-indicator">
+                            <div class="status-dot"></div>
+                            <span id="statusText">正在分析需求...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ai-response-container">
+                    <div class="response-header">
+                        <h4>💭 AI思考过程</h4>
+                    </div>
+                    <div id="aiResponseStream" class="ai-response-stream">
+                        <!-- 流式AI回应将在这里显示 -->
+                    </div>
+                </div>
+
+                <div class="generation-actions" style="margin-top: 20px; text-align: center;">
+                    <button type="button" id="cancelGenerationBtn" class="btn btn-secondary">⏹️ 取消生成</button>
+                </div>
+            </div>
+
+            <!-- 生成完成区域 -->
+            <div id="aiGenerationComplete" style="display: none;">
+                <div class="completion-header">
+                    <h3 style="margin: 0; color: #28a745; font-size: 1.2rem;">✅ 模板生成完成！</h3>
+                </div>
+
+                <div class="completion-actions" style="margin-top: 20px; text-align: center; display: flex; gap: 10px; justify-content: center;">
+                    <button type="button" id="viewGeneratedTemplateBtn" class="btn btn-primary">👁️ 查看模板</button>
+                    <button type="button" id="closeCompletionBtn" class="btn btn-secondary">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div id="previewModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 95%; width: 95%;">
+        <div class="modal-header">
+            <h2>模板预览</h2>
+            <button class="close" id="closePreviewModal" type="button">&times;</button>
+        </div>
+        <div class="modal-body" style="text-align: center; padding: 16px;">
+            <iframe id="previewFrame" style="width: 1280px; height: 720px; border: 1px solid #ddd; transform: scale(0.8); transform-origin: top left; margin: 0 auto;"></iframe>
+        </div>
+    </div>
+</div>
+
+<style>
+/* 动画定义 */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* 加载指示器样式 */
+.loading-container {
+    text-align: center;
+    padding: 60px 40px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-lg);
+    margin: 40px 0;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(102, 126, 234, 0.2);
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+.loading-text {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    font-weight: 500;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* 现代化模态框样式 - 优化背景和定位 */
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: modalFadeIn 0.3s ease-out;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+/* 预览模态框需要更高的z-index */
+#previewModal {
+    z-index: 1100;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        backdrop-filter: blur(0px);
+    }
+    to {
+        opacity: 1;
+        backdrop-filter: blur(8px);
+    }
+}
+
+.modal-content {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-lg);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
+    overflow: hidden;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    position: relative;
+    margin: auto;
+    min-width: 320px;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-30px) scale(0.95);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background: #ffffff;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.close {
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.3s ease;
+    padding: 6px;
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
+}
+
+.close:hover {
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.1);
+    transform: scale(1.05);
+}
+
+.modal-body {
+    padding: 24px;
+    background: #ffffff;
+}
+
+.template-card {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-md);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    position: relative;
+}
+
+.template-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.template-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.template-card:hover::before {
+    transform: scaleX(1);
+}
+
+.template-preview {
+    width: 100%;
+    height: 200px;
+    background: #f8f9fa;
+    position: relative;
+    border-bottom: 1px solid #eee;
+    overflow: hidden;
+    border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+    flex-shrink: 0;
+}
+
+.template-preview-iframe {
+    width: 1280px;
+    height: 720px;
+    border: none;
+    pointer-events: none;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) scale(0.32);
+    transform-origin: center center;
+    border-radius: 4px;
+}
+
+.preview-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.preview-overlay:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.preview-overlay-text {
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.preview-overlay:hover .preview-overlay-text {
+    opacity: 1;
+}
+
+.template-info {
+    padding: 14px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.template-actions {
+    padding: 12px 14px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    background: #f8f9fa;
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+/* 现代化标签和徽章样式 */
+.tag {
+    display: inline-block;
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    padding: 4px 12px;
+    border-radius: var(--border-radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.tag:hover {
+    background: rgba(102, 126, 234, 0.15);
+    transform: translateY(-1px);
+}
+
+.default-badge {
+    background: var(--success-gradient);
+    color: white;
+    padding: 4px 12px;
+    border-radius: var(--border-radius-sm);
+    font-size: 0.7rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(67, 233, 123, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+/* 现代化按钮样式 - 优化间距和一致性 */
+.btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-align: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
+    min-height: 38px;
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s;
+}
+
+.btn:hover::before {
+    left: 100%;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-primary {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+.btn-primary:hover {
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.btn-success {
+    background: var(--success-gradient);
+    color: white;
+    box-shadow: 0 4px 15px rgba(67, 233, 123, 0.3);
+}
+.btn-success:hover {
+    box-shadow: 0 8px 25px rgba(67, 233, 123, 0.4);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6c757d, #5a6268);
+    color: white;
+    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+}
+.btn-secondary:hover {
+    box-shadow: 0 8px 25px rgba(108, 117, 125, 0.4);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.btn-danger {
+    background: var(--secondary-gradient);
+    color: white;
+    box-shadow: 0 4px 15px rgba(240, 147, 251, 0.3);
+}
+.btn-danger:hover {
+    box-shadow: 0 8px 25px rgba(240, 147, 251, 0.4);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.btn-warning {
+    background: var(--warning-gradient);
+    color: white;
+    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+}
+.btn-warning:hover {
+    box-shadow: 0 8px 25px rgba(255, 193, 7, 0.4);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #17a2b8, #138496);
+    color: white;
+    box-shadow: 0 4px 15px rgba(23, 162, 184, 0.3);
+}
+.btn-info:hover {
+    box-shadow: 0 8px 25px rgba(23, 162, 184, 0.4);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    border-radius: var(--border-radius-sm);
+    white-space: nowrap;
+    min-width: auto;
+    min-height: 32px;
+    gap: 4px;
+}
+
+/* AI生成进度样式 - 优化背景和可读性 */
+.ai-generation-header {
+    text-align: center;
+    margin-bottom: 20px;
+    padding: 18px;
+    background: #ffffff;
+    border-radius: var(--border-radius-md);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.generation-status {
+    margin-top: 10px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    background: #667eea;
+    border-radius: 50%;
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+}
+
+.ai-response-container {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-md);
+    padding: 18px;
+    margin: 18px 0;
+    max-height: 400px;
+    overflow-y: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.response-header {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.response-header h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.ai-response-stream {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.ai-response-stream .typing-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.2em;
+    background: #667eea;
+    animation: blink 1s infinite;
+    margin-left: 2px;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+.completion-header {
+    text-align: center;
+    margin-bottom: 20px;
+    padding: 18px;
+    background: #ffffff;
+    border-radius: var(--border-radius-md);
+    border: 1px solid rgba(40, 167, 69, 0.3);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.1);
+}
+
+/* 响应式设计 - 优化移动端体验 */
+@media (max-width: 1200px) {
+    #templatesGrid {
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)) !important;
+        gap: var(--spacing-md) !important;
+    }
+
+    .search-filter-container {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .search-input-wrapper, .filter-wrapper {
+        min-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .templates-hero {
+        padding: var(--spacing-md) var(--spacing-md);
+    }
+
+    .templates-hero h1 {
+        font-size: 1.5rem;
+    }
+
+    .templates-hero p {
+        font-size: 1rem;
+    }
+
+    .templates-header {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        align-items: stretch;
+    }
+
+    .templates-actions {
+        flex-direction: column;
+        width: 100%;
+        gap: var(--spacing-sm);
+    }
+
+    .templates-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    #templatesGrid {
+        grid-template-columns: 1fr !important;
+        gap: var(--spacing-md) !important;
+    }
+
+    .template-preview {
+        height: 180px !important;
+    }
+
+    .template-preview-iframe {
+        transform: translate(-50%, -50%) scale(0.26) !important;
+    }
+
+    .template-actions {
+        flex-direction: column !important;
+        gap: 6px !important;
+    }
+
+    .btn-sm {
+        width: 100% !important;
+        text-align: center !important;
+        justify-content: center !important;
+    }
+
+    .modal-content {
+        width: 95% !important;
+        margin: 10px;
+        max-height: calc(100vh - 20px) !important;
+    }
+
+    .modal-body {
+        padding: 16px;
+    }
+
+    .search-filter-container {
+        padding: var(--spacing-sm);
+    }
+
+    .modal {
+        align-items: flex-start !important;
+        padding: 10px !important;
+    }
+}
+
+/* 分页样式 */
+.pagination-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-md);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.pagination-info {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.page-numbers {
+    display: flex;
+    gap: 4px;
+}
+
+.page-number {
+    padding: 6px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-sm);
+    background: #ffffff;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.85rem;
+    font-weight: 500;
+    min-width: 36px;
+    text-align: center;
+}
+
+.page-number:hover {
+    background: #f8f9fa;
+    border-color: #667eea;
+}
+
+.page-number.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.page-number.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.pagination-size {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.pagination-size label {
+    margin: 0;
+    font-weight: 500;
+}
+
+.pagination-size select {
+    padding: 4px 8px;
+    font-size: 0.85rem;
+}
+
+/* 响应式分页 */
+@media (max-width: 768px) {
+    .pagination-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+    }
+
+    .pagination-controls {
+        justify-content: center;
+    }
+
+    .pagination-info,
+    .pagination-size {
+        text-align: center;
+    }
+
+    .page-numbers {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+}
+</style>
+
+<script>
+// Global variables
+let templates = [];
+let editingTemplateId = null;
+let currentPage = 1;
+let pageSize = 6; // 默认每页显示6个，更容易看到分页效果
+let totalPages = 1;
+let totalCount = 0;
+let currentSearch = '';
+let currentTag = '';
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    loadTemplates(1);
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // Modal controls
+    document.getElementById('createTemplateBtn').addEventListener('click', () => openTemplateModal());
+    document.getElementById('generateWithAIBtn').addEventListener('click', () => openAIGenerationModal());
+    document.getElementById('closeModal').addEventListener('click', () => closeTemplateModal());
+    document.getElementById('closeAIModal').addEventListener('click', () => closeAIGenerationModal());
+    document.getElementById('closePreviewModal').addEventListener('click', () => closePreviewModal());
+    document.getElementById('cancelBtn').addEventListener('click', () => closeTemplateModal());
+    document.getElementById('cancelAIBtn').addEventListener('click', () => closeAIGenerationModal());
+
+    // AI生成相关按钮
+    document.getElementById('cancelGenerationBtn').addEventListener('click', () => {
+        // 取消生成并返回表单
+        document.getElementById('aiGenerationProgress').style.display = 'none';
+        document.getElementById('aiFormContainer').style.display = 'block';
+    });
+
+    document.getElementById('closeCompletionBtn').addEventListener('click', () => {
+        closeAIGenerationModal();
+        loadTemplates(1); // 刷新模板列表，回到第一页
+    });
+
+    // Form submissions
+    document.getElementById('templateForm').addEventListener('submit', handleTemplateSubmit);
+    document.getElementById('aiGenerationForm').addEventListener('submit', handleAIGeneration);
+
+    // Preview button
+    document.getElementById('previewTemplateBtn').addEventListener('click', previewTemplate);
+
+    // Import functionality
+    document.getElementById('importTemplateInput').addEventListener('change', handleTemplateImport);
+
+    // Filters
+    document.getElementById('searchInput').addEventListener('input', debounce(handleSearch, 500));
+    document.getElementById('tagFilter').addEventListener('change', handleTagFilter);
+    document.getElementById('refreshBtn').addEventListener('click', () => loadTemplates(1));
+
+    // Pagination
+    document.getElementById('prevPageBtn').addEventListener('click', () => loadTemplates(currentPage - 1));
+    document.getElementById('nextPageBtn').addEventListener('click', () => loadTemplates(currentPage + 1));
+    document.getElementById('pageSizeSelect').addEventListener('change', handlePageSizeChange);
+
+    // Close modals when clicking outside
+    window.addEventListener('click', function(event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.style.display = 'none';
+        }
+    });
+}
+
+async function loadTemplates(page = 1) {
+    showLoading(true);
+    try {
+        // Build query parameters
+        const params = new URLSearchParams({
+            active_only: 'true',
+            page: page.toString(),
+            page_size: pageSize.toString()
+        });
+
+        if (currentSearch) {
+            params.append('search', currentSearch);
+        }
+
+        if (currentTag) {
+            params.append('tags', currentTag);
+        }
+
+        const response = await fetch(`/api/global-master-templates/?${params}`);
+
+        if (!response.ok) {
+            throw new Error('Failed to load templates');
+        }
+
+        const data = await response.json();
+        templates = data.templates;
+
+        // Update pagination info
+        currentPage = data.pagination.current_page;
+        totalPages = data.pagination.total_pages;
+        totalCount = data.pagination.total_count;
+
+
+
+        renderTemplates(templates);
+        updatePagination();
+        updateTagFilter();
+    } catch (error) {
+        console.error('Error loading templates:', error);
+        alert('加载模板失败: ' + error.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+function renderTemplates(templatesToRender) {
+    const grid = document.getElementById('templatesGrid');
+
+    if (templatesToRender.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
+                <h3>暂无模板</h3>
+                <p>点击"新建母版"或"AI生成母版"来创建第一个模板</p>
+            </div>
+        `;
+        return;
+    }
+    
+    grid.innerHTML = templatesToRender.map((template, index) => `
+        <div class="template-card">
+            <div class="template-preview" id="preview-${template.id}">
+                <iframe
+                    class="template-preview-iframe"
+                    id="iframe-${template.id}"
+                    onload="adjustIframeContent(${template.id})"
+                ></iframe>
+                <div class="preview-overlay" onclick="previewTemplateById(${template.id})" title="点击查看完整预览">
+                    <div class="preview-overlay-text"><i class="fas fa-search-plus"></i> 点击放大预览</div>
+                </div>
+            </div>
+            <div class="template-info">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                    <h4 style="margin: 0; color: #2c3e50; font-size: 16px;">${template.template_name}</h4>
+                    ${template.is_default ? '<span class="default-badge">默认</span>' : ''}
+                </div>
+                <p style="margin: 0 0 8px 0; color: #666; font-size: 14px; line-height: 1.4;">${template.description || '暂无描述'}</p>
+                <div style="margin-bottom: 8px;">
+                    ${template.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
+                <div style="font-size: 12px; color: #999;">
+                    使用次数: ${template.usage_count} | 创建者: ${template.created_by}
+                </div>
+            </div>
+            <div class="template-actions">
+                <button class="btn btn-sm btn-primary" onclick="editTemplate(${template.id})">✏️ 编辑</button>
+                <button class="btn btn-sm btn-warning" onclick="duplicateTemplate(${template.id})">📋 复制</button>
+                <button class="btn btn-sm" style="background: #17a2b8; color: white;" onclick="exportTemplate(${template.id})">� 导出</button>
+                ${!template.is_default ?
+                    `<button class="btn btn-sm btn-success" onclick="setDefaultTemplate(${template.id})">⭐ 设为默认</button>` :
+                    ''
+                }
+                ${!template.is_default ?
+                    `<button class="btn btn-sm btn-danger" onclick="deleteTemplate(${template.id})">🗑️ 删除</button>` :
+                    ''
+                }
+            </div>
+        </div>
+    `).join('');
+
+    // Load template content into iframes after rendering
+    setTimeout(() => {
+        console.log('Starting to load template previews for', templatesToRender.length, 'templates');
+        templatesToRender.forEach(template => {
+            console.log('Loading preview for template:', template.id, template.template_name);
+            loadTemplatePreview(template.id);
+        });
+    }, 500);
+}
+
+async function loadTemplatePreview(templateId) {
+    try {
+        console.log('Loading preview for template', templateId);
+        const response = await fetch('/api/global-master-templates/' + templateId);
+        if (!response.ok) {
+            console.warn('Failed to load template', templateId, 'for preview');
+            showPreviewFallback(templateId);
+            return;
+        }
+
+        const template = await response.json();
+        const iframe = document.getElementById('iframe-' + templateId);
+
+        console.log('Template', templateId, 'loaded:', template.template_name);
+
+        if (iframe && template.html_template && template.html_template.trim()) {
+            console.log('Setting up iframe for template', templateId);
+
+            // 使用实际的模板HTML内容，但添加一些示例数据
+            let previewHtml = template.html_template;
+
+            // 替换模板变量为示例内容
+            previewHtml = previewHtml.replace(/\{\{\s*title\s*\}\}/g, template.template_name);
+            previewHtml = previewHtml.replace(/\{\{\s*content\s*\}\}/g, '这是模板预览内容');
+            previewHtml = previewHtml.replace(/\{\{\s*slide_number\s*\}\}/g, '1');
+            previewHtml = previewHtml.replace(/\{\{\s*total_slides\s*\}\}/g, '1');
+
+            // 确保HTML有基本结构
+            if (!previewHtml.includes('<!DOCTYPE') && !previewHtml.includes('<html')) {
+                previewHtml = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { width: 1280px; height: 720px; margin: 0; padding: 0; overflow: hidden; }
+    </style>
+</head>
+<body>
+    ${previewHtml}
+</body>
+</html>`;
+            }
+
+            // Create a blob URL for the HTML content
+            const blob = new Blob([previewHtml], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+
+            // Set up load handlers
+            iframe.onload = function() {
+                console.log('Iframe loaded successfully for template', templateId);
+                setTimeout(function() {
+                    URL.revokeObjectURL(url);
+                }, 2000);
+            };
+
+            iframe.onerror = function() {
+                console.warn('Iframe failed to load for template', templateId);
+                showPreviewFallback(templateId);
+                URL.revokeObjectURL(url);
+            };
+
+            // Set the src to trigger loading
+            iframe.src = url;
+
+        } else {
+            console.warn('No HTML template content for template', templateId);
+            showPreviewFallback(templateId);
+        }
+    } catch (error) {
+        console.error('Error loading preview for template', templateId, ':', error);
+        showPreviewFallback(templateId);
+    }
+}
+
+function showPreviewFallback(templateId) {
+    const previewContainer = document.getElementById(`preview-${templateId}`);
+    if (previewContainer) {
+        previewContainer.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; font-size: 14px; flex-direction: column;">
+                <div style="font-size: 24px; margin-bottom: 8px;">📄</div>
+                <div>暂无预览</div>
+            </div>
+        `;
+    }
+}
+
+function adjustIframeContent(templateId) {
+    // This function can be used to adjust iframe content after loading if needed
+    // Currently just a placeholder for future enhancements
+}
+
+// 导出模板功能 - 在HTML中定义以便onclick可以访问
+async function exportTemplate(templateId) {
+    try {
+        const response = await fetch(`/api/global-master-templates/${templateId}`);
+        if (!response.ok) {
+            throw new Error('Failed to load template');
+        }
+
+        const template = await response.json();
+
+        // 准备导出数据
+        const exportData = {
+            template_name: template.template_name,
+            description: template.description,
+            html_template: template.html_template,
+            tags: template.tags,
+            is_default: false, // 导出时不保留默认状态
+            export_info: {
+                exported_at: new Date().toISOString(),
+                original_id: template.id,
+                original_created_at: template.created_at
+            }
+        };
+
+        // 创建下载链接
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(dataBlob);
+        link.download = `${template.template_name}_${new Date().toISOString().split('T')[0]}.json`;
+
+        // 触发下载
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // 清理URL
+        setTimeout(() => {
+            URL.revokeObjectURL(link.href);
+        }, 1000);
+
+        console.log('模板导出成功:', template.template_name);
+
+    } catch (error) {
+        console.error('Error exporting template:', error);
+        alert('导出模板失败: ' + error.message);
+    }
+}
+
+// 其他需要在HTML中定义的函数，以便onclick可以访问
+function editTemplate(templateId) {
+    openTemplateModal(templateId);
+}
+
+async function duplicateTemplate(templateId) {
+    const newName = prompt('请输入新模板的名称:');
+    if (!newName || !newName.trim()) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/global-master-templates/${templateId}/duplicate?new_name=${encodeURIComponent(newName.trim())}`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to duplicate template');
+        }
+
+        loadTemplates(currentPage);
+        alert('模板复制成功！');
+    } catch (error) {
+        console.error('Error duplicating template:', error);
+        alert('复制模板失败: ' + error.message);
+    }
+}
+
+async function setDefaultTemplate(templateId) {
+    if (!confirm('确定要将此模板设为默认模板吗？')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/global-master-templates/${templateId}/set-default`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to set default template');
+        }
+
+        loadTemplates(currentPage);
+        alert('默认模板设置成功！');
+    } catch (error) {
+        console.error('Error setting default template:', error);
+        alert('设置默认模板失败: ' + error.message);
+    }
+}
+
+async function deleteTemplate(templateId) {
+    if (!confirm('确定要删除此模板吗？此操作不可恢复。')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/global-master-templates/${templateId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to delete template');
+        }
+
+        // 如果删除后当前页没有数据且不是第一页，则回到上一页
+        const shouldGoToPrevPage = templates.length === 1 && currentPage > 1;
+        loadTemplates(shouldGoToPrevPage ? currentPage - 1 : currentPage);
+        alert('模板删除成功！');
+    } catch (error) {
+        console.error('Error deleting template:', error);
+        alert('删除模板失败: ' + error.message);
+    }
+}
+
+async function previewTemplateById(templateId) {
+    try {
+        const response = await fetch(`/api/global-master-templates/${templateId}/preview`);
+        if (!response.ok) {
+            throw new Error('Failed to load template preview');
+        }
+
+        const data = await response.json();
+        showPreview(data.html_template);
+    } catch (error) {
+        console.error('Error loading template preview:', error);
+        alert('加载预览失败: ' + error.message);
+    }
+}
+
+function showPreview(htmlContent) {
+    const modal = document.getElementById('previewModal');
+    const frame = document.getElementById('previewFrame');
+
+    // Create blob URL for the HTML content
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    frame.src = url;
+    modal.style.display = 'flex';
+
+    // Clean up the blob URL after a delay
+    setTimeout(() => {
+        URL.revokeObjectURL(url);
+    }, 1000);
+}
+
+// Pagination functions
+function updatePagination() {
+    const paginationContainer = document.getElementById('paginationContainer');
+    const paginationInfo = document.getElementById('paginationInfo');
+    const prevBtn = document.getElementById('prevPageBtn');
+    const nextBtn = document.getElementById('nextPageBtn');
+    const pageNumbers = document.getElementById('pageNumbers');
+    // Always show pagination if there are templates
+    if (totalCount > 0) {
+        paginationContainer.style.display = 'block';
+    } else {
+        paginationContainer.style.display = 'none';
+        return;
+    }
+
+    // Update info
+    const startItem = totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+    const endItem = Math.min(currentPage * pageSize, totalCount);
+    paginationInfo.textContent = `显示第 ${startItem}-${endItem} 项，共 ${totalCount} 项`;
+
+    // Update buttons
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+
+    // Generate page numbers (only if more than 1 page)
+    if (totalPages > 1) {
+        generatePageNumbers(pageNumbers);
+        pageNumbers.style.display = 'flex';
+    } else {
+        pageNumbers.style.display = 'none';
+    }
+}
+
+function generatePageNumbers(container) {
+    container.innerHTML = '';
+
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    // Adjust start page if we're near the end
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    // Add first page and ellipsis if needed
+    if (startPage > 1) {
+        addPageNumber(container, 1);
+        if (startPage > 2) {
+            addEllipsis(container);
+        }
+    }
+
+    // Add visible page numbers
+    for (let i = startPage; i <= endPage; i++) {
+        addPageNumber(container, i);
+    }
+
+    // Add ellipsis and last page if needed
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            addEllipsis(container);
+        }
+        addPageNumber(container, totalPages);
+    }
+}
+
+function addPageNumber(container, pageNum) {
+    const pageBtn = document.createElement('button');
+    pageBtn.className = `page-number ${pageNum === currentPage ? 'active' : ''}`;
+    pageBtn.textContent = pageNum;
+    pageBtn.onclick = () => loadTemplates(pageNum);
+    container.appendChild(pageBtn);
+}
+
+function addEllipsis(container) {
+    const ellipsis = document.createElement('span');
+    ellipsis.className = 'page-number disabled';
+    ellipsis.textContent = '...';
+    container.appendChild(ellipsis);
+}
+
+function handleSearch() {
+    currentSearch = document.getElementById('searchInput').value.trim();
+    loadTemplates(1); // Reset to first page when searching
+}
+
+function handleTagFilter() {
+    currentTag = document.getElementById('tagFilter').value;
+    loadTemplates(1); // Reset to first page when filtering
+}
+
+function handlePageSizeChange() {
+    pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+    loadTemplates(1); // Reset to first page when changing page size
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+</script>
+
+<script src="/static/js/global_master_templates.js"></script>
+{% endblock %}

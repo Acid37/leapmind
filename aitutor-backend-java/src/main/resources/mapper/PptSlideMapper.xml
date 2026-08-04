@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.treepeople.leapmindtts.mapper.PptSlideMapper">
+
+    <!-- 根据项目ID查询幻灯片列表 -->
+    <select id="selectByCourseId" resultType="com.treepeople.leapmindtts.pojo.entity.PptSlide">
+        SELECT id, course_id, slide_index, slide_id, title, content_type, html_content, create_at
+        FROM ppt_slides
+        WHERE course_id = #{courseId}
+        ORDER BY slide_index ASC
+    </select>
+
+</mapper>

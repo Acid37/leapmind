@@ -1,0 +1,3385 @@
+{% extends "base.html" %}
+
+{% block title %}系统配置管理 - LandPPT{% endblock %}
+
+{% block content %}
+<div style="text-align: center; margin-bottom: 40px;">
+    <h2 style="color: #2c3e50; margin-bottom: 20px;">⚙️ 系统配置管理</h2>
+    <p style="font-size: 1.1em; color: #7f8c8d;">
+        配置和管理 LandPPT 的所有系统参数，包括 AI 提供者、生成参数、应用配置等
+    </p>
+</div>
+
+<!-- 配置导航标签 -->
+<div style="margin-bottom: 30px;">
+    <div class="config-tabs" style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+        <button class="tab-btn active" onclick="switchTab('ai-providers')" data-tab="ai-providers">
+            🤖 AI 提供者
+        </button>
+        <button class="tab-btn" onclick="switchTab('generation-params')" data-tab="generation-params">
+            🎛️ 生成参数
+        </button>
+        <button class="tab-btn" onclick="switchTab('app-config')" data-tab="app-config">
+            🔧 应用配置
+        </button>
+        <button class="tab-btn" onclick="switchTab('image-service')" data-tab="image-service">
+            🎨 图片服务
+        </button>
+    </div>
+</div>
+
+<!-- AI 提供者配置标签页 -->
+<div id="ai-providers" class="tab-content active">
+    <div class="grid">
+        <div class="card">
+            <h3 style="color: #3498db; margin-bottom: 15px;">📊 当前状态</h3>
+
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin-bottom: 10px;">
+                    <strong>当前提供者:</strong>
+                    <span style="background: #3498db; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.9em;">
+                        {{ current_provider }}
+                    </span>
+                </p>
+                <p style="margin-bottom: 10px;">
+                    <strong>可用提供者:</strong> {{ available_providers | length }} 个
+                </p>
+                <p>
+                    <strong>状态:</strong>
+                    {% if current_provider in available_providers %}
+                        <span style="color: #27ae60;">✅ 正常运行</span>
+                    {% else %}
+                        <span style="color: #e74c3c;">❌ 配置错误</span>
+                    {% endif %}
+                </p>
+            </div>
+
+            <div style="text-align: center;">
+                <button onclick="testCurrentProvider()" class="btn btn-primary" style="margin-right: 10px;">
+                    🧪 测试当前提供者
+                </button>
+                <button onclick="refreshProviders()" class="btn btn-primary">
+                    🔄 刷新状态
+                </button>
+            </div>
+        </div>
+
+        
+    </div>
+
+    <div style="margin-top: 30px;">
+        <h3 style="color: #2c3e50; margin-bottom: 20px; text-align: center;">🔧 AI 提供者详情配置</h3>
+
+        <div class="grid">
+            {% for provider in ["openai", "anthropic", "google", "azure_openai", "ollama"] %}
+            <div class="card provider-config-card" data-provider="{{ provider }}">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="color: #2c3e50; margin: 0;">
+                        {% if provider == "openai" %}
+                            🤖 OpenAI
+                        {% elif provider == "anthropic" %}
+                            🧠 Anthropic Claude
+                        {% elif provider == "google" %}
+                            🌟 Google Gemini
+                        {% elif provider == "azure_openai" %}
+                            ☁️ Azure OpenAI
+                        {% elif provider == "ollama" %}
+                            🏠 Ollama (本地)
+                        {% endif %}
+                    </h4>
+
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        {% if provider_status[provider] %}
+                            <span style="background: #27ae60; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em;">
+                                ✅ 可用
+                            </span>
+                        {% else %}
+                            <span style="background: #e74c3c; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em;">
+                                ❌ 不可用
+                            </span>
+                        {% endif %}
+
+                        <div class="custom-radio">
+                            <input type="radio" name="default_provider" value="{{ provider }}" id="provider_{{ provider }}"
+                                   {% if current_provider == provider %}checked{% endif %}
+                                   onchange="setDefaultProvider('{{ provider }}')">
+                            <label for="provider_{{ provider }}" class="radio-label">默认</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 提供者配置表单 -->
+                <div class="provider-config-form">
+                    {% if provider == "openai" %}
+                        <div class="form-group">
+                            <label>API Key:</label>
+                            <input type="password" name="openai_api_key" placeholder="sk-..."
+                                   value="{{ current_config.get('openai_api_key', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em;">
+                        </div>
+                        <div class="form-group">
+                            <label>Base URL:</label>
+                            <input type="text" name="openai_base_url"
+                                   value="{{ current_config.get('openai_base_url', '') }}"
+                                   placeholder="{{ current_config.get('openai_base_url', 'https://api.openai.com/v1') }}">
+                        </div>
+                        <div class="form-group">
+                            <label>默认模型:</label>
+                            <div class="model-input-container">
+                                <select name="openai_model" id="openai_model_select" class="model-select" style="display: none;">
+                                    <option value="">选择模型...</option>
+                                </select>
+                                <input type="text" name="openai_model" id="openai_model_input" class="model-input"
+                                       value="{{ current_config.get('openai_model', '') }}"
+                                       placeholder="{{ current_config.get('openai_model', 'gpt-4o') }}">
+                                <button type="button" onclick="fetchAndShowModels()" id="openai_model_fetch_btn"
+                                        class="model-fetch-btn" title="获取可用模型列表">
+                                    📋
+                                </button>
+                            </div>
+                            <small style="color: #7f8c8d;">直接输入模型名称，或点击右侧图标从API获取可用模型</small>
+                        </div>
+                    {% elif provider == "anthropic" %}
+                        <div class="form-group">
+                            <label>API Key:</label>
+                            <input type="password" name="anthropic_api_key" placeholder="sk-ant-..."
+                                   value="{{ current_config.get('anthropic_api_key', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em;">
+                        </div>
+                        <div class="form-group">
+                            <label>默认模型:</label>
+                            <input type="text" name="anthropic_model"
+                                   value="{{ current_config.get('anthropic_model', '') }}"
+                                   placeholder="{{ current_config.get('anthropic_model', 'claude-3-5-sonnet-20241022') }}">
+                            <small style="color: #7f8c8d;">直接输入模型名称，如：claude-3-5-sonnet-20241022, claude-3-opus-20240229</small>
+                        </div>
+                    {% elif provider == "google" %}
+                        <div class="form-group">
+                            <label>API Key:</label>
+                            <input type="password" name="google_api_key" placeholder="your-google-api-key"
+                                   value="{{ current_config.get('google_api_key', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em;">
+                        </div>
+                        <div class="form-group">
+                            <label>默认模型:</label>
+                            <input type="text" name="google_model"
+                                   value="{{ current_config.get('google_model', '') }}"
+                                   placeholder="{{ current_config.get('google_model', 'gemini-1.5-flash') }}">
+                            <small style="color: #7f8c8d;">直接输入模型名称，如：gemini-1.5-flash, gemini-1.5-pro, gemini-1.0-pro</small>
+                        </div>
+                    {% elif provider == "azure_openai" %}
+                        <div class="form-group">
+                            <label>API Key:</label>
+                            <input type="password" name="azure_openai_api_key" placeholder="your-azure-key"
+                                   value="{{ current_config.get('azure_openai_api_key', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em;">
+                        </div>
+                        <div class="form-group">
+                            <label>Endpoint:</label>
+                            <input type="text" name="azure_openai_endpoint"
+                                   value="{{ current_config.get('azure_openai_endpoint', '') }}"
+                                   placeholder="https://your-resource.openai.azure.com/">
+                        </div>
+                        <div class="form-group">
+                            <label>Deployment Name:</label>
+                            <input type="text" name="azure_openai_deployment_name"
+                                   value="{{ current_config.get('azure_openai_deployment_name', '') }}"
+                                   placeholder="your-deployment-name">
+                        </div>
+                        <div class="form-group">
+                            <label>API Version:</label>
+                            <input type="text" name="azure_openai_api_version"
+                                   value="{{ current_config.get('azure_openai_api_version', '') }}"
+                                   placeholder="2024-02-15-preview">
+                        </div>
+                    {% elif provider == "ollama" %}
+                        <div class="form-group">
+                            <label>Base URL:</label>
+                            <input type="text" name="ollama_base_url"
+                                   value="{{ current_config.get('ollama_base_url', '') }}"
+                                   placeholder="{{ current_config.get('ollama_base_url', 'http://localhost:11434') }}">
+                        </div>
+                        <div class="form-group">
+                            <label>默认模型:</label>
+                            <input type="text" name="ollama_model"
+                                   value="{{ current_config.get('ollama_model', '') }}"
+                                   placeholder="{{ current_config.get('ollama_model', 'llama2, mistral, codellama...') }}">
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div style="text-align: center; margin-top: 15px;">
+                    <button onclick="testProvider('{{ provider }}')" class="btn btn-primary" style="margin-right: 10px;">
+                        🧪 测试
+                    </button>
+                    <button onclick="saveProviderConfig('{{ provider }}')" class="btn btn-success">
+                        💾 保存配置
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- 生成参数配置标签页 -->
+<div id="generation-params" class="tab-content" style="display: none;">
+    <div class="card">
+        <h3 style="color: #f39c12; margin-bottom: 30px; text-align: center;">🎛️ AI 生成参数配置</h3>
+
+        <!-- 主要配置区域 -->
+        <div style="display: flex; flex-direction: column; gap: 30px;">
+
+            <!-- AI 生成参数 -->
+            <div style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="color: #f39c12; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                    <span>🎯</span> AI 生成参数
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    <div class="form-group">
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 8px; display: block;">
+                            最大令牌数 (MAX_TOKENS)
+                        </label>
+                        <div class="input-with-range">
+                            <input type="number" name="max_tokens" min="100" max="32000"
+                                   value="{{ current_config.get('max_tokens', '') }}"
+                                   placeholder="{{ current_config.get('max_tokens', '2000') }}"
+                                   style="margin-bottom: 8px;">
+                            <input type="range" min="100" max="32000" step="100"
+                                   value="{{ current_config.get('max_tokens', '2000') }}"
+                                   oninput="this.previousElementSibling.value = this.value"
+                                   style="width: 100%; accent-color: #f39c12;">
+                        </div>
+                        <small style="color: #6c757d; font-size: 0.85em; line-height: 1.4;">
+                            控制生成内容的最大长度。较大的值允许生成更长的内容，但会消耗更多资源。
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 8px; display: block;">
+                            温度 (TEMPERATURE)
+                        </label>
+                        <div class="input-with-range">
+                            <input type="number" name="temperature" min="0" max="2" step="0.1"
+                                   value="{{ current_config.get('temperature', '') }}"
+                                   placeholder="{{ current_config.get('temperature', '0.7') }}"
+                                   style="margin-bottom: 8px;">
+                            <input type="range" min="0" max="2" step="0.1"
+                                   value="{{ current_config.get('temperature', '0.7') }}"
+                                   oninput="this.previousElementSibling.value = this.value"
+                                   style="width: 100%; accent-color: #f39c12;">
+                        </div>
+                        <small style="color: #6c757d; font-size: 0.85em; line-height: 1.4;">
+                            控制生成内容的创造性。0 = 确定性输出，1 = 平衡，2 = 高创造性。
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 8px; display: block;">
+                            Top-P (TOP_P)
+                        </label>
+                        <div class="input-with-range">
+                            <input type="number" name="top_p" min="0" max="1" step="0.1"
+                                   value="{{ current_config.get('top_p', '') }}"
+                                   placeholder="{{ current_config.get('top_p', '1.0') }}"
+                                   style="margin-bottom: 8px;">
+                            <input type="range" min="0" max="1" step="0.1"
+                                   value="{{ current_config.get('top_p', '1.0') }}"
+                                   oninput="this.previousElementSibling.value = this.value"
+                                   style="width: 100%; accent-color: #f39c12;">
+                        </div>
+                        <small style="color: #6c757d; font-size: 0.85em; line-height: 1.4;">
+                            核采样参数，控制词汇选择范围。较低的值使输出更集中，较高的值增加多样性。
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 研究功能配置 -->
+            <div style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="color: #e74c3c; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                    <span>🔍</span> 研究功能配置
+                </h4>
+
+                <!-- 研究提供商选择 -->
+                <div style="margin-bottom: 25px;">
+                    <div class="form-group">
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 8px; display: block;">
+                            研究提供商 (RESEARCH_PROVIDER)
+                        </label>
+                        <select name="research_provider" style="margin-bottom: 8px;">
+                            <option value="tavily">Tavily (推荐)</option>
+                            <option value="searxng">SearXNG</option>
+                            <option value="both">两者都使用</option>
+                        </select>
+                        <small style="color: #6c757d; font-size: 0.85em; line-height: 1.4;">
+                            选择用于研究的搜索提供商。Tavily 提供更准确的结果，SearXNG 是开源选择。
+                        </small>
+                    </div>
+                </div>
+
+                <!-- API 密钥配置 -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                    <div class="form-group">
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 8px; display: block;">
+                            Tavily API Key
+                        </label>
+                        <input type="password" name="tavily_api_key" placeholder="tvly-..."
+                               value="{{ current_config.get('tavily_api_key', '') }}"
+                               style="font-family: monospace; font-size: 0.9em; margin-bottom: 8px;">
+                        <small style="color: #6c757d; font-size: 0.85em; line-height: 1.4;">
+                            用于深度研究功能的API密钥，可在 <a href="https://tavily.com" target="_blank" style="color: #e74c3c;">Tavily官网</a> 获取
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 8px; display: block;">
+                            SearXNG 主机地址
+                        </label>
+                        <input type="url" name="searxng_host" placeholder="http://localhost:8888"
+                               value="{{ current_config.get('searxng_host', '') }}"
+                               style="font-family: monospace; font-size: 0.9em; margin-bottom: 8px;">
+                        <small style="color: #6c757d; font-size: 0.85em; line-height: 1.4;">
+                            SearXNG 实例的完整URL地址，用于开源搜索引擎研究功能
+                        </small>
+                    </div>
+                </div>
+
+                <!-- 高级选项 -->
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #e74c3c;">
+                    <h5 style="color: #e74c3c; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <span>⚙️</span> 高级选项
+                    </h5>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                        <div class="form-group">
+                            <label class="toggle-label">
+                                <div class="toggle-switch">
+                                    <input type="checkbox" name="research_enable_content_extraction">
+                                    <span class="toggle-slider"></span>
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">启用深度内容提取</div>
+                                    <small style="color: #6c757d; font-weight: 400;">从搜索结果页面提取完整内容进行深度分析，提高研究质量</small>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-weight: 600; color: #495057; margin-bottom: 8px; display: block;">
+                                最大内容长度
+                            </label>
+                            <div class="input-with-range">
+                                <input type="number" name="research_max_content_length" min="1000" max="20000"
+                                       value="{{ current_config.get('research_max_content_length', '') }}"
+                                       placeholder="{{ current_config.get('research_max_content_length', '5000') }}"
+                                       style="margin-bottom: 8px;">
+                                <input type="range" min="1000" max="20000" step="500"
+                                       value="{{ current_config.get('research_max_content_length', '5000') }}"
+                                       oninput="this.previousElementSibling.value = this.value"
+                                       style="width: 100%; accent-color: #e74c3c;">
+                            </div>
+                            <small style="color: #6c757d; font-size: 0.85em; line-height: 1.4;">
+                                每个页面提取的最大字符数，较大的值提供更多信息但消耗更多资源
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 其他配置 -->
+            <div style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="color: #9b59b6; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                    <span>📄</span> 其他配置
+                </h4>
+                <div class="form-group">
+                    <label style="font-weight: 600; color: #495057; margin-bottom: 8px; display: block;">
+                        Apryse License Key (PPT导出)
+                    </label>
+                    <input type="password" name="apryse_license_key" placeholder="your-apryse-license-key"
+                           value="{{ current_config.get('apryse_license_key', '') }}"
+                           style="font-family: monospace; font-size: 0.9em; margin-bottom: 8px;">
+                    <small style="color: #6c757d; font-size: 0.85em; line-height: 1.4;">
+                        用于PPTX导出功能的Apryse SDK许可证密钥，可在 <a href="https://www.pdftron.com/" target="_blank" style="color: #9b59b6;">Apryse官网</a> 获取
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div style="text-align: center; margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 12px; border: 1px solid #e9ecef;">
+            <button onclick="saveGenerationParams()" class="btn btn-success" style="padding: 12px 30px; font-weight: 600; font-size: 1.05em;">
+                💾 保存生成参数
+            </button>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- 应用配置标签页 -->
+<div id="app-config" class="tab-content" style="display: none;">
+    <div class="card">
+        <h3 style="color: #9b59b6; margin-bottom: 20px;">🔧 应用配置</h3>
+
+        <div class="grid">
+            <div>
+                <h4 style="color: #3498db; margin-bottom: 15px;">服务器配置</h4>
+
+                <div class="form-group">
+                    <label>主机地址 (HOST):</label>
+                    <input type="text" name="host" placeholder="0.0.0.0">
+                </div>
+
+                <div class="form-group">
+                    <label>端口 (PORT):</label>
+                    <input type="number" name="port" min="1" max="65535" placeholder="8000">
+                </div>
+
+                <div class="form-group">
+                    <label>基础URL (BASE_URL):</label>
+                    <input type="url" name="base_url" placeholder="http://localhost:8000">
+                    <small style="color: #7f8c8d;">用于生成图片等资源的绝对URL，支持反向代理域名</small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" name="reload">
+                        自动重载 (RELOAD)
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <h4 style="color: #27ae60; margin-bottom: 15px;">安全配置</h4>
+
+                <div class="form-group">
+                    <label>密钥 (SECRET_KEY):</label>
+                    <input type="password" name="secret_key" placeholder="your-very-secure-secret-key"
+                           style="font-family: monospace; font-size: 0.9em;">
+                    <small style="color: #7f8c8d;">用于会话加密的密钥</small>
+                </div>
+
+                <div class="form-group">
+                    <label>访问令牌过期时间 (ACCESS_TOKEN_EXPIRE_MINUTES):</label>
+                    <input type="number" name="access_token_expire_minutes" min="0" max="525600"
+                           placeholder="30">
+                    <small style="color: #7f8c8d;">单位：分钟，设置为 0 表示永不过期</small>
+                </div>
+            </div>
+
+            <div>
+                <h4 style="color: #f39c12; margin-bottom: 15px;">文件上传配置</h4>
+
+                <div class="form-group">
+                    <label>最大文件大小 (MAX_FILE_SIZE):</label>
+                    <input type="number" name="max_file_size" min="1048576" max="104857600"
+                           placeholder="10485760">
+                    <small style="color: #7f8c8d;">单位：字节 (10MB = 10485760)</small>
+                </div>
+
+                <div class="form-group">
+                    <label>上传目录 (UPLOAD_DIR):</label>
+                    <input type="text" name="upload_dir" placeholder="uploads">
+                </div>
+
+                <div class="form-group">
+                    <label>缓存TTL (CACHE_TTL):</label>
+                    <input type="number" name="cache_ttl" min="60" max="86400"
+                           placeholder="3600">
+                    <small style="color: #7f8c8d;">单位：秒 (1小时 = 3600)</small>
+                </div>
+            </div>
+
+            <div>
+                <h4 style="color: #e74c3c; margin-bottom: 15px;">数据库配置</h4>
+
+                <div class="form-group">
+                    <label>数据库URL (DATABASE_URL):</label>
+                    <input type="text" name="database_url"
+                           placeholder="sqlite:///./landppt.db">
+                    <small style="color: #7f8c8d;">支持SQLite、PostgreSQL、MySQL等</small>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px;">
+            <button onclick="saveAppConfig()" class="btn btn-success" style="margin-right: 10px;">
+                💾 保存应用配置
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 图片服务配置标签页 -->
+<div id="image-service" class="tab-content" style="display: none;">
+    <div class="card">
+        <h3 style="color: #e67e22; margin-bottom: 20px;">🎨 图片服务配置</h3>
+
+        <!-- 服务状态显示 -->
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #dee2e6;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                <h4 style="color: #495057; margin: 0; font-size: 1.1em;">📊 服务状态</h4>
+                <span id="image-service-status" style="background: #95a5a6; color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.85em; font-weight: 500;">
+                    检查中...
+                </span>
+            </div>
+            <div style="color: #6c757d; font-size: 0.9em; line-height: 1.5;">
+                <strong>可用提供者:</strong> <span id="available-image-providers">检查中...</span>
+                <br>
+                <span style="color: #868e96;">图片服务为PPT生成提供视觉内容支持，包括AI图片生成、网络图片搜索和本地图片管理</span>
+            </div>
+        </div>
+
+        <!-- 主要配置区域 -->
+        <div style="display: flex; flex-direction: column; gap: 25px;">
+
+            <!-- 基础设置 -->
+            <div style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="color: #28a745; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                    <span>🎨</span> 图片服务设置
+                </h4>
+
+                <div class="main-toggle-option">
+                    <label class="toggle-label">
+                        <div class="toggle-switch">
+                            <input type="checkbox" name="enable_image_service" onchange="toggleImageServiceOptions()">
+                            <span class="toggle-slider"></span>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.1em; font-weight: 600; color: #495057; margin-bottom: 4px;">启用图片生成服务</div>
+                            <small style="color: #6c757d; font-weight: 400;">在PPT生成时自动添加相关图片，提升视觉效果</small>
+                        </div>
+                    </label>
+                </div>
+
+                <div id="image-service-options" style="display: none;">
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745;">
+                        <h5 style="color: #495057; margin-bottom: 15px; font-weight: 600;">图片获取方式 (可多选)</h5>
+                        <div style="display: grid; gap: 12px;">
+                            <label style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: white; border: 2px solid #e9ecef; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="toggleImageSourceConfig()">
+                                <input type="checkbox" name="enable_local_images" value="true" style="transform: scale(1.1);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; color: #495057;">📁 本地图床</div>
+                                    <small style="color: #6c757d;">从本地图片库中智能选择合适的图片</small>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: white; border: 2px solid #e9ecef; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="toggleImageSourceConfig()">
+                                <input type="checkbox" name="enable_network_search" value="true" style="transform: scale(1.1);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; color: #495057;">🌐 网络搜索</div>
+                                    <small style="color: #6c757d;">通过Unsplash、Pixabay等API搜索高质量网络图片</small>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: white; border: 2px solid #e9ecef; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="toggleImageSourceConfig()">
+                                <input type="checkbox" name="enable_ai_generation" value="true" style="transform: scale(1.1);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; color: #495057;">🎨 AI生成</div>
+                                    <small style="color: #6c757d;">使用AI模型生成定制化创意图片</small>
+                                </div>
+                            </label>
+                        </div>
+                        <div style="margin-top: 15px; padding: 12px; background: #e7f3ff; border-radius: 6px; border-left: 3px solid #007bff;">
+                            <small style="color: #0056b3; font-weight: 500;">💡 提示：可以同时启用多种方式，AI会根据页面内容智能选择最合适的图片来源</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API密钥配置 -->
+            <div style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="color: #007bff; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                    <span>🔑</span> API密钥配置
+                </h4>
+
+                <!-- AI图片生成服务 -->
+                <div style="margin-bottom: 30px;">
+                    <h5 style="color: #6f42c1; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <span>🎨</span> AI图片生成服务
+                    </h5>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+                        <div class="form-group">
+                            <label style="font-weight: 500; color: #495057;">DALL-E API Key (OpenAI):</label>
+                            <input type="password" name="openai_api_key_image" placeholder="sk-..."
+                                   value="{{ current_config.get('openai_api_key_image', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em; margin-top: 5px;">
+                            <small style="color: #6c757d; margin-top: 5px; display: block;">用于DALL-E 3图片生成，与文本生成共用OpenAI密钥</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-weight: 500; color: #495057;">SiliconFlow API Key:</label>
+                            <input type="password" name="siliconflow_api_key" placeholder="your-siliconflow-api-key"
+                                   value="{{ current_config.get('siliconflow_api_key', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em; margin-top: 5px;">
+                            <small style="color: #6c757d; margin-top: 5px; display: block;">用于SiliconFlow Kolors图片生成</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pollinations免费服务 -->
+                <div style="margin-bottom: 30px;">
+                    <h5 style="color: #28a745; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <span>🌸</span> Pollinations (免费服务)
+                    </h5>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+                        <div class="form-group">
+                            <label style="font-weight: 500; color: #495057;">API Token (可选):</label>
+                            <input type="password" name="pollinations_api_token" placeholder="your-pollinations-token"
+                                   value="{{ current_config.get('pollinations_api_token', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em; margin-top: 5px;">
+                            <small style="color: #6c757d; margin-top: 5px; display: block;">可选的API Token，用于移除logo和获得更高的使用限制</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-weight: 500; color: #495057;">Referrer (可选):</label>
+                            <input type="text" name="pollinations_referrer" placeholder="MyApp"
+                                   value="{{ current_config.get('pollinations_referrer', '') }}"
+                                   style="margin-top: 5px;">
+                            <small style="color: #6c757d; margin-top: 5px; display: block;">推荐人标识符，用于认证和统计（可选）</small>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; padding: 12px 16px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; border-left: 4px solid #28a745;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #155724; font-weight: 500;">✅ 基础功能免费</span>
+                        </div>
+                        <small style="color: #155724; margin-top: 5px; display: block;">Pollinations提供免费的AI图片生成服务，Token可选用于高级功能</small>
+                    </div>
+                </div>
+
+                <!-- 网络图片搜索服务 -->
+                <div>
+                    <h5 style="color: #17a2b8; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <span>🌐</span> 网络图片搜索服务
+                    </h5>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+                        <div class="form-group">
+                            <label style="font-weight: 500; color: #495057;">Unsplash Access Key:</label>
+                            <input type="password" name="unsplash_access_key" placeholder="your-unsplash-access-key"
+                                   value="{{ current_config.get('unsplash_access_key', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em; margin-top: 5px;">
+                            <small style="color: #6c757d; margin-top: 5px; display: block;">用于搜索Unsplash高质量摄影图片，支持多语言搜索</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-weight: 500; color: #495057;">Pixabay API Key:</label>
+                            <input type="password" name="pixabay_api_key" placeholder="your-pixabay-api-key"
+                                   value="{{ current_config.get('pixabay_api_key', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em; margin-top: 5px;">
+                            <small style="color: #6c757d; margin-top: 5px; display: block;">用于搜索免费图片和插图</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-weight: 500; color: #495057;">SearXNG Host:</label>
+                            <input type="url" name="searxng_host_image" placeholder="http://localhost:8888"
+                                   value="{{ current_config.get('searxng_host_image', '') }}"
+                                   style="font-family: monospace; font-size: 0.9em; margin-top: 5px;">
+                            <small style="color: #6c757d; margin-top: 5px; display: block;">SearXNG实例的主机地址，用于开源搜索引擎图片搜索</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 详细配置 -->
+            <div style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="color: #6f42c1; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                    <span>⚙️</span> 详细配置
+                </h4>
+
+                <!-- 配置选项容器 -->
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- 本地图床配置 -->
+                    <div id="local-images-config" style="display: none; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #27ae60;">
+                        <h5 style="color: #27ae60; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <span>📁</span> 本地图床配置
+                        </h5>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                            <div class="form-group">
+                                <label class="toggle-label">
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" name="local_images_smart_selection" checked>
+                                        <span class="toggle-slider"></span>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">启用智能选择</div>
+                                        <small style="color: #6c757d; font-weight: 400;">AI会根据内容智能匹配本地图片库中的图片</small>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #495057;">每页最大本地图片数量:</label>
+                                <input type="number" name="max_local_images_per_slide" value="2" min="1" max="5" style="margin-top: 5px;">
+                                <small style="color: #6c757d; margin-top: 5px; display: block;">限制每页从本地图床选择的图片数量</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 网络搜索配置 -->
+                    <div id="network-search-config" style="display: none; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                        <h5 style="color: #17a2b8; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <span>🌐</span> 网络搜索配置
+                        </h5>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #495057;">默认网络搜索提供商:</label>
+                                <select name="default_network_search_provider" style="margin-top: 5px;">
+                                    <option value="unsplash">Unsplash (高质量摄影图片)</option>
+                                    <option value="pixabay" selected>Pixabay (免费图片和插图)</option>
+                                    <option value="searxng">SearXNG (开源搜索引擎)</option>
+                                </select>
+                                <small style="color: #6c757d; margin-top: 5px; display: block;">选择优先使用的网络搜索源</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #495057;">每页最大网络图片数量:</label>
+                                <input type="number" name="max_network_images_per_slide" value="2" min="1" max="5" style="margin-top: 5px;">
+                                <small style="color: #6c757d; margin-top: 5px; display: block;">限制每页从网络搜索的图片数量</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI生成配置 -->
+                    <div id="ai-generation-config" style="display: none; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #6f42c1;">
+                        <h5 style="color: #6f42c1; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <span>🎨</span> AI生成配置
+                        </h5>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #495057;">默认AI图片生成提供商:</label>
+                                <select name="default_ai_image_provider" onchange="toggleProviderSpecificConfig()" style="margin-top: 5px;">
+                                    <option value="dalle">DALL-E 3 (OpenAI)</option>
+                                    <option value="siliconflow">SiliconFlow (Kolors)</option>
+                                    <option value="pollinations">Pollinations (免费)</option>
+                                </select>
+                                <small style="color: #6c757d; margin-top: 5px; display: block;">选择默认的AI图片生成服务</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #495057;">每页最大AI生成图片数量:</label>
+                                <input type="number" name="max_ai_images_per_slide" value="1" min="1" max="3" style="margin-top: 5px;">
+                                <small style="color: #6c757d; margin-top: 5px; display: block;">限制每页AI生成的图片数量</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #495057;">图片生成质量:</label>
+                                <select name="ai_image_quality" style="margin-top: 5px;">
+                                    <option value="standard">标准质量</option>
+                                    <option value="hd">高清质量</option>
+                                </select>
+                                <small style="color: #6c757d; margin-top: 5px; display: block;">更高质量的图片需要更多时间和成本</small>
+                            </div>
+                        </div>
+
+                        <!-- Pollinations特定配置 -->
+                        <div id="pollinations-specific-config" style="display: none; padding: 20px; background: #e8f5e8; border-radius: 8px; border-left: 4px solid #28a745;">
+                            <h6 style="color: #155724; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                <span>🌸</span> Pollinations 配置
+                            </h6>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                                <div class="form-group">
+                                    <label style="font-weight: 500; color: #495057;">生成模型:</label>
+                                    <select name="pollinations_model" style="margin-top: 5px;">
+                                        <option value="flux">Flux (高质量，默认)</option>
+                                        <option value="turbo">Turbo (快速生成)</option>
+                                        <option value="gptimage">GPT Image (支持透明背景)</option>
+                                    </select>
+                                    <small style="color: #155724; margin-top: 5px; display: block;">选择Pollinations的图片生成模型</small>
+                                </div>
+                            </div>
+                            <div class="pollinations-options-grid">
+                                <div class="pollinations-option">
+                                    <label class="pollinations-checkbox-label">
+                                        <input type="checkbox" name="pollinations_enhance" class="pollinations-checkbox">
+                                        <span class="pollinations-option-text">
+                                            <strong>启用提示词增强</strong>
+                                            <small>AI会自动优化和扩展您的提示词以获得更好的效果</small>
+                                        </span>
+                                    </label>
+                                </div>
+                                <div class="pollinations-option">
+                                    <label class="pollinations-checkbox-label">
+                                        <input type="checkbox" name="pollinations_safe" class="pollinations-checkbox">
+                                        <span class="pollinations-option-text">
+                                            <strong>启用安全过滤</strong>
+                                            <small>启用严格的NSFW内容过滤</small>
+                                        </span>
+                                    </label>
+                                </div>
+                                <div class="pollinations-option">
+                                    <label class="pollinations-checkbox-label">
+                                        <input type="checkbox" name="pollinations_nologo" class="pollinations-checkbox">
+                                        <span class="pollinations-option-text">
+                                            <strong>移除Pollinations Logo</strong>
+                                            <small>需要API Token或Referrer认证才能生效</small>
+                                        </span>
+                                    </label>
+                                </div>
+                                <div class="pollinations-option">
+                                    <label class="pollinations-checkbox-label">
+                                        <input type="checkbox" name="pollinations_private" class="pollinations-checkbox">
+                                        <span class="pollinations-option-text">
+                                            <strong>私有模式</strong>
+                                            <small>生成的图片不会出现在公共feed中</small>
+                                        </span>
+                                    </label>
+                                </div>
+                                <div class="pollinations-option">
+                                    <label class="pollinations-checkbox-label">
+                                        <input type="checkbox" name="pollinations_transparent" class="pollinations-checkbox">
+                                        <span class="pollinations-option-text">
+                                            <strong>透明背景</strong>
+                                            <small>生成透明背景图片（仅GPT Image模型支持）</small>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 全局图片配置 -->
+                    <div style="padding: 20px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                        <h5 style="color: #856404; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            <span>⚙️</span> 全局图片配置
+                        </h5>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #495057;">每页最大图片总数:</label>
+                                <input type="number" name="max_total_images_per_slide" value="3" min="1" max="8" style="margin-top: 5px;">
+                                <small style="color: #6c757d; margin-top: 5px; display: block;">限制每页图片的总数量，避免页面过于拥挤</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="toggle-label">
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" name="enable_smart_image_selection" checked>
+                                        <span class="toggle-slider"></span>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">启用智能图片选择</div>
+                                        <small style="color: #6c757d; font-weight: 400;">AI会根据页面内容和设计需求智能决定图片数量和来源</small>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div style="text-align: center; margin-top: 25px; padding: 20px; background: #f8f9fa; border-radius: 12px; border: 1px solid #e9ecef;">
+                <button onclick="saveImageServiceConfig()" class="btn btn-success" style="padding: 12px 30px; font-weight: 600; font-size: 1.05em;">
+                    💾 保存配置
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Test Results Modal -->
+<div id="testModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 40px; border-radius: 15px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;">
+        <h3 style="color: #2c3e50; margin-bottom: 20px; text-align: center;">
+            🧪 AI 提供者测试结果
+        </h3>
+        
+        <div id="testResults" style="margin-bottom: 20px;">
+            <!-- Test results will be inserted here -->
+        </div>
+        
+        <div style="text-align: center;">
+            <button onclick="closeTestModal()" class="btn" style="background: #95a5a6;">关闭</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 配置标签页样式 */
+.config-tabs {
+    border-bottom: 2px solid var(--glass-border);
+    margin-bottom: 30px;
+}
+
+.tab-btn {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 12px 24px;
+    border-radius: 12px 12px 0 0;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    margin-bottom: -2px;
+    position: relative;
+}
+
+.tab-btn:hover {
+    background: rgba(102, 126, 234, 0.1);
+    transform: translateY(-2px);
+}
+
+.tab-btn.active {
+    background: var(--primary-gradient);
+    color: white;
+    border-bottom: 2px solid transparent;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+.tab-content {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.tab-content.active {
+    display: block !important;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 提供者配置卡片样式 */
+.provider-config-card {
+    transition: all 0.3s ease;
+}
+
+.provider-config-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(31, 38, 135, 0.4);
+}
+
+.provider-config-form .form-group {
+    margin-bottom: 15px;
+}
+
+.provider-config-form .form-group label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.provider-config-form .form-group input,
+.provider-config-form .form-group select {
+    padding: 10px 15px;
+    font-size: 0.9rem;
+}
+
+.provider-config-form .form-group small {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+
+
+/* 状态指示器 */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+.status-available {
+    background: #27ae60;
+    color: white;
+}
+
+.status-unavailable {
+    background: #e74c3c;
+    color: white;
+}
+
+/* 现代化单选框样式 */
+.custom-radio {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 10px;
+}
+
+.custom-radio input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border: 2px solid #e1e5e9;
+    border-radius: 50%;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: white;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.custom-radio input[type="radio"]:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    transform: translateY(-1px) scale(1.05);
+}
+
+.custom-radio input[type="radio"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.custom-radio input[type="radio"]:checked {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.custom-radio input[type="radio"]:checked::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: white;
+    opacity: 1;
+    animation: radiomark 0.3s ease-in-out;
+}
+
+@keyframes radiomark {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0);
+    }
+    50% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.3);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+.custom-radio .radio-label {
+    font-size: 0.9em;
+    color: #495057;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.3s ease;
+    user-select: none;
+}
+
+.custom-radio input[type="radio"]:checked + .radio-label {
+    color: #667eea;
+}
+
+/* 单选框禁用状态 */
+.custom-radio input[type="radio"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f8f9fa;
+    border-color: #e9ecef;
+}
+
+.custom-radio input[type="radio"]:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.custom-radio input[type="radio"]:disabled + .radio-label {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 现代化复选框样式 */
+.form-group input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e1e5e9;
+    border-radius: 6px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: white;
+    margin-right: 10px;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.form-group input[type="checkbox"]:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    transform: translateY(-1px);
+}
+
+.form-group input[type="checkbox"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group input[type="checkbox"]:checked {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.form-group input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 6px;
+    width: 6px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    opacity: 1;
+    animation: checkmark 0.3s ease-in-out;
+}
+
+@keyframes checkmark {
+    0% {
+        opacity: 0;
+        transform: rotate(45deg) scale(0);
+    }
+    50% {
+        opacity: 1;
+        transform: rotate(45deg) scale(1.2);
+    }
+    100% {
+        opacity: 1;
+        transform: rotate(45deg) scale(1);
+    }
+}
+
+/* 复选框禁用状态 */
+.form-group input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f8f9fa;
+    border-color: #e9ecef;
+}
+
+.form-group input[type="checkbox"]:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* 美化的选择框样式 */
+.form-group select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: white;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 40px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.form-group select:hover {
+    border-color: #667eea;
+}
+
+.form-group select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+/* 美化的输入框样式 */
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group input[type="number"],
+.form-group input[type="url"] {
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.form-group input[type="text"]:hover,
+.form-group input[type="password"]:hover,
+.form-group input[type="number"]:hover,
+.form-group input[type="url"]:hover {
+    border-color: #667eea;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="password"]:focus,
+.form-group input[type="number"]:focus,
+.form-group input[type="url"]:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+/* 美化的按钮样式 */
+.btn {
+    border: none;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s;
+}
+
+.btn:hover::before {
+    left: 100%;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    color: white;
+}
+
+/* OpenAI模型输入框样式 */
+.model-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.model-input,
+.model-select {
+    flex: 1;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 10px 45px 10px 15px;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.model-input:hover,
+.model-select:hover {
+    border-color: #667eea;
+}
+
+.model-input:focus,
+.model-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+.model-fetch-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: #f8f9fa;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    color: #6c757d;
+}
+
+.model-fetch-btn:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.model-fetch-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: translateY(-50%);
+}
+
+.model-fetch-btn.loading {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: translateY(-50%) rotate(0deg); }
+    to { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* 图片服务页面特定样式 */
+#image-service .form-group {
+    margin-bottom: 15px;
+}
+
+#image-service .form-group label {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 5px;
+    display: block;
+}
+
+#image-service .form-group input,
+#image-service .form-group select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    font-size: 0.9em;
+    transition: all 0.3s ease;
+}
+
+#image-service .form-group input:focus,
+#image-service .form-group select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+#image-service .form-group small {
+    color: #6c757d;
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+
+/* 图片服务配置卡片悬停效果 */
+#image-service > .card > div > div {
+    transition: all 0.3s ease;
+}
+
+#image-service > .card > div > div:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+/* 图片获取方式选择框特殊样式 */
+#image-service label[onclick="toggleImageSourceConfig()"] {
+    border: 2px solid #e9ecef !important;
+    border-radius: 12px !important;
+    padding: 16px 20px !important;
+    background: white !important;
+    cursor: pointer !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+#image-service label[onclick="toggleImageSourceConfig()"]:hover {
+    border-color: #667eea !important;
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.15) !important;
+    transform: translateY(-2px) !important;
+}
+
+#image-service label[onclick="toggleImageSourceConfig()"]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+    transition: left 0.5s;
+}
+
+#image-service label[onclick="toggleImageSourceConfig()"]:hover::before {
+    left: 100%;
+}
+
+/* 选中状态的图片获取方式 */
+#image-service label[onclick="toggleImageSourceConfig()"] input[type="checkbox"]:checked + div {
+    color: #667eea;
+}
+
+#image-service label[onclick="toggleImageSourceConfig()"] input[type="checkbox"]:checked {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* 复选框标签优化 */
+#image-service .form-group label[style*="display: flex"] {
+    align-items: flex-start !important;
+    gap: 12px !important;
+    line-height: 1.5 !important;
+}
+
+#image-service .form-group label[style*="display: flex"] input[type="checkbox"] {
+    margin-top: 2px;
+}
+
+/* Pollinations配置区域专用样式 */
+.pollinations-options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 15px;
+}
+
+.pollinations-option {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(40, 167, 69, 0.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    transition: all 0.3s ease;
+}
+
+.pollinations-option:hover {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(40, 167, 69, 0.4);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.1);
+}
+
+.pollinations-checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    width: 100%;
+    margin: 0;
+}
+
+.pollinations-checkbox {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.pollinations-option-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.pollinations-option-text strong {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.95em;
+    line-height: 1.3;
+    display: block;
+}
+
+.pollinations-option-text small {
+    color: #155724;
+    font-size: 0.85em;
+    line-height: 1.4;
+    font-weight: 400;
+    display: block;
+    margin: 0;
+}
+
+/* 生成参数页面特定样式 */
+#generation-params .form-group {
+    margin-bottom: 20px;
+}
+
+#generation-params .form-group label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+    display: block;
+}
+
+#generation-params .form-group input,
+#generation-params .form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 0.95em;
+    transition: all 0.3s ease;
+}
+
+#generation-params .form-group input:focus,
+#generation-params .form-group select:focus {
+    border-color: #f39c12;
+    box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.1);
+    outline: none;
+}
+
+#generation-params .form-group small {
+    color: #6c757d;
+    font-size: 0.85em;
+    line-height: 1.4;
+    margin-top: 5px;
+    display: block;
+}
+
+/* 输入框与滑块组合样式 */
+.input-with-range {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.input-with-range input[type="number"] {
+    margin-bottom: 0 !important;
+}
+
+.input-with-range input[type="range"] {
+    height: 6px;
+    border-radius: 3px;
+    background: #e9ecef;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.input-with-range input[type="range"]:hover {
+    background: #dee2e6;
+}
+
+.input-with-range input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #f39c12;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+.input-with-range input[type="range"]::-webkit-slider-thumb:hover {
+    background: #e67e22;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.input-with-range input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #f39c12;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+.input-with-range input[type="range"]::-moz-range-thumb:hover {
+    background: #e67e22;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 开关样式复选框 (用于主要的启用/禁用选项) */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input[type="checkbox"] {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 24px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-switch:hover .toggle-slider {
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.toggle-switch input:focus + .toggle-slider {
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* 开关样式的标签 */
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 500;
+    color: #495057;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.3s ease;
+}
+
+.toggle-label:hover {
+    color: #667eea;
+}
+
+/* 为主要的启用选项应用开关样式 */
+.main-toggle-option {
+    padding: 20px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+    margin-bottom: 20px;
+}
+
+.main-toggle-option:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.1);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .config-tabs {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .tab-btn {
+        border-radius: 8px;
+        margin-bottom: 5px;
+    }
+
+    .tab-btn.active {
+        transform: none;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
+    .model-fetch-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+
+    /* 图片服务页面响应式 */
+    #image-service .form-group {
+        margin-bottom: 20px;
+    }
+
+    #image-service div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* 开关样式响应式 */
+    .toggle-label {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .toggle-switch {
+        align-self: flex-start;
+    }
+
+    .main-toggle-option {
+        padding: 16px;
+    }
+
+    /* 复选框和单选框响应式 */
+    .form-group input[type="checkbox"],
+    .custom-radio input[type="radio"] {
+        width: 18px;
+        height: 18px;
+    }
+
+    .custom-radio input[type="radio"]:checked::after {
+        width: 8px;
+        height: 8px;
+    }
+
+    /* Pollinations配置响应式 */
+    .pollinations-options-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+
+    .pollinations-option {
+        padding: 10px 12px;
+    }
+
+    .pollinations-checkbox-label {
+        gap: 10px !important;
+    }
+
+    .pollinations-option-text strong {
+        font-size: 0.9em;
+    }
+
+    .pollinations-option-text small {
+        font-size: 0.8em;
+    }
+
+    /* 生成参数页面响应式 */
+    #generation-params div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    #generation-params .form-group {
+        margin-bottom: 25px;
+    }
+
+    .input-with-range {
+        gap: 6px;
+    }
+
+    .input-with-range input[type="range"]::-webkit-slider-thumb {
+        width: 16px;
+        height: 16px;
+    }
+
+    .input-with-range input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 全局变量
+let currentConfig = {};
+let availableProviders = ['openai', 'anthropic', 'google', 'azure_openai', 'ollama'];
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 加载初始配置
+    loadAllConfigs();
+    // 检查图片服务状态
+    checkImageServiceStatus();
+});
+
+// 标签页切换功能
+function switchTab(tabName) {
+    // 隐藏所有标签页内容
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.style.display = 'none';
+        content.classList.remove('active');
+    });
+
+    // 移除所有标签按钮的激活状态
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // 显示选中的标签页内容
+    const targetTab = document.getElementById(tabName);
+    if (targetTab) {
+        targetTab.style.display = 'block';
+        targetTab.classList.add('active');
+    }
+
+    // 激活选中的标签按钮
+    const targetBtn = document.querySelector(`[data-tab="${tabName}"]`);
+    if (targetBtn) {
+        targetBtn.classList.add('active');
+    }
+
+    // 加载对应的配置数据
+    loadTabConfig(tabName);
+}
+
+// 加载标签页配置数据
+async function loadTabConfig(tabName) {
+    try {
+        const categoryMap = {
+            'ai-providers': 'ai_providers',
+            'generation-params': 'generation_params',
+            'app-config': 'app_config',
+            'image-service': 'image_service'
+        };
+
+        const category = categoryMap[tabName];
+        if (!category) return;
+
+        const response = await fetch(`/api/config/${category}`);
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                populateTabForm(tabName, result.config);
+            }
+        }
+    } catch (error) {
+        console.error('加载配置失败:', error);
+    }
+}
+
+// 填充表单数据
+function populateTabForm(tabName, config) {
+    const tabElement = document.getElementById(tabName);
+    if (!tabElement) return;
+
+    // 填充输入框
+    tabElement.querySelectorAll('input, select, textarea').forEach(input => {
+        const name = input.name;
+        if (config[name] !== undefined) {
+            if (input.type === 'checkbox') {
+                input.checked = config[name];
+            } else if (input.type === 'password') {
+                // 对于密码字段，如果有配置值且输入框为空，则显示配置值
+                if (!input.value && config[name]) {
+                    input.value = config[name];
+                }
+                // 如果有配置值，更新placeholder为掩码显示
+                if (config[name]) {
+                    input.placeholder = '••••••••';
+                }
+            } else {
+                input.value = config[name];
+            }
+        }
+    });
+
+    // 如果是图片服务标签页，触发选项显示更新
+    if (tabName === 'image-service') {
+        setTimeout(() => {
+            toggleImageServiceOptions();
+        }, 100);
+    }
+}
+
+// AI提供者测试功能
+async function testProvider(providerName) {
+    showLoading(`正在测试 ${providerName} 提供者...`);
+
+    try {
+        // 从前端页面获取配置信息
+        const card = document.querySelector(`[data-provider="${providerName}"]`);
+        if (!card) {
+            throw new Error('找不到提供者配置卡片');
+        }
+
+        const config = {};
+        const inputs = card.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            if (input.name && input.name !== 'default_provider') {
+                // 获取输入的值，不管是否为空
+                const value = input.value.trim();
+                if (value) {
+                    config[input.name] = value;
+                }
+            }
+        });
+
+        // 根据不同的提供者进行测试
+        let testResult;
+        switch (providerName) {
+            case 'openai':
+                testResult = await testOpenAIProvider(config);
+                break;
+            case 'anthropic':
+                testResult = await testAnthropicProvider(config);
+                break;
+            case 'google':
+                testResult = await testGoogleProvider(config);
+                break;
+            case 'azure_openai':
+                testResult = await testAzureOpenAIProvider(config);
+                break;
+            case 'ollama':
+                testResult = await testOllamaProvider(config);
+                break;
+            default:
+                throw new Error(`不支持的提供者: ${providerName}`);
+        }
+
+        showTestResult(testResult, testResult.success);
+    } catch (error) {
+        showTestResult({error: error.message}, false);
+    }
+}
+
+// 测试 OpenAI 提供者（仅通过后端代理）
+async function testOpenAIProvider(config) {
+    try {
+        // 获取配置 - 使用前端页面填写的信息
+        let apiKey = config.openai_api_key;
+        let baseUrl = config.openai_base_url;
+        let model = config.openai_model;
+
+        // 如果前端没有填写API Key，尝试从后端获取
+        if (!apiKey) {
+            const configResponse = await fetch('/api/config/ai_providers');
+            if (configResponse.ok) {
+                const configResult = await configResponse.json();
+                if (configResult.success && configResult.config.openai_api_key) {
+                    apiKey = configResult.config.openai_api_key;
+                }
+            }
+        }
+
+        // 如果仍然没有API Key，提示用户
+        if (!apiKey) {
+            throw new Error('请先配置 OpenAI API Key');
+        }
+
+        // 如果没有填写 Base URL，使用默认值
+        if (!baseUrl) {
+            baseUrl = 'https://api.openai.com/v1';
+        }
+
+        // 如果没有填写模型，使用默认值
+        if (!model) {
+            model = 'gpt-4o';
+        }
+
+        // 确保 Base URL 格式正确
+        if (!baseUrl.endsWith('/v1')) {
+            baseUrl = baseUrl.endsWith('/') ? baseUrl + 'v1' : baseUrl + '/v1';
+        }
+
+        // 只通过后端代理测试，避免CORS问题
+        const proxyResponse = await fetch('/api/ai/providers/openai/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                base_url: baseUrl,
+                api_key: apiKey,
+                model: model
+            })
+        });
+
+        if (!proxyResponse.ok) {
+            // 尝试解析错误响应
+            let errorMessage = `HTTP ${proxyResponse.status}: ${proxyResponse.statusText}`;
+            try {
+                const errorData = await proxyResponse.json();
+                if (errorData.error) {
+                    errorMessage = errorData.error;
+                } else if (errorData.detail) {
+                    errorMessage = errorData.detail;
+                } else if (errorData.message) {
+                    errorMessage = errorData.message;
+                }
+            } catch (parseError) {
+                // 如果无法解析错误响应，使用默认错误信息
+            }
+            throw new Error(errorMessage);
+        }
+
+        const proxyResult = await proxyResponse.json();
+        
+        // 处理不同的响应格式
+        // 后端可能返回 status: "success" 或 success: true
+        if (proxyResult.status === 'success' || proxyResult.success === true) {
+            // 标准化响应格式
+            return {
+                success: true,
+                provider: proxyResult.provider || 'openai',
+                model: proxyResult.model || model,
+                response_preview: proxyResult.response_preview || '',
+                usage: proxyResult.usage || {
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                    total_tokens: 0
+                }
+            };
+        } else if (proxyResult.status === 'error' || proxyResult.success === false) {
+            throw new Error(proxyResult.error || proxyResult.detail || proxyResult.message || '测试失败');
+        } else {
+            // 如果没有明确的状态字段，假设成功（因为HTTP状态码是200）
+            return {
+                success: true,
+                provider: proxyResult.provider || 'openai',
+                model: proxyResult.model || model,
+                response_preview: proxyResult.response_preview || '',
+                usage: proxyResult.usage || {
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                    total_tokens: 0
+                }
+            };
+        }
+
+    } catch (error) {
+        return {
+            success: false,
+            error: error.message,
+            detail: `OpenAI 测试失败: ${error.message}`
+        };
+    }
+}
+
+// 测试 Anthropic 提供者
+async function testAnthropicProvider(config) {
+    try {
+        let apiKey = config.anthropic_api_key;
+        let model = config.anthropic_model || 'claude-3-5-sonnet-20241022';
+
+        // 如果前端没有输入API Key，尝试从后端获取
+        if (!apiKey) {
+            const configResponse = await fetch('/api/config/ai_providers');
+            if (configResponse.ok) {
+                const configResult = await configResponse.json();
+                if (configResult.success && configResult.config.anthropic_api_key) {
+                    apiKey = configResult.config.anthropic_api_key;
+                }
+            }
+        }
+
+        if (!apiKey) {
+            throw new Error('请配置 Anthropic API Key');
+        }
+
+        // 调用 Anthropic API 进行测试
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: [
+                    {
+                        role: 'user',
+                        content: 'Say "Hello, I am working!" in exactly 5 words.'
+                    }
+                ],
+                max_tokens: 20
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        return {
+            success: true,
+            provider: 'anthropic',
+            model: model,
+            response_preview: data.content[0].text,
+            usage: {
+                prompt_tokens: data.usage?.input_tokens || 0,
+                completion_tokens: data.usage?.output_tokens || 0,
+                total_tokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+            }
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error.message,
+            detail: `Anthropic 测试失败: ${error.message}`
+        };
+    }
+}
+
+// 测试 Google 提供者
+async function testGoogleProvider(config) {
+    try {
+        let apiKey = config.google_api_key;
+        let model = config.google_model || 'gemini-1.5-flash';
+
+        // 如果前端没有输入API Key，尝试从后端获取
+        if (!apiKey) {
+            const configResponse = await fetch('/api/config/ai_providers');
+            if (configResponse.ok) {
+                const configResult = await configResponse.json();
+                if (configResult.success && configResult.config.google_api_key) {
+                    apiKey = configResult.config.google_api_key;
+                }
+            }
+        }
+
+        if (!apiKey) {
+            throw new Error('请配置 Google API Key');
+        }
+
+        // 调用 Google Gemini API 进行测试
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [
+                    {
+                        parts: [
+                            {
+                                text: 'Say "Hello, I am working!" in exactly 5 words.'
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    maxOutputTokens: 20,
+                    temperature: 0
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        return {
+            success: true,
+            provider: 'google',
+            model: model,
+            response_preview: data.candidates[0].content.parts[0].text,
+            usage: {
+                prompt_tokens: data.usageMetadata?.promptTokenCount || 0,
+                completion_tokens: data.usageMetadata?.candidatesTokenCount || 0,
+                total_tokens: data.usageMetadata?.totalTokenCount || 0
+            }
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error.message,
+            detail: `Google Gemini 测试失败: ${error.message}`
+        };
+    }
+}
+
+// 测试 Azure OpenAI 提供者
+async function testAzureOpenAIProvider(config) {
+    try {
+        let apiKey = config.azure_openai_api_key;
+        let endpoint = config.azure_openai_endpoint;
+        let deploymentName = config.azure_openai_deployment_name;
+        let apiVersion = config.azure_openai_api_version || '2024-02-15-preview';
+
+        // 如果前端没有输入，尝试从后端获取
+        if (!apiKey || !endpoint || !deploymentName) {
+            const configResponse = await fetch('/api/config/ai_providers');
+            if (configResponse.ok) {
+                const configResult = await configResponse.json();
+                if (configResult.success) {
+                    apiKey = apiKey || configResult.config.azure_openai_api_key;
+                    endpoint = endpoint || configResult.config.azure_openai_endpoint;
+                    deploymentName = deploymentName || configResult.config.azure_openai_deployment_name;
+                }
+            }
+        }
+
+        if (!apiKey || !endpoint || !deploymentName) {
+            throw new Error('请配置 Azure OpenAI 的所有必需参数');
+        }
+
+        // 确保 endpoint 格式正确
+        if (!endpoint.endsWith('/')) {
+            endpoint += '/';
+        }
+
+        // 调用 Azure OpenAI API 进行测试
+        const url = `${endpoint}openai/deployments/${deploymentName}/chat/completions?api-version=${apiVersion}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'api-key': apiKey
+            },
+            body: JSON.stringify({
+                messages: [
+                    {
+                        role: 'user',
+                        content: 'Say "Hello, I am working!" in exactly 5 words.'
+                    }
+                ],
+                max_tokens: 20,
+                temperature: 0
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        return {
+            success: true,
+            provider: 'azure_openai',
+            model: deploymentName,
+            response_preview: data.choices[0].message.content,
+            usage: data.usage || {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0
+            }
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error.message,
+            detail: `Azure OpenAI 测试失败: ${error.message}`
+        };
+    }
+}
+
+// 测试 Ollama 提供者
+async function testOllamaProvider(config) {
+    try {
+        let baseUrl = config.ollama_base_url || 'http://localhost:11434';
+        let model = config.ollama_model || 'llama2';
+
+        // 调用 Ollama API 进行测试
+        const response = await fetch(`${baseUrl}/api/generate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: model,
+                prompt: 'Say "Hello, I am working!" in exactly 5 words.',
+                stream: false,
+                options: {
+                    num_predict: 20,
+                    temperature: 0
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        return {
+            success: true,
+            provider: 'ollama',
+            model: model,
+            response_preview: data.response,
+            usage: {
+                prompt_tokens: data.prompt_eval_count || 0,
+                completion_tokens: data.eval_count || 0,
+                total_tokens: (data.prompt_eval_count || 0) + (data.eval_count || 0)
+            }
+        };
+    } catch (error) {
+        // Ollama 可能未运行或无法连接
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            return {
+                success: false,
+                error: 'Ollama 服务未运行或无法连接',
+                detail: `请确保 Ollama 正在运行并可以通过 ${config.ollama_base_url || 'http://localhost:11434'} 访问`
+            };
+        }
+        return {
+            success: false,
+            error: error.message,
+            detail: `Ollama 测试失败: ${error.message}`
+        };
+    }
+}
+
+async function testCurrentProvider() {
+    await testProvider('{{ current_provider }}');
+}
+
+function refreshProviders() {
+    window.location.reload();
+}
+
+// 配置管理功能
+async function loadAllConfigs() {
+    try {
+        const response = await fetch('/api/config/all');
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                currentConfig = result.config;
+                populateAllForms();
+            }
+        }
+    } catch (error) {
+        console.error('加载配置失败:', error);
+    }
+}
+
+function populateAllForms() {
+    // 填充AI提供者配置
+    populateProviderForms();
+
+    // 填充生成参数
+    populateGenerationParams();
+
+    // 填充应用配置
+    populateAppConfig();
+
+    // 填充图片服务配置
+    populateImageServiceConfig();
+}
+
+function populateProviderForms() {
+    document.querySelectorAll('.provider-config-card').forEach(card => {
+        const provider = card.dataset.provider;
+        const inputs = card.querySelectorAll('input, select');
+
+        inputs.forEach(input => {
+            const configKey = input.name;
+            if (currentConfig[configKey]) {
+                if (input.type === 'checkbox') {
+                    input.checked = currentConfig[configKey] === 'true';
+                } else if (input.type === 'password') {
+                    // 对于密码字段，如果有配置值且输入框为空，则显示配置值
+                    if (!input.value && currentConfig[configKey]) {
+                        input.value = currentConfig[configKey];
+                    }
+                    // 如果有配置值，更新placeholder为掩码显示
+                    if (currentConfig[configKey]) {
+                        input.placeholder = '••••••••';
+                    }
+                } else {
+                    // 只有当输入框为空时才设置值，避免覆盖模板中已设置的值
+                    if (!input.value && currentConfig[configKey]) {
+                        input.value = currentConfig[configKey];
+                    }
+                }
+            }
+        });
+    });
+}
+
+function populateGenerationParams() {
+    const tab = document.getElementById('generation-params');
+    if (!tab) return;
+
+    const inputs = tab.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        const configKey = input.name;
+        if (currentConfig[configKey]) {
+            if (input.type === 'checkbox') {
+                input.checked = currentConfig[configKey] === 'true';
+            } else if (input.type === 'password') {
+                // 对于密码字段，如果有配置值且输入框为空，则显示配置值
+                if (!input.value && currentConfig[configKey]) {
+                    input.value = currentConfig[configKey];
+                }
+                // 如果有配置值，更新placeholder为掩码显示
+                if (currentConfig[configKey]) {
+                    input.placeholder = '••••••••';
+                }
+            } else {
+                // 只有当输入框为空时才设置值，避免覆盖模板中已设置的值
+                if (!input.value && currentConfig[configKey]) {
+                    input.value = currentConfig[configKey];
+                }
+            }
+        }
+    });
+}
+
+
+
+function populateAppConfig() {
+    const tab = document.getElementById('app-config');
+    if (!tab) return;
+
+    const inputs = tab.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        const configKey = input.name;
+        if (currentConfig[configKey]) {
+            if (input.type === 'checkbox') {
+                input.checked = currentConfig[configKey] === 'true';
+            } else if (input.type === 'password') {
+                // 对于密码字段，如果有配置值且输入框为空，则显示配置值
+                if (!input.value && currentConfig[configKey]) {
+                    input.value = currentConfig[configKey];
+                }
+                // 如果有配置值，更新placeholder为掩码显示
+                if (currentConfig[configKey]) {
+                    input.placeholder = '••••••••';
+                }
+            } else {
+                // 只有当输入框为空时才设置值，避免覆盖模板中已设置的值
+                if (!input.value && currentConfig[configKey]) {
+                    input.value = currentConfig[configKey];
+                }
+            }
+        }
+    });
+}
+
+function populateImageServiceConfig() {
+    const tab = document.getElementById('image-service');
+    if (!tab) return;
+
+    const inputs = tab.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        const configKey = input.name;
+        if (currentConfig[configKey] !== undefined) {
+            if (input.type === 'checkbox') {
+                input.checked = currentConfig[configKey] === 'true' || currentConfig[configKey] === true;
+            } else if (input.type === 'password') {
+                // 对于密码字段，如果有配置值且输入框为空，则显示配置值
+                if (!input.value && currentConfig[configKey]) {
+                    input.value = currentConfig[configKey];
+                }
+                // 如果有配置值，更新placeholder为掩码显示
+                if (currentConfig[configKey]) {
+                    input.placeholder = '••••••••';
+                }
+            } else {
+                // 只有当输入框为空时才设置值，避免覆盖模板中已设置的值
+                if (!input.value && currentConfig[configKey]) {
+                    input.value = currentConfig[configKey];
+                }
+            }
+        }
+    });
+
+    // 触发图片服务选项显示更新
+    setTimeout(() => {
+        toggleImageServiceOptions();
+    }, 100);
+}
+
+// 设置默认提供者
+async function setDefaultProvider(provider) {
+    try {
+        showLoading('正在设置默认提供者...');
+
+        const response = await fetch('/api/config/default-provider', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ provider: provider })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showNotification(`默认提供者已设置为 ${provider}，配置已实时生效`, 'success');
+
+                // 更新页面显示的当前提供者
+                updateCurrentProviderDisplay(provider);
+
+                // 可选：刷新提供者状态
+                setTimeout(() => {
+                    refreshProviders();
+                }, 1000);
+            } else {
+                showNotification('设置默认提供者失败: ' + (result.message || '未知错误'), 'error');
+            }
+        } else {
+            showNotification('设置默认提供者失败', 'error');
+        }
+
+        closeTestModal();
+    } catch (error) {
+        showNotification('设置默认提供者失败: ' + error.message, 'error');
+        closeTestModal();
+    }
+}
+
+// 更新当前提供者显示
+function updateCurrentProviderDisplay(provider) {
+    const currentProviderSpan = document.querySelector('.card p span');
+    if (currentProviderSpan) {
+        currentProviderSpan.textContent = provider;
+    }
+}
+
+// 保存提供者配置
+async function saveProviderConfig(provider) {
+    const card = document.querySelector(`[data-provider="${provider}"]`);
+    if (!card) return;
+
+    const config = {};
+    const inputs = card.querySelectorAll('input, select');
+
+    inputs.forEach(input => {
+        if (input.name && input.value) {
+            // 跳过 default_provider radio 按钮，因为它通过专门的 API 处理
+            if (input.name === 'default_provider') {
+                return;
+            }
+            config[input.name] = input.value;
+        }
+    });
+
+    try {
+        showLoading(`正在保存 ${provider} 配置...`);
+
+        const response = await fetch('/api/config/ai_providers', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ config: config })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showNotification(`${provider} 配置保存成功，已实时生效`, 'success');
+                // 重新加载配置
+                loadAllConfigs();
+            } else {
+                showNotification(`${provider} 配置保存失败: ${result.errors || '未知错误'}`, 'error');
+            }
+        } else {
+            showNotification(`${provider} 配置保存失败`, 'error');
+        }
+
+        closeTestModal();
+    } catch (error) {
+        showNotification('保存配置失败: ' + error.message, 'error');
+        closeTestModal();
+    }
+}
+
+// 保存生成参数
+async function saveGenerationParams() {
+    const tab = document.getElementById('generation-params');
+    if (!tab) return;
+
+    const config = {};
+    const inputs = tab.querySelectorAll('input, select');
+
+    inputs.forEach(input => {
+        if (input.name) {
+            if (input.type === 'checkbox') {
+                config[input.name] = input.checked;
+            } else if (input.value) {
+                config[input.name] = input.value;
+            }
+        }
+    });
+
+    try {
+        const response = await fetch('/api/config/generation_params', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ config: config })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showNotification('生成参数保存成功，已实时生效', 'success');
+                // 重新加载配置
+                loadAllConfigs();
+            } else {
+                showNotification('生成参数保存失败: ' + (result.errors || '未知错误'), 'error');
+            }
+        } else {
+            showNotification('生成参数保存失败', 'error');
+        }
+    } catch (error) {
+        showNotification('保存失败: ' + error.message, 'error');
+    }
+}
+
+
+
+// 保存应用配置
+async function saveAppConfig() {
+    const tab = document.getElementById('app-config');
+    if (!tab) return;
+
+    const config = {};
+    const inputs = tab.querySelectorAll('input, select');
+
+    inputs.forEach(input => {
+        if (input.name) {
+            if (input.type === 'checkbox') {
+                config[input.name] = input.checked;
+            } else if (input.value) {
+                config[input.name] = input.value;
+            }
+        }
+    });
+
+    try {
+        const response = await fetch('/api/config/app_config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ config: config })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showNotification('应用配置保存成功，已实时生效', 'success');
+                // 重新加载配置
+                loadAllConfigs();
+            } else {
+                showNotification('应用配置保存失败: ' + (result.errors || '未知错误'), 'error');
+            }
+        } else {
+            showNotification('应用配置保存失败', 'error');
+        }
+    } catch (error) {
+        showNotification('保存失败: ' + error.message, 'error');
+    }
+}
+
+// 保存所有配置
+async function saveAllConfigs() {
+    showLoading('正在保存所有配置...');
+
+    try {
+        // 收集所有配置
+        const allConfig = {};
+
+        // 收集AI提供者配置
+        document.querySelectorAll('.provider-config-card').forEach(card => {
+            const inputs = card.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                if (input.name && input.value) {
+                    // 跳过 default_provider radio 按钮，因为它通过专门的 API 处理
+                    if (input.name === 'default_provider') {
+                        return;
+                    }
+                    allConfig[input.name] = input.value;
+                }
+            });
+        });
+
+        // 收集其他配置
+        ['generation-params', 'app-config'].forEach(tabId => {
+            const tab = document.getElementById(tabId);
+            if (tab) {
+                const inputs = tab.querySelectorAll('input, select');
+                inputs.forEach(input => {
+                    if (input.name) {
+                        if (input.type === 'checkbox') {
+                            allConfig[input.name] = input.checked;
+                        } else if (input.value) {
+                            allConfig[input.name] = input.value;
+                        }
+                    }
+                });
+            }
+        });
+
+        const response = await fetch('/api/config/all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ config: allConfig })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showNotification('所有配置保存成功', 'success');
+            } else {
+                showNotification('配置保存失败: ' + (result.errors || '未知错误'), 'error');
+            }
+            closeTestModal();
+        } else {
+            showNotification('配置保存失败', 'error');
+            closeTestModal();
+        }
+    } catch (error) {
+        showNotification('保存失败: ' + error.message, 'error');
+        closeTestModal();
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+// 通知功能
+function showNotification(message, type = 'info') {
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 600;
+        z-index: 10000;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    `;
+
+    // 设置背景颜色
+    switch (type) {
+        case 'success':
+            notification.style.background = 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)';
+            break;
+        case 'error':
+            notification.style.background = 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)';
+            break;
+        case 'warning':
+            notification.style.background = 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)';
+            break;
+        default:
+            notification.style.background = 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)';
+    }
+
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    // 显示动画
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+
+    // 自动隐藏
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+
+function showLoading(message) {
+    document.getElementById('testResults').innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+            <div style="font-size: 2em; margin-bottom: 10px;">⏳</div>
+            <p>${message}</p>
+        </div>
+    `;
+    document.getElementById('testModal').style.display = 'block';
+}
+
+function showTestResult(result, success) {
+    const statusIcon = success ? '✅' : '❌';
+    const statusColor = success ? '#27ae60' : '#e74c3c';
+    
+    let content = `
+        <div style="text-align: center; margin-bottom: 20px;">
+            <div style="font-size: 3em; margin-bottom: 10px;">${statusIcon}</div>
+            <h4 style="color: ${statusColor};">${success ? '测试成功' : '测试失败'}</h4>
+        </div>
+    `;
+    
+    if (success) {
+        content += `
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
+                <p><strong>提供者:</strong> ${result.provider}</p>
+                <p><strong>模型:</strong> ${result.model}</p>
+                <p><strong>响应预览:</strong></p>
+                <div style="background: white; padding: 15px; border-radius: 5px; margin-top: 10px; font-family: monospace; font-size: 0.9em;">
+                    ${result.response_preview}
+                </div>
+                <p style="margin-top: 15px;"><strong>使用统计:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>提示词令牌: ${result.usage.prompt_tokens}</li>
+                    <li>完成令牌: ${result.usage.completion_tokens}</li>
+                    <li>总令牌: ${result.usage.total_tokens}</li>
+                </ul>
+            </div>
+        `;
+    } else {
+        content += `
+            <div style="background: #f8d7da; padding: 20px; border-radius: 8px; border-left: 4px solid #e74c3c;">
+                <p><strong>错误信息:</strong></p>
+                <div style="background: rgba(0,0,0,0.1); padding: 10px; border-radius: 5px; font-family: monospace; font-size: 0.9em;">
+                    ${result.detail || result.error || '未知错误'}
+                </div>
+            </div>
+        `;
+    }
+    
+    document.getElementById('testResults').innerHTML = content;
+    document.getElementById('testModal').style.display = 'block';
+}
+
+function showAllTestResults(results) {
+    let content = '<div style="margin-bottom: 20px;">';
+    
+    results.forEach(({provider, result, success}) => {
+        const statusIcon = success ? '✅' : '❌';
+        const statusColor = success ? '#27ae60' : '#e74c3c';
+        
+        content += `
+            <div style="border: 1px solid #ecf0f1; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <strong>${provider}</strong>
+                    <span style="color: ${statusColor};">${statusIcon} ${success ? '成功' : '失败'}</span>
+                </div>
+                ${success ? 
+                    `<p style="color: #7f8c8d; font-size: 0.9em;">模型: ${result.model} | 响应: ${result.response_preview.substring(0, 50)}...</p>` :
+                    `<p style="color: #e74c3c; font-size: 0.9em;">错误: ${result.detail || result.error}</p>`
+                }
+            </div>
+        `;
+    });
+    
+    content += '</div>';
+    
+    document.getElementById('testResults').innerHTML = content;
+    document.getElementById('testModal').style.display = 'block';
+}
+
+function closeTestModal() {
+    document.getElementById('testModal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+document.getElementById('testModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeTestModal();
+    }
+});
+
+// 图片服务相关功能
+async function checkImageServiceStatus() {
+    try {
+        const response = await fetch('/api/image/status');
+        if (response.ok) {
+            const result = await response.json();
+            updateImageServiceStatus(result);
+        } else {
+            updateImageServiceStatus({
+                status: 'error',
+                available_providers: [],
+                message: '无法连接到图片服务'
+            });
+        }
+    } catch (error) {
+        updateImageServiceStatus({
+            status: 'error',
+            available_providers: [],
+            message: '检查图片服务状态失败: ' + error.message
+        });
+    }
+}
+
+function updateImageServiceStatus(status) {
+    const statusElement = document.getElementById('image-service-status');
+    const providersElement = document.getElementById('available-image-providers');
+
+    if (statusElement) {
+        if (status.status === 'ok' && status.available_providers.length > 0) {
+            statusElement.textContent = '✅ 正常运行';
+            statusElement.style.background = '#27ae60';
+        } else {
+            statusElement.textContent = '❌ 服务异常';
+            statusElement.style.background = '#e74c3c';
+        }
+    }
+
+    if (providersElement) {
+        if (status.available_providers && status.available_providers.length > 0) {
+            providersElement.textContent = status.available_providers.join(', ') + ` (${status.available_providers.length}个)`;
+        } else {
+            providersElement.textContent = '无可用提供者';
+        }
+    }
+}
+
+function showImageTestResult(result, success) {
+    const statusIcon = success ? '✅' : '❌';
+    const statusColor = success ? '#27ae60' : '#e74c3c';
+
+    let content = `
+        <div style="text-align: center; margin-bottom: 20px;">
+            <div style="font-size: 3em; margin-bottom: 10px;">${statusIcon}</div>
+            <h4 style="color: ${statusColor};">${success ? '图片服务测试成功' : '图片服务测试失败'}</h4>
+        </div>
+    `;
+
+    if (success) {
+        content += `
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
+                <p><strong>测试结果:</strong></p>
+                <ul style="margin-left: 20px;">
+        `;
+
+        if (result.providers) {
+            Object.entries(result.providers).forEach(([provider, status]) => {
+                const icon = status.available ? '✅' : '❌';
+                content += `<li>${icon} ${provider}: ${status.message}</li>`;
+            });
+        }
+
+        content += `
+                </ul>
+                <p style="margin-top: 15px;"><strong>缓存信息:</strong></p>
+                <ul style="margin-left: 20px;">
+                    <li>缓存目录: ${result.cache_info?.directory || 'temp/images_cache'}</li>
+                    <li>缓存大小: ${result.cache_info?.size || '0 MB'}</li>
+                    <li>文件数量: ${result.cache_info?.file_count || 0}</li>
+                </ul>
+            </div>
+        `;
+    } else {
+        content += `
+            <div style="background: #f8d7da; padding: 20px; border-radius: 8px; border-left: 4px solid #e74c3c;">
+                <p><strong>错误信息:</strong></p>
+                <div style="background: rgba(0,0,0,0.1); padding: 10px; border-radius: 5px; font-family: monospace; font-size: 0.9em;">
+                    ${result.detail || result.error || '未知错误'}
+                </div>
+            </div>
+        `;
+    }
+
+    document.getElementById('testResults').innerHTML = content;
+    document.getElementById('testModal').style.display = 'block';
+}
+
+
+async function saveImageServiceConfig() {
+    const tab = document.getElementById('image-service');
+    if (!tab) return;
+
+    const config = {};
+    const inputs = tab.querySelectorAll('input, select');
+
+    inputs.forEach(input => {
+        if (input.name) {
+            if (input.type === 'checkbox') {
+                config[input.name] = input.checked;
+            } else if (input.value) {
+                config[input.name] = input.value;
+            }
+        }
+    });
+
+    try {
+        const response = await fetch('/api/config/image_service', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ config: config })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showNotification('图片服务配置保存成功，已实时生效', 'success');
+                // 重新检查图片服务状态
+                checkImageServiceStatus();
+                // 重新加载配置
+                loadAllConfigs();
+            } else {
+                // 正确处理错误信息
+                let errorMessage = '未知错误';
+                if (result.errors) {
+                    if (typeof result.errors === 'string') {
+                        errorMessage = result.errors;
+                    } else if (typeof result.errors === 'object') {
+                        // 如果errors是对象，将其转换为可读的字符串
+                        errorMessage = JSON.stringify(result.errors, null, 2);
+                    }
+                } else if (result.message) {
+                    errorMessage = result.message;
+                }
+                showNotification('图片服务配置保存失败: ' + errorMessage, 'error');
+            }
+        } else {
+            // 尝试解析错误响应
+            try {
+                const errorResult = await response.json();
+                let errorMessage = '请求失败';
+                if (errorResult.detail) {
+                    errorMessage = errorResult.detail;
+                } else if (errorResult.message) {
+                    errorMessage = errorResult.message;
+                }
+                showNotification('图片服务配置保存失败: ' + errorMessage, 'error');
+            } catch (parseError) {
+                showNotification('图片服务配置保存失败: HTTP ' + response.status, 'error');
+            }
+        }
+    } catch (error) {
+        showNotification('保存失败: ' + error.message, 'error');
+    }
+}
+
+// 图片服务选项控制函数
+function toggleImageServiceOptions() {
+    const enableCheckbox = document.querySelector('input[name="enable_image_service"]');
+    const optionsDiv = document.getElementById('image-service-options');
+
+    if (enableCheckbox && optionsDiv) {
+        if (enableCheckbox.checked) {
+            optionsDiv.style.display = 'block';
+            // 触发一次配置显示更新
+            toggleImageSourceConfig();
+        } else {
+            optionsDiv.style.display = 'none';
+        }
+    }
+}
+
+function toggleImageSourceConfig() {
+    const localCheckbox = document.querySelector('input[name="enable_local_images"]');
+    const networkCheckbox = document.querySelector('input[name="enable_network_search"]');
+    const aiCheckbox = document.querySelector('input[name="enable_ai_generation"]');
+
+    const localConfig = document.getElementById('local-images-config');
+    const networkConfig = document.getElementById('network-search-config');
+    const aiConfig = document.getElementById('ai-generation-config');
+
+    if (!localConfig || !networkConfig || !aiConfig) return;
+
+    // 根据复选框状态显示/隐藏对应配置
+    if (localCheckbox && localCheckbox.checked) {
+        localConfig.style.display = 'block';
+    } else {
+        localConfig.style.display = 'none';
+    }
+
+    if (networkCheckbox && networkCheckbox.checked) {
+        networkConfig.style.display = 'block';
+    } else {
+        networkConfig.style.display = 'none';
+    }
+
+    if (aiCheckbox && aiCheckbox.checked) {
+        aiConfig.style.display = 'block';
+        // 当AI生成配置显示时，也检查提供商特定配置
+        toggleProviderSpecificConfig();
+    } else {
+        aiConfig.style.display = 'none';
+    }
+}
+
+function toggleProviderSpecificConfig() {
+    const providerSelect = document.querySelector('select[name="default_ai_image_provider"]');
+    const pollinationsConfig = document.getElementById('pollinations-specific-config');
+
+    if (!providerSelect || !pollinationsConfig) return;
+
+    const selectedProvider = providerSelect.value;
+
+    // 显示/隐藏Pollinations特定配置
+    if (selectedProvider === 'pollinations') {
+        pollinationsConfig.style.display = 'block';
+    } else {
+        pollinationsConfig.style.display = 'none';
+    }
+}
+
+// 获取并显示OpenAI模型列表
+async function fetchAndShowModels() {
+    const selectElement = document.getElementById('openai_model_select');
+    const inputElement = document.getElementById('openai_model_input');
+    const fetchButton = document.getElementById('openai_model_fetch_btn');
+
+    if (!selectElement || !inputElement || !fetchButton) return;
+
+    try {
+        // 设置加载状态
+        fetchButton.classList.add('loading');
+        fetchButton.disabled = true;
+        fetchButton.textContent = '⏳';
+
+        // 获取Base URL - 只使用前端页面填写的信息
+        const baseUrlInput = document.querySelector('input[name="openai_base_url"]');
+        let baseUrl = baseUrlInput ? baseUrlInput.value.trim() : '';
+
+        // 如果没有设置Base URL，使用默认值
+        if (!baseUrl) {
+            baseUrl = 'https://api.openai.com/v1';
+        }
+
+        // 确保Base URL以/v1结尾
+        if (!baseUrl.endsWith('/v1')) {
+            if (baseUrl.endsWith('/')) {
+                baseUrl += 'v1';
+            } else {
+                baseUrl += '/v1';
+            }
+        }
+
+        // 获取API Key - 优先使用前端页面填写的信息，如果没有则从后端获取
+        const apiKeyInput = document.querySelector('input[name="openai_api_key"]');
+        let apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+
+        // 如果前端没有填写API Key，尝试从后端获取
+        if (!apiKey) {
+            try {
+                const configResponse = await fetch('/api/config/ai_providers');
+                if (configResponse.ok) {
+                    const configResult = await configResponse.json();
+                    if (configResult.success && configResult.config.openai_api_key) {
+                        apiKey = configResult.config.openai_api_key;
+                    }
+                }
+            } catch (error) {
+                console.error('获取后端配置失败:', error);
+            }
+        }
+
+        if (!apiKey) {
+            showNotification('请先配置 OpenAI API Key', 'warning');
+            return;
+        }
+
+        // 获取模型列表
+        const models = await fetchOpenAIModels(baseUrl, apiKey);
+
+        if (models && models.length > 0) {
+            // 如果当前是输入模式，切换到选择模式
+            if (selectElement.style.display === 'none') {
+                // 清空现有选项
+                selectElement.innerHTML = '<option value="">选择模型...</option>';
+
+                // 添加模型选项
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.id;
+                    selectElement.appendChild(option);
+                });
+
+                // 保存当前输入框的值
+                const currentValue = inputElement.value;
+
+                // 切换显示
+                inputElement.style.display = 'none';
+                selectElement.style.display = 'block';
+
+                // 设置选择框的值
+                if (currentValue && selectElement.querySelector(`option[value="${currentValue}"]`)) {
+                    selectElement.value = currentValue;
+                } else {
+                    selectElement.value = ''; // 显示"选择模型..."
+                    inputElement.placeholder = '选择模型...'; // 同时更新输入框的placeholder
+                }
+
+                // 监听选择变化
+                selectElement.onchange = function() {
+                    if (this.value) {
+                        inputElement.value = this.value;
+                        inputElement.placeholder = this.value; // 更新placeholder为选中的模型
+                    } else {
+                        inputElement.value = '';
+                        inputElement.placeholder = '选择模型...';
+                    }
+                };
+
+                showNotification(`成功获取到 ${models.length} 个模型，请选择一个模型`, 'success');
+            } else {
+                // 如果已经是选择模式，切换回输入模式
+                selectElement.style.display = 'none';
+                inputElement.style.display = 'block';
+                // 如果没有值且placeholder是"选择模型..."，恢复原始placeholder
+                if (!inputElement.value && inputElement.placeholder === '选择模型...') {
+                    inputElement.placeholder = '{{ current_config.get("openai_model", "gpt-4o") }}';
+                }
+            }
+        } else {
+            showNotification('未能获取到模型列表，请检查Base URL和API Key配置', 'warning');
+        }
+
+    } catch (error) {
+        console.error('获取模型列表失败:', error);
+        showNotification('获取模型列表失败: ' + error.message, 'error');
+    } finally {
+        // 恢复按钮状态
+        fetchButton.classList.remove('loading');
+        fetchButton.disabled = false;
+        fetchButton.textContent = '📋';
+    }
+}
+
+// 从OpenAI API获取模型列表（仅通过后端代理）
+async function fetchOpenAIModels(baseUrl, apiKey) {
+    try {
+        // 只通过后端代理请求，避免CORS问题
+        const response = await fetch('/api/ai/providers/openai/models', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                base_url: baseUrl,
+                api_key: apiKey
+            })
+        });
+
+        if (!response.ok) {
+            // 尝试解析错误响应
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                if (errorData.error) {
+                    errorMessage = errorData.error;
+                } else if (errorData.detail) {
+                    errorMessage = errorData.detail;
+                } else if (errorData.message) {
+                    errorMessage = errorData.message;
+                }
+            } catch (parseError) {
+                // 如果无法解析错误响应，使用默认错误信息
+            }
+            throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+        
+        // 处理不同的响应格式
+        let models = null;
+        
+        // 检查各种可能的响应格式
+        if (data.models && Array.isArray(data.models)) {
+            models = data.models;
+        } else if (data.data && Array.isArray(data.data)) {
+            // 兼容 OpenAI 原始格式
+            models = data.data;
+        } else if (Array.isArray(data)) {
+            // 直接返回数组的情况
+            models = data;
+        }
+        
+        if (models) {
+            // 过滤并排序模型列表，优先显示常用的聊天模型
+            const sortedModels = models
+                .filter(model => model.id || model.name) // 确保有ID或name
+                .map(model => {
+                    // 标准化模型对象
+                    return {
+                        id: model.id || model.name,
+                        name: model.name || model.id
+                    };
+                })
+                .sort((a, b) => {
+                    // 优先级排序：gpt-4 > gpt-3.5 > gemini > 其他
+                    const getPriority = (id) => {
+                        if (id.includes('gpt-4')) return 4;
+                        if (id.includes('gpt-3.5')) return 3;
+                        if (id.includes('gemini')) return 2;
+                        return 1;
+                    };
+
+                    const priorityA = getPriority(a.id);
+                    const priorityB = getPriority(b.id);
+
+                    if (priorityA !== priorityB) {
+                        return priorityB - priorityA; // 降序
+                    }
+
+                    return a.id.localeCompare(b.id); // 字母序
+                });
+
+            return sortedModels;
+        } else {
+            throw new Error('后端代理返回的数据格式不正确，未找到模型数据');
+        }
+
+    } catch (error) {
+        console.error('通过后端代理获取模型列表失败:', error);
+        throw error;
+    }
+}
+
+// 初始化OpenAI模型输入框状态
+function initOpenAIModelInput() {
+    const inputElement = document.getElementById('openai_model_input');
+    if (inputElement && !inputElement.value.trim()) {
+        inputElement.placeholder = '选择模型...';
+    }
+}
+
+// 页面加载时初始化图片服务选项显示
+document.addEventListener('DOMContentLoaded', function() {
+    // 延迟执行以确保DOM完全加载
+    setTimeout(() => {
+        toggleImageServiceOptions();
+        initOpenAIModelInput();
+    }, 100);
+});
+</script>
+{% endblock %}

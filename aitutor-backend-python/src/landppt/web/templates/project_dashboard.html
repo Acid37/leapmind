@@ -1,0 +1,715 @@
+{% extends "base.html" %}
+
+{% block title %}项目仪表板 - LandPPT{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 紧凑型仪表板设计 */
+.dashboard-hero {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: var(--spacing-lg) var(--spacing-md);
+    margin: calc(-1 * var(--spacing-lg)) calc(-1 * var(--spacing-lg)) var(--spacing-lg) calc(-1 * var(--spacing-lg));
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0 0 var(--border-radius-lg) var(--border-radius-lg);
+}
+
+.dashboard-hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+        radial-gradient(circle at 25% 25%, rgba(79, 172, 254, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 75% 75%, rgba(240, 147, 251, 0.08) 0%, transparent 50%);
+    animation: dashboardFloat 20s ease-in-out infinite;
+}
+
+@keyframes dashboardFloat {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.02) rotate(1deg); }
+}
+
+.dashboard-hero h2 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: var(--spacing-md);
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text; 
+    position: relative;
+    z-index: 1;
+    letter-spacing: -0.02em;
+}
+
+.dashboard-hero p {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    max-width: 500px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+/* 紧凑型统计卡片 */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.stat-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-lg);
+    text-align: center;
+    box-shadow: var(--glass-shadow);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    transition: transform 0.3s ease;
+    transform: scaleX(0);
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+    border-color: rgba(102, 126, 234, 0.3);
+}
+
+.stat-card:hover::before {
+    transform: scaleX(1);
+}
+
+.stat-card.total::before { background: linear-gradient(90deg, #3498db, #2980b9); }
+.stat-card.completed::before { background: linear-gradient(90deg, #27ae60, #229954); }
+.stat-card.progress::before { background: linear-gradient(90deg, #f39c12, #e67e22); }
+.stat-card.draft::before { background: linear-gradient(90deg, #9b59b6, #8e44ad); }
+
+.stat-number {
+    font-size: 2.5em;
+    font-weight: 700;
+    margin: 10px 0;
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.stat-card.total .stat-number { background: linear-gradient(135deg, #3498db, #2980b9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.stat-card.completed .stat-number { background: linear-gradient(135deg, #27ae60, #229954); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.stat-card.progress .stat-number { background: linear-gradient(135deg, #f39c12, #e67e22); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.stat-card.draft .stat-number { background: linear-gradient(135deg, #9b59b6, #8e44ad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+/* 紧凑型快速操作 */
+.quick-actions {
+    text-align: center;
+    margin-bottom: var(--spacing-lg);
+}
+
+.action-buttons {
+    display: inline-flex;
+    gap: var(--spacing-md);
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius-md);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    flex-wrap: wrap;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* 现代化项目列表 */
+.recent-projects-list {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--glass-shadow);
+    overflow: hidden;
+}
+
+.project-list-item {
+    position: relative;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.project-list-item:last-child {
+    border-bottom: none;
+}
+
+.project-list-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateX(8px);
+}
+
+.project-status-indicator {
+    width: 4px;
+    height: 40px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.project-list-item.completed .project-status-indicator {
+    background: var(--success-gradient);
+}
+
+.project-list-item.in_progress .project-status-indicator {
+    background: var(--accent-gradient);
+}
+
+.project-list-item.draft .project-status-indicator {
+    background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+}
+
+.project-list-item.error .project-status-indicator {
+    background: var(--secondary-gradient);
+}
+
+.project-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.project-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.project-status-badge {
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.project-status-badge.completed {
+    background: rgba(67, 233, 123, 0.2);
+    color: #27ae60;
+}
+
+.project-status-badge.in_progress {
+    background: rgba(79, 172, 254, 0.2);
+    color: #3498db;
+}
+
+.project-status-badge.draft {
+    background: rgba(149, 165, 166, 0.2);
+    color: #7f8c8d;
+}
+
+.project-status-badge.error {
+    background: rgba(240, 147, 251, 0.2);
+    color: #e74c3c;
+}
+
+/* 项目详情样式 */
+.project-meta {
+    display: flex;
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-sm);
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.project-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+}
+
+.project-action-btn {
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.project-action-btn.primary {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.project-action-btn.secondary {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.project-action-btn:hover {
+    transform: translateY(-1px);
+}
+
+/* 紧凑型响应式设计 */
+@media (max-width: 768px) {
+    .dashboard-hero {
+        padding: var(--spacing-md) var(--spacing-sm);
+        margin: calc(-1 * var(--spacing-lg)) calc(-1 * var(--spacing-sm)) var(--spacing-md) calc(-1 * var(--spacing-sm));
+    }
+
+    .dashboard-hero h2 {
+        font-size: 2rem;
+    }
+
+    .dashboard-hero p {
+        font-size: 1rem;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-sm);
+        margin-bottom: var(--spacing-md);
+    }
+
+    .stat-card {
+        padding: var(--spacing-md);
+    }
+
+    .stat-number {
+        font-size: 2em;
+        margin: 8px 0;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-md);
+    }
+
+    .project-list-item {
+        padding: var(--spacing-md);
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+
+    .project-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-xs);
+    }
+
+    .project-meta {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+
+    .project-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-hero">
+    <h2>📊 项目仪表板</h2>
+    <p>管理您的 PPT 项目，跟踪进度，查看 TODO 看板</p>
+</div>
+
+<!-- 紧凑型项目概览卡片 -->
+<div class="stats-grid">
+    <div class="stat-card total">
+        <div style="font-size: 1.8em; margin-bottom: 8px; color: #3498db;">📋</div>
+        <h3 style="color: #2c3e50; margin-bottom: 8px; font-weight: 600; font-size: 1rem;">总项目数</h3>
+        <div class="stat-number">{{ total_projects }}</div>
+        <p style="color: #7f8c8d; margin: 0; font-size: 0.85rem;">所有项目</p>
+    </div>
+
+    <div class="stat-card completed">
+        <div style="font-size: 1.8em; margin-bottom: 8px; color: #27ae60;">✅</div>
+        <h3 style="color: #2c3e50; margin-bottom: 8px; font-weight: 600; font-size: 1rem;">已完成</h3>
+        <div class="stat-number">{{ completed_projects }}</div>
+        <p style="color: #7f8c8d; margin: 0; font-size: 0.85rem;">完成的项目</p>
+    </div>
+
+    <div class="stat-card progress">
+        <div style="font-size: 1.8em; margin-bottom: 8px; color: #f39c12;">🔄</div>
+        <h3 style="color: #2c3e50; margin-bottom: 8px; font-weight: 600; font-size: 1rem;">进行中</h3>
+        <div class="stat-number">{{ in_progress_projects }}</div>
+        <p style="color: #7f8c8d; margin: 0; font-size: 0.85rem;">正在处理</p>
+    </div>
+
+    <div class="stat-card draft">
+        <div style="font-size: 1.8em; margin-bottom: 8px; color: #9b59b6;">📝</div>
+        <h3 style="color: #2c3e50; margin-bottom: 8px; font-weight: 600; font-size: 1rem;">草稿</h3>
+        <div class="stat-number">{{ draft_projects }}</div>
+        <p style="color: #7f8c8d; margin: 0; font-size: 0.85rem;">草稿状态</p>
+    </div>
+</div>
+
+<!-- 紧凑型快速操作 -->
+<div class="quick-actions">
+    <div class="action-buttons">
+        <a href="/scenarios" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; transition: all 0.3s ease; box-shadow: 0 3px 12px rgba(102, 126, 234, 0.25); display: flex; align-items: center; gap: 8px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(102, 126, 234, 0.35)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 3px 12px rgba(102, 126, 234, 0.25)'">
+            🎯 创建新项目
+        </a>
+        <a href="/projects" style="background: linear-gradient(135deg, #27ae60, #229954); color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; transition: all 0.3s ease; box-shadow: 0 3px 12px rgba(39, 174, 96, 0.25); display: flex; align-items: center; gap: 8px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(39, 174, 96, 0.35)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 3px 12px rgba(39, 174, 96, 0.25)'">
+            📋 查看所有项目
+        </a>
+    </div>
+</div>
+
+<!-- 最近项目 -->
+<div style="margin-bottom: var(--spacing-lg);">
+    <h3 style="color: var(--text-primary); margin-bottom: var(--spacing-lg); text-align: center; font-size: 1.8rem; font-weight: 600; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">📈 最近项目</h3>
+
+    {% if recent_projects %}
+    <div class="recent-projects-list">
+        {% for project in recent_projects %}
+        <div class="project-list-item {{ project.status }}">
+            <div class="project-status-indicator"></div>
+            <div class="project-info">
+                <div class="project-header">
+                    <h4 class="project-title">{{ project.title }}</h4>
+                    <span class="project-status-badge {{ project.status }}">
+                        {% if project.status == 'completed' %}
+                            ✅ 已完成
+                        {% elif project.status == 'in_progress' %}
+                            🔄 进行中
+                        {% elif project.status == 'draft' %}
+                            📝 草稿
+                        {% else %}
+                            ❌ 错误
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="project-meta">
+                    <span>场景: {{ project.scenario }}</span>
+                    <span>创建时间: {{ project.created_at | strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+
+                <div class="project-actions">
+                    <a href="/projects/{{ project.project_id }}" class="project-action-btn primary">
+                        查看详情
+                    </a>
+                    {% if project.status == 'completed' %}
+                    <a href="/projects/{{ project.project_id }}/edit" class="project-action-btn secondary">
+                        ✏️ 编辑PPT
+                    </a>
+                    <a href="/projects/{{ project.project_id }}/fullscreen" class="project-action-btn secondary" target="_blank">
+                        👁️ 预览
+                    </a>
+                    {% endif %}
+                    <button onclick="confirmDeleteProject('{{ project.project_id }}', '{{ project.title }}')"
+                            class="project-action-btn"
+                            style="background: var(--secondary-gradient); color: white;"
+                            title="删除项目">
+                        🗑️ 删除
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 60px; background: #f8f9fa; border-radius: 15px;">
+        <div style="font-size: 4em; margin-bottom: 20px; opacity: 0.5;">📋</div>
+        <h3 style="color: #7f8c8d; margin-bottom: 15px;">暂无项目</h3>
+        <p style="color: #95a5a6; margin-bottom: 30px;">开始创建您的第一个 PPT 项目</p>
+        <a href="/scenarios" class="btn btn-primary">🎯 创建项目</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- TODO Board Preview -->
+{% if active_todo_boards %}
+<div style="margin-bottom: 40px;">
+    <h3 style="color: #2c3e50; margin-bottom: 20px; text-align: center;">📋 活跃的 TODO 看板</h3>
+    
+    <div class="grid">
+        {% for todo_board in active_todo_boards %}
+        <div class="card">
+            <h4 style="color: #3498db; margin-bottom: 15px;">{{ todo_board.title }}</h4>
+            
+            <div style="margin-bottom: 15px;">
+                <div style="background: #ecf0f1; border-radius: 10px; overflow: hidden; height: 8px;">
+                    <div style="background: #3498db; height: 100%; width: {{ todo_board.overall_progress }}%; transition: width 0.3s ease;"></div>
+                </div>
+                <p style="text-align: center; margin-top: 8px; color: #7f8c8d; font-size: 0.9em;">
+                    进度: {{ "%.1f" | format(todo_board.overall_progress) }}%
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <strong style="color: #2c3e50;">当前阶段:</strong>
+                <span style="color: #7f8c8d;">{{ todo_board.stages[todo_board.current_stage_index].name }}</span>
+            </div>
+            
+            <div style="text-align: center;">
+                <a href="/projects/{{ todo_board.task_id }}/todo" class="btn btn-primary">
+                    查看看板
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <div style="font-size: 3em; margin-bottom: 20px;">⚠️</div>
+        <h3 style="color: #e74c3c; margin-bottom: 15px;">确认删除项目</h3>
+        <p style="color: #7f8c8d; margin-bottom: 20px;">
+            您确定要删除项目 "<span id="deleteProjectTitle" style="font-weight: bold; color: #2c3e50;"></span>" 吗？
+        </p>
+        <p style="color: #e74c3c; font-size: 0.9em; margin-bottom: 30px;">
+            ⚠️ 此操作不可撤销，将永久删除项目及其所有相关数据！
+        </p>
+        <div style="display: flex; gap: 15px; justify-content: center;">
+            <button onclick="closeDeleteModal()" class="btn" style="background: #95a5a6; color: white; padding: 12px 24px;">
+                取消
+            </button>
+            <button onclick="executeDeleteProject()" class="btn btn-danger" style="padding: 12px 24px;">
+                确认删除
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1001; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 30px; border-radius: 15px; text-align: center;">
+        <div class="spinner" style="margin-bottom: 20px;"></div>
+        <p style="color: #2c3e50; font-weight: bold;">正在删除项目...</p>
+    </div>
+</div>
+{% endblock %}
+
+<style>
+.btn-danger {
+    background: #e74c3c !important;
+    color: white !important;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: #c0392b !important;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+{% block extra_js %}
+<script>
+let currentDeleteProjectId = null;
+
+function confirmDeleteProject(projectId, projectTitle) {
+    currentDeleteProjectId = projectId;
+    const titleElement = document.getElementById('deleteProjectTitle');
+    if (titleElement) {
+        titleElement.textContent = projectTitle;
+    } else {
+        console.error('Element with id "deleteProjectTitle" not found');
+    }
+    const modalElement = document.getElementById('deleteModal');
+    if (modalElement) {
+        modalElement.style.display = 'flex';
+    } else {
+        console.error('Element with id "deleteModal" not found');
+    }
+}
+
+function closeDeleteModal() {
+    const modalElement = document.getElementById('deleteModal');
+    if (modalElement) {
+        modalElement.style.display = 'none';
+    }
+    currentDeleteProjectId = null;
+}
+
+async function executeDeleteProject() {
+    if (!currentDeleteProjectId) return;
+
+    // Show loading overlay
+    const modalElement = document.getElementById('deleteModal');
+    if (modalElement) {
+        modalElement.style.display = 'none';
+    }
+    const loadingElement = document.getElementById('loadingOverlay');
+    if (loadingElement) {
+        loadingElement.style.display = 'flex';
+    }
+
+    try {
+        const response = await fetch(`/api/database/projects/${currentDeleteProjectId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            // Show success message
+            showNotification('项目删除成功！', 'success');
+
+            // Refresh the page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            throw new Error(result.detail || '删除失败');
+        }
+
+    } catch (error) {
+        console.error('Delete error:', error);
+        showNotification('删除失败：' + error.message, 'error');
+        const loadingElement = document.getElementById('loadingOverlay');
+        if (loadingElement) {
+            loadingElement.style.display = 'none';
+        }
+    }
+
+    currentDeleteProjectId = null;
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 8px;
+        color: white;
+        font-weight: bold;
+        z-index: 1002;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    `;
+
+    // Set background color based on type
+    if (type === 'success') {
+        notification.style.background = '#27ae60';
+    } else if (type === 'error') {
+        notification.style.background = '#e74c3c';
+    } else {
+        notification.style.background = '#3498db';
+    }
+
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Close modal when clicking outside
+    const deleteModal = document.getElementById('deleteModal');
+    if (deleteModal) {
+        deleteModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDeleteModal();
+            }
+        });
+    }
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeDeleteModal();
+        }
+    });
+
+    // Add smooth animations
+    const cards = document.querySelectorAll('.card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.5s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+});
+
+// Auto-refresh dashboard data every 30 seconds
+setInterval(function() {
+    // Only refresh if there are active projects
+    if ({{ in_progress_projects }} > 0) {
+        window.location.reload();
+    }
+}, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机器学习：让机器变得更聪明</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lobster&amp;display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #010410;
+            overflow: hidden;
+        }
+
+        .background-canvas {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, #010410, #03102a, #0b2a54, #010410);
+            z-index: 1;
+        }
+
+        .background-canvas::before, .background-canvas::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at 20% 25%, #f9d71c, transparent 20%),
+                        radial-gradient(circle at 80% 75%, #4a90e2, transparent 25%);
+            mix-blend-mode: color-dodge;
+            animation: paint-swirl 20s ease-in-out infinite alternate;
+        }
+
+        .background-canvas::after {
+            background: radial-gradient(circle at 50% 50%, #ffffff, transparent 15%),
+                        radial-gradient(circle at 10% 80%, #f9d71c, transparent 20%);
+            animation-delay: -10s;
+            mix-blend-mode: overlay;
+        }
+
+        #turbulence {
+            position: absolute;
+            width: 100%; height: 100%;
+            filter: url(#paint-turbulence);
+            opacity: 0.8;
+        }
+
+        @keyframes paint-swirl {
+            from { transform: rotate(0deg) scale(1.5); opacity: 0.6; }
+            to { transform: rotate(180deg) scale(1); opacity: 1; }
+        }
+
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            display: flex;
+            flex-direction: column;
+            color: #e0e6f1;
+            position: relative;
+            z-index: 3; 
+            background: rgba(8, 23, 53, 0.4);
+            backdrop-filter: blur(8px) brightness(1.1);
+            -webkit-backdrop-filter: blur(8px) brightness(1.1);
+            border: 1.5px solid rgba(137, 207, 240, 0.3);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            clip-path: polygon(0 20px, 20px 0, calc(100% - 20px) 0, 100% 20px, 100% calc(100% - 20px), calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 20px));
+        }
+        
+        .slide-header {
+            padding: 40px 60px 20px 60px;
+            border-bottom: 1px solid transparent;
+            border-image: linear-gradient(to right, rgba(255, 215, 0, 0.5), transparent) 1;
+        }
+        
+        .slide-title {
+            font-family: 'Lobster', 'Georgia', cursive;
+            font-size: clamp(3rem, 5vw, 4.5rem);
+            font-weight: 400;
+            line-height: 1.2;
+            text-align: left;
+            color: #FFD700;
+        }
+        
+        .slide-content {
+            flex: 1;
+            padding: 30px 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            max-height: 580px;
+            overflow-y: auto;
+            font-family: 'Helvetica Neue', 'Arial', sans-serif;
+        }
+        
+        .content-main {
+            font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+            line-height: 1.8; 
+            color: #d0d8e8;
+            text-align: center;
+        }
+        
+        .content-points {
+            list-style: none; padding: 0; margin: 25px 0 0 0;
+        }
+        
+        .content-points li {
+            margin-bottom: 25px; padding-left: 45px; position: relative; font-size: 1.25rem;
+        }
+        
+        .content-points li::before {
+            content: "\2605";
+            position: absolute;
+            left: 5px; top: 8px;
+            font-size: 20px;
+            color: #FFD700;
+            animation: shooting-star 3s ease-in-out infinite;
+        }
+
+        @keyframes shooting-star {
+            0% { transform: translateX(0) scale(1); opacity: 1; text-shadow: 0 0 8px #ffd700; }
+            40% { transform: translateX(5px) scale(1.2); opacity: 0.7; }
+            100% { transform: translateX(0) scale(1); opacity: 1; text-shadow: 0 0 8px #ffd700; }
+        }
+        
+        .slide-footer {
+            position: absolute;
+            bottom: 25px;
+            right: 40px;
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 600;
+            text-shadow: 1px 1px 2px #000;
+        }
+        
+        .highlight-box {
+            background: rgba(255, 215, 0, 0.08);
+            border-left: 4px solid #ffd700;
+            padding: 20px 25px;
+            margin: 20px 0;
+            clip-path: polygon(0 0, 100% 10%, 100% 100%, 0 90%);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: transparent;
+            padding: 25px 20px;
+            text-align: center;
+            position: relative;
+            border: 2px solid rgba(137, 207, 240, 0.4);
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-10px) scale(1.05) rotate(-2deg);
+            border-color: rgba(255, 215, 0, 0.8);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+        }
+        
+        .stat-number {
+            font-family: 'Lobster', cursive;
+            font-size: 3rem;
+            font-weight: 400;
+            color: #FFD700;
+            display: block;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+        }
+        
+        .stat-label {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 5px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="background-canvas">
+        <div id="turbulence"></div>
+    </div>
+    
+    <div class="slide-container">
+        <div class="slide-header">
+            <h1 class="slide-title">机器学习：让机器变得更聪明</h1>
+        </div>
+        
+        <div class="slide-content">
+            <div class="content-main">
+                <ul class="content-points">
+                    <li>什么是机器学习？</li>
+                    <li>为什么重要？</li>
+                    <li>如何应用？</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="slide-footer">
+            1 / 10
+        </div>
+    </div>
+
+    <svg xmlns="http://www.w3.org/2000/svg" version="1.1" style="display:none">
+        <defs>
+            <filter id="paint-turbulence">
+                <feturbulence type="turbulence" basefrequency="0.01 0.02" numoctaves="3" seed="2" stitchtiles="stitch" result="turbulence"></feturbulence>
+                <fedisplacementmap in2="turbulence" in="SourceGraphic" scale="50" xchannelselector="R" ychannelselector="G"></fedisplacementmap>
+                 <fegaussianblur stddeviation="2"></fegaussianblur>
+            </filter>
+        </defs>
+    </svg>
+
+</body>
+</html>

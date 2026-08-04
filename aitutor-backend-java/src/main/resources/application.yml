@@ -1,0 +1,210 @@
+server:
+  port: 8080
+  # Tomcat服务器配置（用于处理WebSocket消息大小）
+  tomcat:
+    # 设置最大WebSocket消息缓冲区大小
+    max-http-form-post-size: 2097152 # 2MB
+    max-swallow-size: 2097152 # 2MB
+
+spring:
+  application:
+    name: leapmind-tts
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  profiles:
+    active: dev
+  # WebSocket配置
+  websocket:
+    servlet-path: /speech-websocket
+  mvc:
+    async:
+      request-timeout: 60000
+  main:
+    allow-circular-references: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    table: flyway_schema_history
+    baseline-on-migrate: true
+    baseline-version: 1
+    # 禁止自动清理，保护生产数据
+    clean-disabled: true
+    # 编码设置
+    encoding: UTF-8
+
+# 通用日志配置
+logging:
+  level:
+    org.springframework.web: INFO
+
+# 阿里云语音识别配置
+asr:
+  api:
+    key: 1NKi3NqL8jyXC8PK
+  app:
+    key: 1NKi3NqL8jyXC8PK # AppKey
+  region: cn-shanghai # 阿里云区域
+
+# AI服务配置
+ai:
+  api:
+    key: YOUR_AI_API_KEY
+  prompt: '你是一个聪明且体贴的老师，请简洁的回答以下这个问题，回答完后需要加入"还有其他问题欢迎继续问我呀。”'
+
+# 阿里云TTS配置
+tts:
+  api:
+    key: # 这个将通过TokenService动态获取
+  app:
+    key: 1NKi3NqL8jyXC8PK
+  voice: zhixiaoxia # 发音人配置
+
+# 阿里云AccessKey配置
+aliyun:
+  access-key-id: YOUR_ALIYUN_ACCESS_KEY_ID
+  access-key-secret: YOUR_ALIYUN_ACCESS_KEY_SECRET
+  sms:
+    accessKeyId: YOUR_ALIYUN_SMS_ACCESS_KEY_ID
+    accessKeySecret: YOUR_ALIYUN_SMS_ACCESS_KEY_SECRET
+    endpoint: dysmsapi.aliyuncs.com
+    sMVCode:
+      signName: 阿里云短信测试
+      templateCode: SMS_154950909
+      limitTime: 2
+
+
+
+
+# 文本润色配置 (Text Polishing Configuration)
+text-polishing:
+  # 功能开关 - 是否启用文本润色功能
+  enabled: true
+  # API调用超时时间（秒）
+  timeout: 5
+  # 最大重试次数
+  max-retries: 1
+  # 润色提示词模板
+  prompt: |
+    请将以下文本润色为适合老师讲课的内容。要求：
+    1. 保持原意不变，确保信息准确性
+    2. 语言更加生动、易懂，适合学生理解
+    3. 适合口语化表达，增强互动感
+    4. 增加适当的过渡词和解释，提升连贯性
+    5. 保持专业术语的准确性，必要时添加简单解释
+    6. 【重要】润色后的内容字数不得超过原文字数+200字
+    7. 根据页面类型（如目录、标题页等）调整讲解风格和篇幅
+
+    重要：只返回润色后的教学内容，不要包含任何说明、引导语、分隔符或额外的话语。
+
+    原文：
+
+  # 降级机制配置
+  fallback:
+    enabled: true
+    use-original-on-error: true
+
+  # 文本验证配置
+  validation:
+    max-text-length: 500
+    min-text-length: 5
+
+# 百度云语音识别配置
+baidu:
+  speech:
+    app:
+      id: 119539340 # 百度智能云应用ID
+    api:
+      key: YOUR_BAIDU_API_KEY # 百度智能云应用的API Key
+    secret:
+      key: YOUR_BAIDU_SECRET_KEY # 百度智能云应用的Secret Key
+    format: pcm # 音频格式
+    rate: 16000 # 采样率
+    dev:
+      pid: 1537 # 语言模型ID
+  # 为了兼容其他服务的配置键
+  asr:
+    api-key: YOUR_BAIDU_ASR_API_KEY
+    secret-key: YOUR_BAIDU_ASR_SECRET_KEY
+    app-id: 6986539
+
+# 分段语音配置 (Segmented Speech Configuration)
+segmented-speech:
+  enabled: true
+  text-splitting:
+    sentence-separators: ["。", "！", "？", ".", "!", "?"]
+    max-segment-length: 200
+    min-segment-length: 5
+    smart-splitting: true
+  synthesis:
+    max-concurrent-requests: 1
+    retry-attempts: 3
+    timeout: 15s
+    batch-size: 3
+    request-interval: 1000
+  cache:
+    segment-cache-size: 50
+    session-timeout: 30m
+    enable-preload: true
+    preload-segments: 2
+  memory:
+    cleanup-interval: 5m
+    max-memory-usage: 100MB
+    auto-cleanup-enabled: true
+  playback:
+    enable-seek: true
+    enable-pause-resume: true
+    progress-update-interval: 1s
+
+# Flyway 数据库迁移配置
+
+# MyBatis配置
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: auto
+
+# 云片短信服务配置
+yunpian:
+  sms:
+    api-key: your_yunpian_api_key_here
+    url: https://sms.yunpian.com/v2/sms/single_send.json
+    sign: 【云片网】 # 短信签名，请替换为你的签名
+    template: 您的验证码是 {code} # 验证码模板
+    connect-timeout: 10 # 连接超时时间（秒）
+    read-timeout: 30 # 读取超时时间（秒）
+
+# Eureka配置（如果需要）
+eureka:
+  client:
+    registerWithEureka: false
+    fetchRegistry: false
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+  server:
+    enableSelfPreservation: false
+    evictionIntervalTimerInMs: 60000
+
+# SpringDoc OpenAPI 配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-flat-param-object: true
+
+# Knife4j 美化文档
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+    enable-swagger-models: true
+    enable-document-manage: true

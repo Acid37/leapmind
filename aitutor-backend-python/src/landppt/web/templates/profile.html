@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}用户资料 - LandPPT{% endblock %}
+
+{% block content %}
+<div style="text-align: center; margin-bottom: 40px;">
+    <h2 style="color: #2c3e50; margin-bottom: 20px;">👤 用户资料</h2>
+    <p style="font-size: 1.1em; color: #7f8c8d;">
+        管理您的账户信息和安全设置
+    </p>
+</div>
+
+{% if error %}
+<div class="alert alert-error">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">
+    {{ success }}
+</div>
+{% endif %}
+
+<div class="grid">
+    <div class="card">
+        <h3 style="color: #3498db; margin-bottom: 20px;">📋 基本信息</h3>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
+            <div style="margin-bottom: 15px;">
+                <strong>用户名:</strong> 
+                <span style="color: #2c3e50;">{{ user.username }}</span>
+            </div>
+            
+            {% if user.email %}
+            <div style="margin-bottom: 15px;">
+                <strong>邮箱:</strong> 
+                <span style="color: #2c3e50;">{{ user.email }}</span>
+            </div>
+            {% endif %}
+            
+            <div style="margin-bottom: 15px;">
+                <strong>账户状态:</strong> 
+                {% if user.is_active %}
+                    <span style="color: #27ae60;">✅ 活跃</span>
+                {% else %}
+                    <span style="color: #e74c3c;">❌ 已禁用</span>
+                {% endif %}
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <strong>权限级别:</strong> 
+                {% if user.is_admin %}
+                    <span style="background: #e74c3c; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em;">
+                        👑 管理员
+                    </span>
+                {% else %}
+                    <span style="background: #3498db; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em;">
+                        👤 普通用户
+                    </span>
+                {% endif %}
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <strong>注册时间:</strong> 
+                <span style="color: #7f8c8d;">
+                    <script>
+                        document.write(new Date({{ user.created_at }} * 1000).toLocaleString('zh-CN'));
+                    </script>
+                </span>
+            </div>
+            
+            {% if user.last_login %}
+            <div>
+                <strong>最后登录:</strong> 
+                <span style="color: #7f8c8d;">
+                    <script>
+                        document.write(new Date({{ user.last_login }} * 1000).toLocaleString('zh-CN'));
+                    </script>
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card">
+        <h3 style="color: #e74c3c; margin-bottom: 20px;">🔒 修改密码</h3>
+        
+        <form method="post" action="/auth/change-password">
+            <div class="form-group">
+                <label for="current_password">当前密码:</label>
+                <input type="password" id="current_password" name="current_password" required 
+                       placeholder="请输入当前密码">
+            </div>
+            
+            <div class="form-group">
+                <label for="new_password">新密码:</label>
+                <input type="password" id="new_password" name="new_password" required 
+                       placeholder="请输入新密码" minlength="6">
+                <small style="color: #7f8c8d;">密码长度至少6位</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="confirm_password">确认新密码:</label>
+                <input type="password" id="confirm_password" name="confirm_password" required 
+                       placeholder="请再次输入新密码">
+            </div>
+            
+            <div style="text-align: center;">
+                <button type="submit" class="btn btn-warning">
+                    🔒 修改密码
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 30px;">
+    <h3 style="color: #27ae60; margin-bottom: 20px;">⚙️ 快速操作</h3>
+    
+    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+        <a href="/dashboard" class="btn btn-primary">
+            📈 项目仪表板
+        </a>
+        
+        <a href="/ai-config" class="btn btn-info">
+            🤖 AI配置
+        </a>
+        
+        <a href="/auth/logout" class="btn btn-secondary" 
+           onclick="return confirm('确定要退出登录吗？')">
+            🚪 退出登录
+        </a>
+    </div>
+</div>
+
+<div style="margin-top: 40px; padding: 30px; background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 15px;">
+    <h3 style="color: #2c3e50; margin-bottom: 20px; text-align: center;">💡 安全提示</h3>
+    
+    <div class="grid">
+        <div>
+            <h4 style="color: #3498db; margin-bottom: 10px;">🔐 密码安全</h4>
+            <p style="color: #7f8c8d; line-height: 1.6;">
+                请定期更换密码，使用包含字母、数字和特殊字符的强密码。
+            </p>
+        </div>
+        
+        <div>
+            <h4 style="color: #27ae60; margin-bottom: 10px;">🔒 会话管理</h4>
+            <p style="color: #7f8c8d; line-height: 1.6;">
+                在公共设备上使用后，请及时退出登录以保护账户安全。
+            </p>
+        </div>
+        
+        <div>
+            <h4 style="color: #f39c12; margin-bottom: 10px;">📧 邮箱验证</h4>
+            <p style="color: #7f8c8d; line-height: 1.6;">
+                绑定邮箱可以帮助您在忘记密码时快速恢复账户。
+            </p>
+        </div>
+        
+        <div>
+            <h4 style="color: #e74c3c; margin-bottom: 10px;">⚠️ 异常活动</h4>
+            <p style="color: #7f8c8d; line-height: 1.6;">
+                如发现账户异常活动，请立即修改密码并联系管理员。
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 密码确认验证
+document.getElementById('confirm_password').addEventListener('input', function() {
+    const newPassword = document.getElementById('new_password').value;
+    const confirmPassword = this.value;
+    
+    if (newPassword && confirmPassword && newPassword !== confirmPassword) {
+        this.setCustomValidity('密码不匹配');
+    } else {
+        this.setCustomValidity('');
+    }
+});
+
+document.getElementById('new_password').addEventListener('input', function() {
+    const confirmPassword = document.getElementById('confirm_password');
+    if (confirmPassword.value) {
+        confirmPassword.dispatchEvent(new Event('input'));
+    }
+});
+</script>
+{% endblock %}
