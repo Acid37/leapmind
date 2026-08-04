@@ -12,6 +12,22 @@
 import { getToken } from '../utils/tokenManager';
 
 /**
+ * 结构化错误，携带错误码便于前端差异化处理
+ *
+ * 错误码对应后端 exception/BizErrorCode.java：
+ *   1001 RATE_LIMITED     — 限流，不显示重试
+ *   1003 SERVICE_DEGRADED — 降级，显示重试
+ *   2001 AI_TIMEOUT       — 超时，显示重试
+ */
+export class ChatError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'ChatError';
+    this.code = code;
+  }
+}
+
+/**
  * 构建带认证的请求头
  */
 function buildAuthHeaders(extra = {}) {
@@ -70,7 +86,13 @@ export function askStream({ userId, sessionId, question, sceneType, context }) {
           }),
         });
         if (!res.ok) {
-          controller.error(new Error(`SSE error: ${res.status}`));
+          if (res.status === 429) {
+            controller.error(new ChatError(1001, '您提问的频率有点快，请稍等片刻后再试。'));
+          } else if (res.status === 503) {
+            controller.error(new ChatError(1003, '服务暂时降级，请稍后重新尝试。'));
+          } else {
+            controller.error(new Error(`SSE error: ${res.status}`));
+          }
           return;
         }
         fetchReader = res.body.getReader();

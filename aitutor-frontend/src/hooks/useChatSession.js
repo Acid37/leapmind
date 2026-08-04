@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { askStream, interrupt, getSession } from '../services/chatService';
+import { askStream, interrupt, getSession, ChatError } from '../services/chatService';
 
 /**
  * ChatPanel 对话状态管理 Hook
@@ -21,7 +21,7 @@ import { askStream, interrupt, getSession } from '../services/chatService';
  *   messages: Array<{role:string, content:string, isStreaming?:boolean, error?:boolean}>,
  *   isGenerating: boolean,
  *   sessionId: string|null,
- *   error: string|null,
+ *   error: { message:string, code?:number }|null,
  *   send: (text:string) => void,
  *   abort: () => void,
  *   retry: () => void,
@@ -153,7 +153,10 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
           }
           // 后端推送错误事件
           if (value.type === 'error') {
-            setError(value.message || '生成失败');
+            setError({
+              message: value.message || '生成失败',
+              code: value.code || undefined,
+            });
             isGeneratingRef.current = false;
             setIsGenerating(false);
             const captured = bufferRef.current; // ⚠️ 捕获快照
@@ -180,7 +183,11 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
         const captured = bufferRef.current; // ⚠️ 捕获快照
         isGeneratingRef.current = false;
         setIsGenerating(false);
-        setError(err?.message || '连接异常，请重试');
+        const isChatError = err instanceof ChatError || err?.code;
+        setError({
+          message: err?.message || '连接异常，请重试',
+          code: isChatError ? (err.code || 1001) : undefined,
+        });
         // 保留已生成内容
         setMessages(prev => {
           const copy = [...prev];
