@@ -32,23 +32,23 @@ const SlideThumbnail = ({ slide, index, isNew }) => {
           : 'border-slate-200 bg-white hover:border-purple-200 hover:shadow-md'
       }`}
     >
-      {/* 顶部预览色块（PPT 缩略图占位） */}
+      {/* 顶部预览色块（PPT 缩略图占位，16:9 固定比例，不会被拉伸） */}
       <div
-        className="h-14 lg:h-20 flex items-center justify-center relative"
+        className="w-full aspect-video flex items-center justify-center relative"
         style={{ background: style.bg }}
       >
-        <span className={`text-[10px] lg:text-xs font-semibold ${style.text} opacity-90`}>
+        <span className={`text-xs lg:text-sm font-semibold ${style.text} opacity-90`}>
           {slide.type === 'cover' ? '封面' :
            slide.type === 'ending' ? '结尾' :
            slide.type === 'example' ? '例题' : '内容'}
         </span>
-        <span className={`absolute top-1 right-1.5 text-[9px] font-bold px-1 py-0.5 rounded ${style.text === 'text-white' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'}`}>
+        <span className={`absolute top-1 right-1.5 text-[10px] font-bold px-1 py-0.5 rounded ${style.text === 'text-white' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'}`}>
           p.{index + 1}
         </span>
       </div>
       {/* 底部标题区 */}
       <div className="p-2 lg:p-2.5">
-        <p className="text-[11px] lg:text-sm font-semibold text-slate-700 line-clamp-1 leading-tight" title={slide.content.title}>
+        <p className="text-xs lg:text-sm font-semibold text-slate-700 line-clamp-1 leading-tight" title={slide.content.title}>
           {slide.content.title}
         </p>
       </div>
@@ -107,10 +107,9 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
               break;
           }
 
-          // 自动滚动到最新缩略图（垂直滚动到可视区）
+          // 自动滚动到最新缩略图（横向滚动到最右侧，展示最新生成的卡片）
           if (containerRef.current) {
-            const lastBtn = containerRef.current.querySelector('[data-active="true"]');
-            if (lastBtn) lastBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            containerRef.current.scrollTo({ left: containerRef.current.scrollWidth, behavior: 'smooth' });
           }
         });
       } catch (err) {
@@ -134,17 +133,15 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
       <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-10 min-h-screen flex flex-col">
-        {/* 顶部：返回按钮居中下方一点的位置（桌面 lg 才显示，移动端隐藏以节省空间） */}
-        <div className="flex items-center justify-between mb-2 sm:mb-4">
-          <div className="hidden lg:block" />
+        {/* 顶部：返回按钮位于左上角，尺寸适中便于点击 */}
+        <div className="mb-2 sm:mb-4">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 text-xs sm:text-sm text-slate-500 hover:text-slate-700 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm"
           >
-            <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
             返回
           </button>
-          <div className="w-0 lg:w-0" />
         </div>
 
         {/* 状态指示 */}
@@ -206,15 +203,15 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
           </div>
         )}
 
-        {/* 幻灯片缩略图网格：可滚动容器，支持任意页数 */}
+        {/* 幻灯片缩略图网格：固定约 2.5 行高度，超过后竖滚动条出现（禁止横滚动条） */}
         {slides.length > 0 && (
-          <div className="mb-3 sm:mb-6 flex-1 min-h-0 flex flex-col">
+          <div className="mb-3 sm:mb-6 flex flex-col">
             <h3 className="text-xs sm:text-sm font-semibold text-slate-600 mb-1.5 sm:mb-2 flex-shrink-0">
               幻灯片预览（{slides.length} 页）
             </h3>
             <div
               ref={containerRef}
-              className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3 overflow-y-auto flex-1 min-h-0 pr-1"
+              className="grid grid-cols-5 gap-3 sm:gap-4 overflow-y-auto overflow-x-hidden max-h-[31rem] pr-1"
               style={{ scrollbarWidth: 'thin' }}
             >
               {slides.map((slide, i) => (
@@ -224,8 +221,8 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
           </div>
         )}
 
-        {/* 操作按钮：移动端 sticky 固定在底，桌面端普通流式 */}
-        <div className="sticky bottom-0 left-0 right-0 -mx-4 sm:-mx-6 lg:mx-0 px-4 sm:px-6 lg:px-0 py-3 sm:py-0 sm:mt-auto sm:pt-6 bg-gradient-to-t from-white via-white/95 to-transparent sm:bg-none sm:backdrop-blur-none">
+        {/* 操作按钮：紧跟内容（不贴视口底部），移动端 sticky 固定在底 */}
+        <div className="sticky bottom-0 left-0 right-0 -mx-4 sm:-mx-6 lg:mx-0 px-4 sm:px-6 lg:px-0 py-3 sm:py-0 sm:pt-6 bg-gradient-to-t from-white via-white/95 to-transparent sm:bg-none sm:backdrop-blur-none">
           <div className="flex justify-center gap-3 sm:gap-4">
             {status === 'error' && (
               <button

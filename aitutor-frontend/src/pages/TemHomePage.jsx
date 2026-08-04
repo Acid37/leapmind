@@ -1,6 +1,6 @@
 "use client"
 
-import { Star, ChevronRight, MessageCircle, ChevronDown, Sparkles } from "lucide-react"
+import { Star, ChevronRight, MessageCircle, ChevronDown, Sparkles, Search } from "lucide-react"
 import { useState, useRef, useLayoutEffect, useEffect } from "react"
 import { getAllStages, getGradesByStage } from '../services/educationService'
 import { getSections, SEMESTER } from '../services/courseService'
@@ -43,6 +43,7 @@ export default function LearningApp({
   onM2Explain,
   onOpenLearningProfile,
   onM1Practice,
+  onM4Lecture,
 }) {
   // UI 状态
   const [isGradeOpen, setIsGradeOpen] = useState(false)
@@ -51,6 +52,7 @@ export default function LearningApp({
   const [selectedSubject, setSelectedSubject] = useState("语文")
   const [toastMessage, setToastMessage] = useState("")
   const [showToast, setShowToast] = useState(false)
+  const [lectureSearch, setLectureSearch] = useState("") // AI 讲课搜索栏内容
   const containerRef = useRef(null)
   const firstDotRef = useRef(null)
   const lastDotRef = useRef(null)
@@ -477,7 +479,7 @@ export default function LearningApp({
   }, [])
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-purple-700 via-purple-600 via-blue-600 via-blue-700 to-blue-900 text-white overflow-hidden" style={{backgroundImage: "linear-gradient(135deg, #861FCE 0%, #861FCE 16%, #731CCD 16%, #731CCD 32%, #6B1CCF 32%, #6B1CCF 48%, #631DCE 48%, #631DCE 64%, #5A1BCE 64%, #5A1BCE 80%,rgb(86, 43, 205) 80%,rgb(47, 8, 154) 100%)"}}>
+    <div className="min-h-screen w-full bg-gradient-to-br from-purple-700 via-purple-600 via-blue-600 via-blue-700 to-blue-900 text-white overflow-x-hidden overflow-y-auto" style={{backgroundImage: "linear-gradient(135deg, #861FCE 0%, #861FCE 16%, #731CCD 16%, #731CCD 32%, #6B1CCF 32%, #6B1CCF 48%, #631DCE 48%, #631DCE 64%, #5A1BCE 64%, #5A1BCE 80%,rgb(86, 43, 205) 80%,rgb(47, 8, 154) 100%)"}}>
       <style>{scrollbarStyles}</style>
       <header className="px-10 py-6 flex items-center justify-between border-b border-purple-400/20">
         <div className="flex items-center gap-4">
@@ -579,7 +581,7 @@ export default function LearningApp({
 
        {/* <div className="items-stretch flex-1 flex-col lg:flex-row gap-8 p-6 lg:p-8 justify-center  overflow-auto max-w-full mx-auto">  */}
        {/* <div className="flex flex-col lg:flex-row gap-8 p-6 lg:p-8 justify-center items-center min-h-[calc(100vh-120px)] max-w-full mx-auto"> */}
-       <div className="flex flex-col lg:flex-row gap-8 p-6 lg:p-8 justify-center items-center min-h-[calc(100vh-120px)] max-w-full mx-auto">
+       <div className="flex flex-col lg:flex-row gap-8 p-6 lg:p-8 justify-center items-start min-h-[calc(100vh-120px)] max-w-full mx-auto">
         {/* Main Content */}
         {/*主要内内容的紫色阴影背景，包含整个学习模块列表*/}
         <div className="w-full lg:flex-1 lg:max-w-5xl bg-gradient-to-b from-purple-900/40 to-purple-800/20 rounded-3xl p-8 backdrop-blur-md border border-purple-500/20 shadow-2xl py-0 px-0 relative">
@@ -621,6 +623,41 @@ export default function LearningApp({
               <button className="bg-yellow-400 text-purple-900 px-8 py-3 rounded-full font-bold text-base hover:bg-yellow-300 transition duration-150 shadow-lg hover:shadow-2xl hover:-translate-y-1 active:translate-y-0.5 active:shadow-md border-b-4 border-yellow-600 hover:border-yellow-700 transform whitespace-nowrap">
                 选课
               </button>
+              {/* AI 讲课搜索栏：输入内容回车即可进入 AI 讲课（按钮内嵌输入框右侧） */}
+              <div className="flex-1 min-w-0 flex justify-end">
+                <div className="relative flex-1 min-w-[220px] max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-300" />
+                  <input
+                    type="text"
+                    value={lectureSearch}
+                    onChange={(e) => setLectureSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        onM4Lecture?.(lectureSearch.trim())
+                        setLectureSearch('')
+                      }
+                    }}
+                    placeholder="输入想讲的内容，AI 帮你讲课"
+                    className="w-full bg-white/95 text-purple-900 placeholder:text-purple-300/80 text-sm rounded-full pl-9 pr-28 py-2.5 shadow-inner focus:outline-none focus:ring-2 focus:ring-cyan-300/70 border border-white/40"
+                  />
+                  {/* 内嵌右侧按钮：点击/回车即进入 AI 讲课 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onM4Lecture?.(lectureSearch.trim())
+                      setLectureSearch('')
+                    }}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1 pl-3 pr-2 h-9 rounded-full bg-gradient-to-br from-[#A286FF] to-[#7C3AED] text-white text-sm font-bold shadow-md hover:scale-105 hover:shadow-lg active:scale-95 transition-all duration-200"
+                    title="进入 AI 讲课"
+                  >
+                    进入讲课
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14" />
+                      <path d="m12 5 7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           

@@ -36,6 +36,7 @@ export default function App() {
     const [learningProfileView, setLearningProfileView] = useState(null); // null | overview | detail
     const [selectedKnowledgePointId, setSelectedKnowledgePointId] = useState(null);
     const [m4Page, setM4Page] = useState(null); // null | 'active' — M4 讲课全屏容器
+    const [m4InitialText, setM4InitialText] = useState(''); // M4 搜索栏带入的初始内容
     const [m1Page, setM1Page] = useState(null); // null | practice | question-bank | mistakes | statistics | ranking
     const [m1PracticeParams, setM1PracticeParams] = useState({}); // M1 做题页参数（mode/lessonId 等）
 
@@ -84,7 +85,10 @@ export default function App() {
     };
 
     // M4 入口/出口
-    const handleLaunchM4 = () => setM4Page('active');
+    const handleLaunchM4 = (initialText) => {
+      setM4InitialText(initialText || '');
+      setM4Page('active');
+    };
     const handleExitM4 = () => setM4Page(null);
     const handleLaunchM1 = (params) => {
       // M4 讲完跳 M1 时，同时退出 M4 全屏容器，避免路由互斥
@@ -99,7 +103,7 @@ export default function App() {
         <div className={isAuthed ? "flex h-screen bg-slate-100 text-slate-800" : "w-full h-screen"}>
             <GlobalStyles />
             {m4Page === 'active' ? (
-                <M4LectureContainer onExit={handleExitM4} onM1Practice={handleLaunchM1} />
+                <M4LectureContainer onExit={handleExitM4} onM1Practice={handleLaunchM1} initialText={m4InitialText} />
             ) : m1Page ? (
                 <div className="flex flex-col w-full h-full bg-slate-50">
                     <header className="shrink-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-4 flex-wrap shadow-sm">
@@ -186,7 +190,6 @@ export default function App() {
                 ) : showProfile ? (
                     <ProfilePage onBack={() => setShowProfile(false)} />
                 ) : (
-                    <div className="relative w-full h-full">
                     <TemHomePage 
                         onEnterProject={(courseId) => setCurrentCourseId(courseId)}
                         onOpenProfile={handleOpenProfile}
@@ -195,17 +198,8 @@ export default function App() {
                         onM2Explain={() => { setM2Params({}); setM2Page('explain'); }}
                         onOpenLearningProfile={handleOpenLearningProfile}
                         onM1Practice={handleLaunchM1}
+                        onM4Lecture={handleLaunchM4}
                     />
-                    {/* M4 讲课入口（浮动按钮，联调后可移除或整合到首页） */}
-                    <button
-                        onClick={handleLaunchM4}
-                        className="absolute bottom-6 right-6 flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 active:scale-95 transition-all text-sm font-medium z-40"
-                        title="AI 即时讲课"
-                    >
-                        <span className="text-lg">🎓</span>
-                        AI 讲课
-                    </button>
-                    </div>
                 )
             )}
         </div>

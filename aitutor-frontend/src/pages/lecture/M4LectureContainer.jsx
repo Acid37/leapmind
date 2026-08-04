@@ -22,7 +22,7 @@ import LectureWaitingPage from './LectureWaitingPage';
 import LecturePresentPage from './LecturePresentPage';
 import LectureHistoryPage from './LectureHistoryPage';
 
-export default function M4LectureContainer({ onExit, onM1Practice }) {
+export default function M4LectureContainer({ onExit, onM1Practice, initialText }) {
   const [route, setRoute] = useState('create'); // create | waiting | present | history
   const [params, setParams] = useState(null);
   const [result, setResult] = useState(null);
@@ -66,6 +66,7 @@ export default function M4LectureContainer({ onExit, onM1Practice }) {
     return (
       <LectureCreatePage
         userId={1}
+        initialText={initialText}
         onStartGeneration={handleStartGeneration}
         onViewHistory={handleViewHistory}
         onExit={onExit}
