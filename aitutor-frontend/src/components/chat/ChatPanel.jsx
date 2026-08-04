@@ -225,17 +225,22 @@ const ChatPanel = ({
           />
         ))}
         {/* 错误 + 重试 */}
-        {error && (
-          <div className="flex justify-center my-2">
-            <div className="flex items-center gap-2 px-3 py-2 text-xs text-red-600 bg-red-50 rounded-lg">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-              <span>{error}</span>
-              <button onClick={retry} className="font-medium underline hover:no-underline">重试</button>
+        {error && (() => {
+          const isRetryable = !error.code || error.code === 1003 || error.code === 2001;
+          return (
+            <div className="flex justify-center my-2">
+              <div className="flex items-center gap-2 px-3 py-2 text-xs text-red-600 bg-red-50 rounded-lg">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>{error.message}</span>
+                {isRetryable && (
+                  <button onClick={retry} className="font-medium underline hover:no-underline">重试</button>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* ===== 打断按钮 ===== */}
