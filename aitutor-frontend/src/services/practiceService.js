@@ -425,6 +425,7 @@ export async function submitAnswer(params = {}) {
     userAnswer,
     durationSeconds: params.timeSpent || 0,
     mode: params.mode || 'SEQUENTIAL',
+    sessionId: params.sessionId || undefined,
   };
 
   try {
@@ -517,6 +518,41 @@ export async function completeReviewReminder(reminderId, notes = '') {
   const res = await request(`/api/practice/review-reminders/${reminderId}/complete`, {
     method: 'POST',
     body: JSON.stringify({ notes }),
+  });
+  return unwrap(res);
+}
+
+/**
+ * 获取薄弱点模块给当前登录用户生成的练习建议。
+ * 用户身份由 M1 后端从 JWT 解析，避免前端传入任意 userId。
+ */
+export async function getWeakPointRecommendations(params = {}) {
+  const query = {};
+  if (params.subject) query.subject = SUBJECT_REVERSE[params.subject] || params.subject;
+  if (params.knowledgePoint) query.knowledgePoint = params.knowledgePoint;
+  query.count = Math.max(1, Math.min(20, Number(params.count) || 5));
+  const res = await request('/api/practice/recommendations' + buildQuery(query));
+  return (unwrap(res) || []).map((item) => ({
+    exerciseId: item.exerciseId || '',
+    knowledgePoint: item.knowledgePoint || '',
+    subject: SUBJECT_MAP[item.subject] || item.subject || '',
+    sourceType: item.sourceType || '',
+    priority: Number(item.priority) || 0,
+  })).filter((item) => item.knowledgePoint);
+}
+
+/**
+ * 通知 M6 当前练习会话已完成，用于更新用户画像和后续复习计划。
+ */
+export async function reportPracticeCompletion(params = {}) {
+  const res = await request('/api/practice/sessions/complete', {
+    method: 'POST',
+    body: JSON.stringify({
+      sessionId: params.sessionId,
+      questionCount: params.questionCount,
+      correctCount: params.correctCount,
+      durationSeconds: params.durationSeconds || 0,
+    }),
   });
   return unwrap(res);
 }
@@ -694,6 +730,7 @@ export async function generateSession(params = {}) {
   if (params.subject) beParams.subject = SUBJECT_REVERSE[params.subject] || params.subject;
   if (params.grade) beParams.gradeLevel = params.grade;
   if (params.chapter) beParams.chapter = params.chapter;
+  if (params.knowledgePoint) beParams.knowledgePoint = params.knowledgePoint;
   if (params.questionType) beParams.questionType = TYPE_FE_TO_BE[params.questionType] || params.questionType;
   if (params.difficulty) beParams.difficulty = DIFF_FE_TO_BE[params.difficulty] || params.difficulty;
   if (params.lessonId) beParams.lessonId = params.lessonId;

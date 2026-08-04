@@ -10,7 +10,7 @@
  * - 练习结束总结面板
  * - 预留 ChatPanel 嵌入位（TODO: 对接 M7 ChatPanel）
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -42,6 +42,8 @@ import {
   getFilterOptions,
   getReviewReminders,
   completeReviewReminder,
+  getWeakPointRecommendations,
+  reportPracticeCompletion,
 } from "../services/practiceService";
 import { ChatPanel } from "../components/chat";
 import { getUserInfo } from "../utils/tokenManager";
@@ -63,6 +65,9 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   const [reviewLoading, setReviewLoading] = useState(true);
   const [reviewError, setReviewError] = useState("");
   const [completingReminderId, setCompletingReminderId] = useState(null);
+  const [weakRecommendations, setWeakRecommendations] = useState([]);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const completionReportedRef = useRef("");
 
   // --- 会话状态 ---
   const [session, setSession] = useState(null);
@@ -78,6 +83,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   const [setup, setSetup] = useState({
     questionCount: Math.max(1, Math.min(50, Number(initialParams.questionCount) || 10)),
     subject: initialParams.subject || "mixed",
+    knowledgePoint: initialParams.knowledgePoint || "",
   });
 
   // --- 持久化：每次状态变化写入 localStorage ---
@@ -143,6 +149,32 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
 
   useEffect(() => {
     let active = true;
+    setRecommendationLoading(true);
+    getWeakPointRecommendations({
+      subject: setup.subject === "mixed" ? undefined : setup.subject,
+      count: 6,
+    })
+      .then((items) => {
+        if (!active) return;
+        setWeakRecommendations(items);
+        setSetup((prev) => items.some((item) => item.knowledgePoint === prev.knowledgePoint)
+          ? prev
+          : { ...prev, knowledgePoint: "" });
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.warn("加载薄弱点推荐失败:", err);
+        setWeakRecommendations([]);
+        setSetup((prev) => ({ ...prev, knowledgePoint: "" }));
+      })
+      .finally(() => {
+        if (active) setRecommendationLoading(false);
+      });
+    return () => { active = false; };
+  }, [setup.subject]);
+
+  useEffect(() => {
+    let active = true;
     setReviewLoading(true);
     getReviewReminders()
       .then((items) => {
@@ -194,6 +226,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
         sceneType: "free_practice",
         questionCount,
         subject: setup.subject === "mixed" ? undefined : setup.subject,
+        knowledgePoint: setup.knowledgePoint || undefined,
         mode,
         lessonId: lessonId || undefined,
       });
@@ -297,6 +330,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
         answer: currentAnswer.selectedAnswer,
         timeSpent: currentAnswer.timeSpent,
         mode,
+        sessionId: session.sessionId,
       });
       setAnswers((prev) => ({
         ...prev,
@@ -354,6 +388,23 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   const allDone = answerStatuses.every((s) => s !== null);
   const score = session ? Math.round((totalCorrect / session.questions.length) * 100) : 0;
 
+  useEffect(() => {
+    if (!session?.sessionId || !allDone || completionReportedRef.current === session.sessionId) return;
+    completionReportedRef.current = session.sessionId;
+    const durationSeconds = Object.values(answers).reduce(
+      (total, answer) => total + (Number(answer?.timeSpent) || 0),
+      0
+    );
+    reportPracticeCompletion({
+      sessionId: session.sessionId,
+      questionCount: session.questions.length,
+      correctCount: totalCorrect,
+      durationSeconds,
+    }).catch((err) => {
+      console.warn("上报练习完成事件失败:", err);
+    });
+  }, [allDone, answers, session, totalCorrect]);
+
   // --- 加载中 ---
   if (loading) {
     return (
@@ -380,6 +431,8 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
         reviewError={reviewError}
         completingReminderId={completingReminderId}
         onCompleteReminder={handleCompleteReminder}
+        weakRecommendations={weakRecommendations}
+        recommendationLoading={recommendationLoading}
       />
     );
   }
@@ -695,6 +748,8 @@ function PracticeSetup({
   reviewError,
   completingReminderId,
   onCompleteReminder,
+  weakRecommendations,
+  recommendationLoading,
 }) {
   const selectedSubjectLabel = setup.subject === "mixed"
     ? "混合科目"
@@ -762,6 +817,48 @@ function PracticeSetup({
           ))}
         </section>
 
+        {(recommendationLoading || weakRecommendations.length > 0) && (
+          <section className="mb-7">
+            <div className="mb-3">
+              <h3 className="font-semibold text-slate-700">薄弱知识点推荐</h3>
+              <p className="mt-0.5 text-xs text-slate-400">来自薄弱点分析模块，可选择一个知识点进行针对练习</p>
+            </div>
+            {recommendationLoading ? (
+              <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-400">正在加载个性化推荐...</div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  aria-pressed={!setup.knowledgePoint}
+                  onClick={() => setSetup((prev) => ({ ...prev, knowledgePoint: "" }))}
+                  className={`rounded-xl border px-3 py-2 text-sm transition-colors cursor-pointer ${
+                    !setup.knowledgePoint
+                      ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+                      : "border-slate-200 text-slate-500 hover:border-indigo-200"
+                  }`}
+                >
+                  不限定
+                </button>
+                {weakRecommendations.map((item) => (
+                  <button
+                    key={item.exerciseId || item.knowledgePoint}
+                    type="button"
+                    aria-pressed={setup.knowledgePoint === item.knowledgePoint}
+                    onClick={() => setSetup((prev) => ({ ...prev, knowledgePoint: item.knowledgePoint }))}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-colors cursor-pointer ${
+                      setup.knowledgePoint === item.knowledgePoint
+                        ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+                        : "border-slate-200 text-slate-500 hover:border-indigo-200"
+                    }`}
+                  >
+                    {item.knowledgePoint}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="mb-7">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
@@ -810,7 +907,7 @@ function PracticeSetup({
             <button
               type="button"
               aria-pressed={setup.subject === "mixed"}
-              onClick={() => setSetup((prev) => ({ ...prev, subject: "mixed" }))}
+              onClick={() => setSetup((prev) => ({ ...prev, subject: "mixed", knowledgePoint: "" }))}
               className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors cursor-pointer ${
                 setup.subject === "mixed"
                   ? "border-indigo-300 bg-indigo-50 text-indigo-600"
@@ -824,7 +921,7 @@ function PracticeSetup({
                 key={subject.value}
                 type="button"
                 aria-pressed={setup.subject === subject.value}
-                onClick={() => setSetup((prev) => ({ ...prev, subject: subject.value }))}
+                onClick={() => setSetup((prev) => ({ ...prev, subject: subject.value, knowledgePoint: "" }))}
                 className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors cursor-pointer ${
                   setup.subject === subject.value
                     ? "border-indigo-300 bg-indigo-50 text-indigo-600"
@@ -840,7 +937,10 @@ function PracticeSetup({
         <div className="flex flex-col gap-4 rounded-2xl bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-xs text-slate-400">本次练习</div>
-            <div className="mt-1 font-semibold text-slate-700">{selectedSubjectLabel} · {setup.questionCount || 0} 题</div>
+            <div className="mt-1 font-semibold text-slate-700">
+              {selectedSubjectLabel} · {setup.questionCount || 0} 题
+              {setup.knowledgePoint ? ` · ${setup.knowledgePoint}` : ""}
+            </div>
           </div>
           <button
             type="button"
