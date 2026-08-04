@@ -1,7 +1,10 @@
 package com.treepeople.leapmindtts.controller;
 
 import com.treepeople.leapmindtts.pojo.result.ApiResponse;
+import com.treepeople.leapmindtts.pojo.dto.MarkReviewedRequest;
+import com.treepeople.leapmindtts.pojo.vo.ReviewReminderVO;
 import com.treepeople.leapmindtts.service.PracticeService;
+import com.treepeople.leapmindtts.service.user.ReviewReminderService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +40,7 @@ import java.util.Map;
 public class PracticeController {
 
     private final PracticeService practiceService;
+    private final ReviewReminderService reviewReminderService;
 
     @GetMapping("/filters")
     public ResponseEntity<ApiResponse<Map<String, Object>>> filters() {
@@ -172,6 +176,26 @@ public class PracticeController {
         return ResponseEntity.ok(ApiResponse.success(practiceService.getStatistics(currentUserId(request), range), "获取练习统计成功"));
     }
 
+    @GetMapping("/review-reminders")
+    public ResponseEntity<ApiResponse<List<ReviewReminderVO>>> reviewReminders(HttpServletRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                reviewReminderService.getReviewReminders(currentUserId(request)),
+                "获取待复习提醒成功"));
+    }
+
+    @PostMapping("/review-reminders/{reminderId}/complete")
+    public ResponseEntity<ApiResponse<ReviewReminderVO>> completeReviewReminder(
+            HttpServletRequest request,
+            @PathVariable Long reminderId,
+            @RequestBody(required = false) CompleteReviewRequest body) {
+        MarkReviewedRequest markReviewedRequest = new MarkReviewedRequest();
+        markReviewedRequest.setReminderId(reminderId);
+        markReviewedRequest.setNotes(body == null ? null : body.getNotes());
+        return ResponseEntity.ok(ApiResponse.success(
+                reviewReminderService.markAsReviewed(currentUserId(request), markReviewedRequest),
+                "复习任务已完成"));
+    }
+
     @GetMapping("/leaderboards")
     public ResponseEntity<ApiResponse<Map<String, Object>>> leaderboards(
             HttpServletRequest request,
@@ -271,5 +295,10 @@ public class PracticeController {
     @Data
     public static class PrivacyRequest {
         private Boolean hidden;
+    }
+
+    @Data
+    public static class CompleteReviewRequest {
+        private String notes;
     }
 }
