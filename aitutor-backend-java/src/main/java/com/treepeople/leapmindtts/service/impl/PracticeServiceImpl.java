@@ -765,7 +765,7 @@ public class PracticeServiceImpl implements PracticeService {
     private void publishPracticeEvent(Long userId, String eventType, Map<String, Object> eventData) {
         try {
             EventCollection event = EventCollection.builder()
-                    .module("M2")
+                    .module("M1")
                     .eventType(eventType)
                     .userId(userId)
                     .eventData(objectMapper.writeValueAsString(eventData))

@@ -1,13 +1,22 @@
 package com.treepeople.leapmindtts.controller;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.treepeople.leapmindtts.pojo.dto.ExerciseRecordRequest;
 import com.treepeople.leapmindtts.pojo.result.ApiResponse;
 import com.treepeople.leapmindtts.pojo.dto.MarkReviewedRequest;
+import com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.EventAck;
+import com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.LearningEventRequest;
+import com.treepeople.leapmindtts.pojo.vo.ExerciseVO;
 import com.treepeople.leapmindtts.pojo.vo.ReviewReminderVO;
 import com.treepeople.leapmindtts.service.PracticeService;
+import com.treepeople.leapmindtts.service.lesson.WeakPointsService;
+import com.treepeople.leapmindtts.service.profile.UserEventService;
 import com.treepeople.leapmindtts.service.user.ReviewReminderService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -31,9 +40,13 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.io.ByteArrayOutputStream;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/practice")
 @RequiredArgsConstructor
@@ -41,6 +54,8 @@ public class PracticeController {
 
     private final PracticeService practiceService;
     private final ReviewReminderService reviewReminderService;
+    private final WeakPointsService weakPointsService;
+    private final UserEventService userEventService;
 
     @GetMapping("/filters")
     public ResponseEntity<ApiResponse<Map<String, Object>>> filters() {
@@ -127,9 +142,62 @@ public class PracticeController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> submit(
             HttpServletRequest request,
             @RequestBody SubmitAnswerRequest body) {
+        Long userId = currentUserId(request);
+        Map<String, Object> result = practiceService.submitAnswer(userId, body);
+        recordWeakPointBestEffort(userId, result);
+        recordAnswerEventBestEffort(userId, body, result, request);
+        return ResponseEntity.ok(ApiResponse.success(result, "提交答案成功"));
+    }
+
+    @GetMapping("/recommendations")
+    public ResponseEntity<ApiResponse<List<ExerciseVO>>> recommendations(
+            HttpServletRequest request,
+            @RequestParam(required = false) String subject,
+            @RequestParam(required = false) String knowledgePoint,
+            @RequestParam(defaultValue = "5") Integer count) {
+        int safeCount = Math.max(1, Math.min(20, count == null ? 5 : count));
         return ResponseEntity.ok(ApiResponse.success(
-                practiceService.submitAnswer(currentUserId(request), body),
-                "提交答案成功"));
+                weakPointsService.recommendExercises(currentUserId(request), subject, knowledgePoint, safeCount),
+                "获取薄弱点练习推荐成功"));
+    }
+
+    @PostMapping("/sessions/complete")
+    public ResponseEntity<ApiResponse<EventAck>> completeSession(
+            HttpServletRequest request,
+            @RequestBody CompleteSessionRequest body) {
+        Long userId = currentUserId(request);
+        if (body.getQuestionCount() == null || body.getQuestionCount() < 1) {
+            throw new IllegalArgumentException("questionCount 必须大于 0");
+        }
+        int correctCount = body.getCorrectCount() == null ? 0 : body.getCorrectCount();
+        if (correctCount < 0 || correctCount > body.getQuestionCount()) {
+            throw new IllegalArgumentException("correctCount 超出有效范围");
+        }
+        int durationSeconds = body.getDurationSeconds() == null ? 0 : Math.max(0, body.getDurationSeconds());
+        String sessionId = body.getSessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new IllegalArgumentException("sessionId 不能为空");
+        }
+
+        ObjectNode data = JsonNodeFactory.instance.objectNode();
+        data.put("questionCount", body.getQuestionCount());
+        data.put("accuracy", correctCount / (double) body.getQuestionCount());
+        data.put("durationSec", Math.min(86400, durationSeconds));
+        String eventId = "m1-finish:" + UUID.nameUUIDFromBytes(
+                (userId + ":" + sessionId).getBytes(StandardCharsets.UTF_8));
+        LearningEventRequest event = new LearningEventRequest(
+                eventId,
+                userId,
+                "finish_practice",
+                "M1",
+                OffsetDateTime.now(ZoneOffset.UTC),
+                "1.0",
+                sessionId,
+                null,
+                null,
+                data);
+        EventAck ack = userEventService.record(userId, event, request);
+        return ResponseEntity.ok(ApiResponse.success(ack, "练习完成事件已记录"));
     }
 
     @GetMapping("/records")
@@ -255,12 +323,91 @@ public class PracticeController {
         throw new IllegalStateException("未获取到登录用户");
     }
 
+    @SuppressWarnings("unchecked")
+    private void recordWeakPointBestEffort(Long userId, Map<String, Object> result) {
+        try {
+            Map<String, Object> record = (Map<String, Object>) result.get("record");
+            Map<String, Object> question = (Map<String, Object>) result.get("question");
+            if (record == null || question == null || record.get("id") == null || question.get("id") == null) {
+                return;
+            }
+            ExerciseRecordRequest weakPointRecord = ExerciseRecordRequest.builder()
+                    .userId(userId)
+                    .exerciseId(String.valueOf(question.get("id")))
+                    .knowledgePoint(stringValue(question.get("knowledgePoint")))
+                    .subject(stringValue(question.get("subject")))
+                    .isCorrect(Boolean.TRUE.equals(result.get("correct")) ? 1 : 0)
+                    .build();
+            weakPointsService.recordExerciseResult(weakPointRecord);
+        } catch (RuntimeException exception) {
+            log.warn("M1 答题结果回写薄弱点模块失败，不影响主答题记录: userId={}, reason={}",
+                    userId, exception.getClass().getSimpleName());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void recordAnswerEventBestEffort(
+            Long userId,
+            SubmitAnswerRequest body,
+            Map<String, Object> result,
+            HttpServletRequest request) {
+        try {
+            Map<String, Object> record = (Map<String, Object>) result.get("record");
+            Map<String, Object> question = (Map<String, Object>) result.get("question");
+            if (record == null || question == null || record.get("id") == null) {
+                return;
+            }
+            ObjectNode data = JsonNodeFactory.instance.objectNode();
+            data.put("isCorrect", Boolean.TRUE.equals(result.get("correct")));
+            data.put("difficulty", difficultyLevel(question.get("difficulty")));
+            data.put("timeSpentSec", Math.min(86400, Math.max(0,
+                    body.getDurationSeconds() == null ? 0 : body.getDurationSeconds())));
+            data.put("hintCount", 0);
+            LearningEventRequest event = new LearningEventRequest(
+                    "m1-answer:" + record.get("id"),
+                    userId,
+                    "answer_question",
+                    "M1",
+                    OffsetDateTime.now(ZoneOffset.UTC),
+                    "1.0",
+                    body.getSessionId(),
+                    null,
+                    null,
+                    data);
+            userEventService.record(userId, event, request);
+        } catch (RuntimeException exception) {
+            log.warn("M1 答题事件写入 M6 失败，不影响主答题记录: userId={}, reason={}",
+                    userId, exception.getClass().getSimpleName());
+        }
+    }
+
+    private int difficultyLevel(Object difficulty) {
+        return switch (stringValue(difficulty).toUpperCase()) {
+            case "HARD" -> 5;
+            case "ADVANCED", "MEDIUM" -> 3;
+            default -> 1;
+        };
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+
     @Data
     public static class SubmitAnswerRequest {
         private Long questionId;
         private String userAnswer;
         private Integer durationSeconds;
         private String mode;
+        private String sessionId;
+    }
+
+    @Data
+    public static class CompleteSessionRequest {
+        private String sessionId;
+        private Integer questionCount;
+        private Integer correctCount;
+        private Integer durationSeconds;
     }
 
     @Data
