@@ -272,8 +272,11 @@ public class PracticeController {
     @GetMapping("/leaderboards")
     public ResponseEntity<ApiResponse<Map<String, Object>>> leaderboards(
             HttpServletRequest request,
-            @RequestParam(required = false) String track) {
-        return ResponseEntity.ok(ApiResponse.success(practiceService.getLeaderboards(currentUserId(request), track), "获取榜单成功"));
+            @RequestParam(required = false) String track,
+            @RequestParam(required = false) String type) {
+        return ResponseEntity.ok(ApiResponse.success(
+                practiceService.getLeaderboards(currentUserId(request), track, type),
+                "获取榜单成功"));
     }
 
     @PostMapping("/checkin")

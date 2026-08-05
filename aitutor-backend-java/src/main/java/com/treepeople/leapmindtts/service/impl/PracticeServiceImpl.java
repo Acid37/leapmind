@@ -623,17 +623,53 @@ public class PracticeServiceImpl implements PracticeService {
 
     @Override
     public Map<String, Object> getLeaderboards(Long userId, String track) {
+        return getLeaderboards(userId, track, null);
+    }
+
+    @Override
+    public Map<String, Object> getLeaderboards(Long userId, String track, String type) {
         PracticeUserStats self = ensureStats(userId);
         String effectiveTrack = StringUtils.hasText(track) ? track : self.getPreferredTrack();
+        String effectiveType = normalizeLeaderboardType(type);
         Map<String, Object> result = new HashMap<>();
         result.put("track", effectiveTrack);
+        result.put("type", effectiveType == null ? "all" : effectiveType);
         result.put("hidden", Boolean.TRUE.equals(self.getLeaderboardHidden()));
+        if (effectiveType != null) {
+            result.put("trackRanking", mysqlWindowRankRows(
+                    effectiveTrack,
+                    leaderboardStart(effectiveType, LocalDate.now())));
+            result.put("teamRanking", List.of());
+            result.put("teamHint", "小队表与成员表已建立，可基于 inviteCode 扩展 3-8 人封闭小队。");
+            result.put("rankStorage", "MYSQL_TIME_WINDOW");
+            return result;
+        }
         List<Map<String, Object>> redisRows = redisRankRows(effectiveTrack);
         result.put("trackRanking", redisRows.isEmpty() ? mysqlRankRows(effectiveTrack) : redisRows);
         result.put("teamRanking", List.of());
         result.put("teamHint", "小队表与成员表已建立，可基于 inviteCode 扩展 3-8 人封闭小队。");
         result.put("rankStorage", redisRows.isEmpty() ? "MYSQL_FALLBACK" : "REDIS_ZSET");
         return result;
+    }
+
+    static String normalizeLeaderboardType(String type) {
+        if (!StringUtils.hasText(type)) {
+            return null;
+        }
+        String normalized = type.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("daily", "weekly", "monthly").contains(normalized)) {
+            throw new IllegalArgumentException("type 只支持 daily、weekly、monthly");
+        }
+        return normalized;
+    }
+
+    static LocalDateTime leaderboardStart(String type, LocalDate today) {
+        return switch (type) {
+            case "daily" -> today.atStartOfDay();
+            case "weekly" -> today.minusDays(6).atStartOfDay();
+            case "monthly" -> today.minusDays(29).atStartOfDay();
+            default -> throw new IllegalArgumentException("不支持的排行榜类型: " + type);
+        };
     }
 
     @Override
@@ -1068,6 +1104,27 @@ public class PracticeServiceImpl implements PracticeService {
                 .orderByDesc("total_points")
                 .last("LIMIT 20"));
         return toRankRows(stats);
+    }
+
+    private List<Map<String, Object>> mysqlWindowRankRows(String track, LocalDateTime startTime) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int rank = 1;
+        for (PracticeAnswerRecord score : recordMapper.selectLeaderboardScores(track, startTime)) {
+            Long uid = score.getUserId();
+            int points = nvl(score.getPoints());
+            PracticeUserStats stats = statsMapper.selectById(uid);
+            User user = userMapper.selectById(uid);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("rank", rank++);
+            row.put("userId", uid);
+            row.put("username", user == null ? "用户" + uid : user.getUsername());
+            row.put("studentName", user == null ? "" : user.getStudentName());
+            row.put("totalPoints", points);
+            row.put("streakDays", stats == null ? 0 : effectiveCurrentStreak(stats));
+            row.put("rankTitle", rankTitle(points));
+            rows.add(row);
+        }
+        return rows;
     }
 
     private List<Map<String, Object>> redisRankRows(String track) {

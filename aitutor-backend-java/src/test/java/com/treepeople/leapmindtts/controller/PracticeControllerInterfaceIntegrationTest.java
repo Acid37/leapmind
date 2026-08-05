@@ -99,6 +99,15 @@ class PracticeControllerInterfaceIntegrationTest {
     }
 
     @Test
+    void leaderboardsPassesRequestedTypeAndAuthenticatedUser() {
+        MockHttpServletRequest request = authenticatedRequest(8L);
+
+        controller.leaderboards(request, "高数期末", "weekly");
+
+        verify(practiceService).getLeaderboards(8L, "高数期末", "weekly");
+    }
+
+    @Test
     void completeSessionPublishesFinishPracticeEvent() {
         MockHttpServletRequest request = authenticatedRequest(9L);
         PracticeController.CompleteSessionRequest body = new PracticeController.CompleteSessionRequest();

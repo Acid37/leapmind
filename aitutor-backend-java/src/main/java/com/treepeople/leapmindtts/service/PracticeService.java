@@ -26,6 +26,7 @@ public interface PracticeService {
     Map<String, Object> getDashboard(Long userId);
     Map<String, Object> getStatistics(Long userId, String range);
     Map<String, Object> getLeaderboards(Long userId, String track);
+    Map<String, Object> getLeaderboards(Long userId, String track, String type);
     Map<String, Object> checkin(Long userId);
     Map<String, Object> getCheckinStatus(Long userId);
     void updatePrivacy(Long userId, boolean hidden);
