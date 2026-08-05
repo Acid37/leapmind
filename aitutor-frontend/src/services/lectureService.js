@@ -4,11 +4,12 @@
  * 已对接真实后端（2026-08-03）：
  *   - 讲课内容 CRUD（历史列表/详情/删除/发布）→ Java GET/PUT/DELETE /api/lesson-prep/contents
  *   - 薄弱知识点查询 → GET /api/weak-points（M3 曾俊桥 / develop 分支）
- *   - 讲课文件解析 / 讲课生成 SSE → 等许沣睿的 /api/lecture/*（backend-M4 尚未实现）
+ *   - M6 事件上报 → POST /api/events/collect（M6 画像引擎，2026-08-06 新增）
+ *   - 讲课文件解析 / 讲课生成 SSE → 等许沣睿的 /api/teaching/*（backend-M4 已迁移就绪）
  * 
  * 模式说明：
- *   - CRUD + 薄弱点：默认走真实后端（设置 VITE_LECTURE_MOCK=true 回退 Mock）
- *   - 文件解析 / 讲课生成：仍走 Mock（许沣睿 backend-M4 /api/lecture/* 未实现）
+ *   - CRUD + 薄弱点 + M6 事件：默认走真实后端（设置 VITE_LECTURE_MOCK=true 回退 Mock）
+ *   - 文件解析 / 讲课生成：仍走 Mock（等前端对接 /api/teaching/* 后切换）
  */
 
 import { mockParseResult, mockPPTStructure, mockGenerationEvents, mockHistoryList } from '../data/mockLecture';
@@ -266,4 +267,57 @@ export async function publishLecture(lectureId) {
     method: 'PUT',
     body: JSON.stringify({ status: 'published' }),
   });
+}
+
+// ─── 4. M6 画像引擎事件上报 ─────────────────────────
+
+/**
+ * 向 M6 画像引擎提交讲课交互事件
+ * POST /api/events/collect
+ *
+ * 对接文档: M6-v1-通知-M4组.md (2026-08-05 张伟涛)
+ *
+ * @param {Object} params
+ * @param {string} params.lectureId  - 课堂ID (必填, 1-64字符, 字母或数字开头)
+ * @param {string} params.chapterId  - 章节ID (必填, 格式同 lectureId)
+ * @param {'pause'|'resume'|'replay'|'ask'|'complete'} params.action - 交互动作
+ * @param {string} [params.sessionId]  - 会话ID (可选, 不传则省略)
+ * @param {string} [params.kpId]       - 知识点ID (可选, 不传则省略)
+ * @param {string} [params.traceId]    - 链路追踪ID (可选, 不传则省略)
+ * @returns {Promise<void>}
+ */
+export async function submitLectureEvent({
+  lectureId,
+  chapterId,
+  action,
+  sessionId,
+  kpId,
+  traceId,
+}) {
+  // 构造符合 M6 规范的事件体
+  const body = {
+    type: 'lecture_interact',
+    sourceModule: 'M4',
+    data: {
+      lectureId,
+      chapterId,
+      action,
+    },
+    occurredAt: new Date().toISOString().replace('Z', '+08:00'),
+  };
+
+  // 可选字段：为 null/undefined 时省略（M6 不接受显式 null）
+  if (sessionId != null) body.sessionId = sessionId;
+  if (kpId != null) body.kpId = String(kpId);
+  if (traceId != null) body.traceId = traceId;
+
+  try {
+    await request('/api/events/collect', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    // M6 事件上报失败不影响主流程，静默处理
+    console.warn('[M4][M6] 事件上报失败:', action, err);
+  }
 }

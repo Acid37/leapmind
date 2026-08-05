@@ -12,13 +12,14 @@
  * 讲课结束时可跳转 M1 做配套练习。
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import Header from '../../components/common/Header';
 import SlideRenderer from '../../components/lecture/SlideRenderer';
 import SlideViewer from '../../components/lecture/SlideViewer';
 import TeacherPanel from '../../components/teacher/TeacherPanel';
 import { ChatPanel } from '../../components/chat';
-import { Flag, BookOpen, MessageCircle, Monitor, User } from 'lucide-react';
+import { submitLectureEvent } from '../../services/lectureService';
+import { Flag, BookOpen, MessageCircle, Monitor, User, Pause, Play } from 'lucide-react';
 
 // ─── 数据类型转换：旧 mock 嵌套格式 → 统一 SlideData ───
 
@@ -61,16 +62,53 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
   const [currentSlide, setCurrentSlide] = useState(1);
   const [showEndPanel, setShowEndPanel] = useState(false);
   const [mobileTab, setMobileTab] = useState('slides');
+  const [isPaused, setIsPaused] = useState(false);
+  const prevSlideRef = useRef(1);
+
+  // M6 事件上报辅助
+  const fireEvent = useCallback((action, extra = {}) => {
+    if (!lectureId) return;
+    const chapterId = extra.chapterId || `ch${currentSlide}`;
+    submitLectureEvent({
+      lectureId: String(lectureId),
+      chapterId,
+      action,
+      sessionId: extra.sessionId,
+      kpId: extra.kpId,
+    });
+  }, [lectureId, currentSlide]);
 
   const handleSlideChange = useCallback((pageNum) => {
+    const prev = prevSlideRef.current;
+    prevSlideRef.current = pageNum;
     setCurrentSlide(pageNum);
-  }, []);
+    // 回到上一页视为 replay
+    if (pageNum < prev) {
+      fireEvent('replay', { chapterId: `ch${pageNum}` });
+    }
+  }, [fireEvent]);
 
-  const handleEndLecture = () => setShowEndPanel(true);
+  const handleTogglePause = useCallback(() => {
+    setIsPaused(prev => {
+      const next = !prev;
+      fireEvent(next ? 'pause' : 'resume');
+      return next;
+    });
+  }, [fireEvent]);
+
+  const handleEndLecture = () => {
+    fireEvent('complete');
+    setShowEndPanel(true);
+  };
 
   const handleGoPractice = () => {
     onFinish?.({ lectureId, knowledgePoints: lectureData?.knowledgePoints });
   };
+
+  // M6: ChatPanel 消息发送时上报 ask 事件
+  const handleMessageSent = useCallback(() => {
+    fireEvent('ask');
+  }, [fireEvent]);
 
   const bgGradient = {
     backgroundImage: "linear-gradient(135deg, #861FCE 0%, #861FCE 16%, #731CCD 16%, #731CCD 32%, #6B1CCF 32%, #6B1CCF 48%, #631DCE 48%, #631DCE 64%, #5A1BCE 64%, #5A1BCE 80%, rgb(86,43,205) 80%, rgb(47,8,154) 100%)",
@@ -105,8 +143,20 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
 
       {/* 右侧：追问对话面板 (25%) - 含输入框 */}
       <div className="hidden lg:flex lg:w-[25%] flex-col p-3 gap-3">
+        {/* 暂停/恢复按钮 */}
+        <button
+          onClick={handleTogglePause}
+          className={`flex-shrink-0 w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium shadow-lg transition-colors ${
+            isPaused
+              ? 'bg-amber-500/90 hover:bg-amber-500 text-white'
+              : 'bg-white/20 hover:bg-white/30 text-white'
+          }`}
+        >
+          {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+          {isPaused ? '继续讲课' : '暂停讲课'}
+        </button>
         <div className="flex-1 min-h-0">
-          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} visible={true} />
+          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} visible={true} onMessageSent={handleMessageSent} />
         </div>
         <button
           onClick={handleEndLecture}
@@ -140,10 +190,21 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
           </div>
         )}
         {/* 移动端结束按钮（幻灯片页底部） */}
-        <div className="flex-shrink-0 px-4 py-2 bg-white/5 backdrop-blur-sm border-t border-white/10">
+        <div className="flex-shrink-0 px-4 py-2 bg-white/5 backdrop-blur-sm border-t border-white/10 flex gap-2">
+          <button
+            onClick={handleTogglePause}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm transition-all ${
+              isPaused
+                ? 'bg-amber-500/30 text-amber-200'
+                : 'bg-white/10 text-white/60'
+            }`}
+          >
+            {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+            {isPaused ? '继续' : '暂停'}
+          </button>
           <button
             onClick={handleEndLecture}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-white/10 text-white/70 text-sm active:bg-red-500/30 active:text-red-200 transition-all"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-white/10 text-white/70 text-sm active:bg-red-500/30 active:text-red-200 transition-all"
           >
             <Flag className="w-4 h-4" />结束讲课
           </button>
@@ -162,7 +223,7 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
           </div>
         </div>
         <div className="flex-1 p-3 overflow-hidden">
-          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} visible={true} />
+          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} visible={true} onMessageSent={handleMessageSent} />
         </div>
       </div>
 

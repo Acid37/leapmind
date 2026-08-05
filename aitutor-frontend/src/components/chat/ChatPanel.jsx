@@ -30,6 +30,7 @@ import { createOneShotRecognition } from '../../features/chat/pptSpeech';
  *   userId: number,
  *   visible?: boolean,
  *   onClose?: () => void,
+ *   onMessageSent?: (text: string) => void,  // M6 对接: 消息发送后回调
  *   title?: string,
  *   className?: string,
  * }} props
@@ -40,6 +41,7 @@ const ChatPanel = ({
   userId,
   visible = true,
   onClose,
+  onMessageSent,
   title = 'AI 助手',
   className = '',
 }) => {
@@ -80,6 +82,7 @@ const ChatPanel = ({
     if (!text || isGenerating) return;
     send(text);
     setInputValue('');
+    onMessageSent?.(text);
   };
 
   // -------- 语音输入 --------
