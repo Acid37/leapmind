@@ -6,6 +6,7 @@ import com.treepeople.leapmindtts.pojo.vo.ExerciseVO;
 import com.treepeople.leapmindtts.service.PracticeService;
 import com.treepeople.leapmindtts.service.lesson.WeakPointsService;
 import com.treepeople.leapmindtts.service.profile.UserEventService;
+import com.treepeople.leapmindtts.service.profile.validation.LearningEventPolicy;
 import com.treepeople.leapmindtts.service.user.ReviewReminderService;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -38,6 +41,8 @@ class PracticeControllerInterfaceIntegrationTest {
         body.setDurationSeconds(18);
         body.setMode("FREE_PRACTICE");
         body.setSessionId("sess_123");
+        body.setHintCount(1);
+        body.setConfusionTag("公式记忆混淆");
         Map<String, Object> result = Map.of(
                 "record", Map.of("id", 91L),
                 "question", Map.of(
@@ -61,8 +66,25 @@ class PracticeControllerInterfaceIntegrationTest {
         assertEquals("answer_question", event.getValue().eventType());
         assertEquals("M1", event.getValue().sourceModule());
         assertEquals("sess_123", event.getValue().sessionId());
+        assertNotNull(event.getValue().kpId());
+        assertTrue(event.getValue().kpId() > 0);
+        assertEquals(8 * 60 * 60, event.getValue().occurredAt().getOffset().getTotalSeconds());
         assertEquals(3, event.getValue().data().get("difficulty").intValue());
         assertTrue(event.getValue().data().get("isCorrect").booleanValue());
+        assertEquals(18, event.getValue().data().get("timeSpentSec").intValue());
+        assertEquals(1, event.getValue().data().get("hintCount").intValue());
+        assertEquals("formula_confusion", event.getValue().data().get("confusionTag").textValue());
+        LearningEventPolicy.validate(event.getValue());
+    }
+
+    @Test
+    void submitRejectsMissingSessionIdBeforeSavingAnswer() {
+        MockHttpServletRequest request = authenticatedRequest(7L);
+        PracticeController.SubmitAnswerRequest body = new PracticeController.SubmitAnswerRequest();
+        body.setQuestionId(12L);
+        body.setUserAnswer("A");
+
+        assertThrows(IllegalArgumentException.class, () -> controller.submit(request, body));
     }
 
     @Test
@@ -90,9 +112,13 @@ class PracticeControllerInterfaceIntegrationTest {
         ArgumentCaptor<LearningEventRequest> event = ArgumentCaptor.forClass(LearningEventRequest.class);
         verify(userEventService).record(eq(9L), event.capture(), eq(request));
         assertEquals("finish_practice", event.getValue().eventType());
+        assertEquals("M1", event.getValue().sourceModule());
+        assertEquals("sess_complete_1", event.getValue().sessionId());
+        assertEquals(8 * 60 * 60, event.getValue().occurredAt().getOffset().getTotalSeconds());
         assertEquals(10, event.getValue().data().get("questionCount").intValue());
         assertEquals(0.8, event.getValue().data().get("accuracy").doubleValue());
         assertEquals(300, event.getValue().data().get("durationSec").intValue());
+        LearningEventPolicy.validate(event.getValue());
     }
 
     private MockHttpServletRequest authenticatedRequest(Long userId) {

@@ -44,13 +44,20 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/practice")
 @RequiredArgsConstructor
 public class PracticeController {
+
+    private static final ZoneOffset M6_EVENT_OFFSET = ZoneOffset.ofHours(8);
+    private static final Pattern M6_IDENTIFIER = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}");
+    private static final Set<String> M6_CONFUSION_TAGS = Set.of(
+            "concept_unclear", "formula_confusion", "step_unclear", "application_difficulty", "careless_error");
 
     private final PracticeService practiceService;
     private final ReviewReminderService reviewReminderService;
@@ -142,6 +149,7 @@ public class PracticeController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> submit(
             HttpServletRequest request,
             @RequestBody SubmitAnswerRequest body) {
+        body.setSessionId(requireSessionId(body.getSessionId()));
         Long userId = currentUserId(request);
         Map<String, Object> result = practiceService.submitAnswer(userId, body);
         recordWeakPointBestEffort(userId, result);
@@ -166,18 +174,15 @@ public class PracticeController {
             HttpServletRequest request,
             @RequestBody CompleteSessionRequest body) {
         Long userId = currentUserId(request);
-        if (body.getQuestionCount() == null || body.getQuestionCount() < 1) {
-            throw new IllegalArgumentException("questionCount 必须大于 0");
+        if (body.getQuestionCount() == null || body.getQuestionCount() < 1 || body.getQuestionCount() > 10000) {
+            throw new IllegalArgumentException("questionCount 必须在 1~10000 之间");
         }
         int correctCount = body.getCorrectCount() == null ? 0 : body.getCorrectCount();
         if (correctCount < 0 || correctCount > body.getQuestionCount()) {
             throw new IllegalArgumentException("correctCount 超出有效范围");
         }
         int durationSeconds = body.getDurationSeconds() == null ? 0 : Math.max(0, body.getDurationSeconds());
-        String sessionId = body.getSessionId();
-        if (sessionId == null || sessionId.isBlank()) {
-            throw new IllegalArgumentException("sessionId 不能为空");
-        }
+        String sessionId = requireSessionId(body.getSessionId());
 
         ObjectNode data = JsonNodeFactory.instance.objectNode();
         data.put("questionCount", body.getQuestionCount());
@@ -190,7 +195,7 @@ public class PracticeController {
                 userId,
                 "finish_practice",
                 "M1",
-                OffsetDateTime.now(ZoneOffset.UTC),
+                OffsetDateTime.now(M6_EVENT_OFFSET),
                 "1.0",
                 sessionId,
                 null,
@@ -362,16 +367,21 @@ public class PracticeController {
             data.put("difficulty", difficultyLevel(question.get("difficulty")));
             data.put("timeSpentSec", Math.min(86400, Math.max(0,
                     body.getDurationSeconds() == null ? 0 : body.getDurationSeconds())));
-            data.put("hintCount", 0);
+            data.put("hintCount", Math.min(100, Math.max(0,
+                    body.getHintCount() == null ? 0 : body.getHintCount())));
+            String confusionTag = normalizeConfusionTag(body.getConfusionTag());
+            if (confusionTag != null) {
+                data.put("confusionTag", confusionTag);
+            }
             LearningEventRequest event = new LearningEventRequest(
                     "m1-answer:" + record.get("id"),
                     userId,
                     "answer_question",
                     "M1",
-                    OffsetDateTime.now(ZoneOffset.UTC),
+                    OffsetDateTime.now(M6_EVENT_OFFSET),
                     "1.0",
                     body.getSessionId(),
-                    null,
+                    knowledgePointId(question),
                     null,
                     data);
             userEventService.record(userId, event, request);
@@ -393,6 +403,45 @@ public class PracticeController {
         return value == null ? "" : String.valueOf(value);
     }
 
+    private String requireSessionId(String sessionId) {
+        String normalized = sessionId == null ? "" : sessionId.trim();
+        if (!M6_IDENTIFIER.matcher(normalized).matches()) {
+            throw new IllegalArgumentException("sessionId 不能为空，且只能包含字母、数字、点、下划线、冒号或连字符（最长 64 位）");
+        }
+        return normalized;
+    }
+
+    /**
+     * 题库当前以“学科 + 知识点名称”标识知识点，没有独立数值主键。
+     * 这里生成稳定的正整数 ID，确保同一知识点的逐题事件能被 M6 聚合。
+     */
+    private Long knowledgePointId(Map<String, Object> question) {
+        String subject = stringValue(question.get("subject")).trim();
+        String knowledgePoint = stringValue(question.get("knowledgePoint")).trim();
+        if (knowledgePoint.isEmpty()) {
+            throw new IllegalArgumentException("题目缺少知识点，无法生成 M6 kpId");
+        }
+        long value = UUID.nameUUIDFromBytes(
+                (subject + "\u0000" + knowledgePoint).getBytes(StandardCharsets.UTF_8))
+                .getMostSignificantBits() & Long.MAX_VALUE;
+        return value == 0 ? 1L : value;
+    }
+
+    private String normalizeConfusionTag(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = switch (value.trim()) {
+            case "概念不清", "概念理解不清" -> "concept_unclear";
+            case "公式混淆", "公式记忆混淆" -> "formula_confusion";
+            case "步骤不清", "解题步骤不清" -> "step_unclear";
+            case "应用困难", "知识应用困难" -> "application_difficulty";
+            case "粗心错误" -> "careless_error";
+            default -> value.trim();
+        };
+        return M6_CONFUSION_TAGS.contains(normalized) ? normalized : null;
+    }
+
     @Data
     public static class SubmitAnswerRequest {
         private Long questionId;
@@ -400,6 +449,8 @@ public class PracticeController {
         private Integer durationSeconds;
         private String mode;
         private String sessionId;
+        private Integer hintCount;
+        private String confusionTag;
     }
 
     @Data
