@@ -8,48 +8,54 @@
  *  - "生成"按钮 → 跳转等待页
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Paperclip, FileText, Target, X, File, AlertCircle, ArrowLeft, Send, Loader2 } from 'lucide-react';
-import { parseLectureFile } from '../../services/lectureService';
-import { mockWeakPoints } from '../../data/mockLecture';
+import { parseLectureFile, getWeakPoints } from '../../services/lectureService';
 
 // ─── 子组件：薄弱点选择器 ───────────────────────────
-// TODO-REAL: 标签展示需后端协调修改
-//   1) mockWeakPoints 当前来自 src/data/mockLecture.js，
-//      上线时需替换为接口 GET /api/weak-points?userId=...&grade=...
-//      字段约定：
-//        - kpId         知识点 ID（数字）
-//        - kpName       知识点名称（字符串）
-//        - weaknessScore 薄弱度 0~1（数字）
-//      返回后字段可能不同，需与后端对齐命名
-//   2) 选中态 weakPointIds 会随 createLecture payload 传给后端
-//      （lectureService.js handleGenerate），后端再据此
-//      让 AI 在相关位置放慢节奏、增加互动
-//   3) 标签上限：可能需要限制最多 N 个（如 3 个），
-//      取决于后端模型能消化的上下文长度
-const WeakPointSelector = ({ selected, onToggle }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
-    {mockWeakPoints.map((wp) => {
-      const isSelected = selected.includes(wp.kpId);
-      return (
-        <button
-          key={wp.kpId}
-          onClick={() => onToggle(wp.kpId)}
-          className={`px-3 lg:px-5 py-2 lg:py-3.5 rounded-xl text-sm lg:text-base font-medium transition-all flex items-center justify-between gap-2 ${
-            isSelected
-              ? 'bg-orange-100 text-orange-700 border-2 border-orange-400'
-              : 'bg-slate-50 text-slate-600 border-2 border-slate-200 hover:border-orange-200'
-          }`}
-        >
-          <span className="truncate">{wp.kpName}</span>
-          <span className={`text-xs lg:text-sm font-bold ${isSelected ? 'text-orange-500' : 'text-slate-400'}`}>
-            {Math.round(wp.weaknessScore * 100)}%
-          </span>
-        </button>
-      );
-    })}
-  </div>
-);
+const WeakPointSelector = ({ items, selected, onToggle, loading }) => {
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="px-3 lg:px-5 py-2 lg:py-3.5 rounded-xl bg-slate-100 animate-pulse">
+            <div className="h-4 bg-slate-200 rounded w-3/4" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (!items || items.length === 0) {
+    return (
+      <div className="text-center py-4 text-sm text-slate-400">
+        暂无薄弱知识点，多做练习题后会自动分析
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
+      {items.map((wp) => {
+        const isSelected = selected.includes(wp.kpId);
+        return (
+          <button
+            key={wp.kpId}
+            onClick={() => onToggle(wp.kpId)}
+            className={`px-3 lg:px-5 py-2 lg:py-3.5 rounded-xl text-sm lg:text-base font-medium transition-all flex items-center justify-between gap-2 ${
+              isSelected
+                ? 'bg-orange-100 text-orange-700 border-2 border-orange-400'
+                : 'bg-slate-50 text-slate-600 border-2 border-slate-200 hover:border-orange-200'
+            }`}
+          >
+            <span className="truncate">{wp.kpName}</span>
+            <span className={`text-xs lg:text-sm font-bold ${isSelected ? 'text-orange-500' : 'text-slate-400'}`}>
+              {Math.round(wp.weaknessScore * 100)}%
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 // ─── 主页面 ─────────────────────────────────────────
 
@@ -66,13 +72,23 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
   // 拖拽高亮状态
   const [dragOver, setDragOver] = useState(false);
 
-  // 选项
-  // TODO-REAL: 关联薄弱知识点（标签展示需后端协调）
-  //   当前使用 mock 数据 mockWeakPoints（kpId/kpName/weaknessScore），
-  //   上线后应由后端根据用户学情动态返回。
-  //   selectedWeakPoints 数组会在 handleGenerate 时随 payload 传
-  //   POST /api/lecture/generate，AI 据此调节讲课节奏。
+  // 薄弱知识点（从后端实时获取）
   const [selectedWeakPoints, setSelectedWeakPoints] = useState([]);
+  const [weakPoints, setWeakPoints] = useState([]);
+  const [weakPointsLoading, setWeakPointsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setWeakPointsLoading(true);
+      const data = await getWeakPoints(userId);
+      if (!cancelled) {
+        setWeakPoints(data);
+        setWeakPointsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
 
   const fileInputRef = useRef(null);
 
@@ -107,11 +123,8 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
     if (f) handleFileSelect(f);
   }, [handleFileSelect]);
 
-  // TODO-REAL: 标签数据后端协调点
-  //   - selectedWeakPoints 存的是 kpId（数字），后端应根据当前用户
-  //     的年级/学科筛选合法的 kpId 集合，避免乱选
-  //   - 后端可能要求按"学科"分组排序，而不是平铺
-  //   - 用户每次进入页面的可选列表都不同（动态学情），不应缓存
+  // 薄弱知识点已对接 GET /api/weak-points（M3 曾俊桥 / develop 分支）
+  // kpId←UserWeakPointVO.id, kpName←knowledgePoint, weaknessScore←1-accuracyRate
   const toggleWeakPoint = (kpId) => {
     setSelectedWeakPoints(prev =>
       prev.includes(kpId) ? prev.filter(id => id !== kpId) : [...prev, kpId]
@@ -179,7 +192,7 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
               </div>
               <span className="text-[10px] sm:text-xs lg:text-sm text-slate-400 sm:text-right leading-tight">选中后 AI 会在这些地方放慢节奏、增加互动</span>
             </div>
-            <WeakPointSelector selected={selectedWeakPoints} onToggle={toggleWeakPoint} />
+            <WeakPointSelector items={weakPoints} selected={selectedWeakPoints} onToggle={toggleWeakPoint} loading={weakPointsLoading} />
           </div>
 
           {/* DeepSeek 风格对话输入框：文件 + 提示词 二合一 */}
