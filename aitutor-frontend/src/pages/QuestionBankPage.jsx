@@ -4,7 +4,7 @@
  * 左侧筛选面板 + 右侧题目列表
  * 筛选条件：科目 → 年级 → 章节 → 题型 → 难度
  */
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import {
   Search,
   Filter,
@@ -266,7 +266,7 @@ export default function QuestionBankPage({ onStartPractice, lessonId = "" }) {
   const hasActiveFilters = Object.values(filters).some(Boolean);
 
   // 筛选面板
-  const FilterPanel = () => (
+  const filterPanelElement = useMemo(() => (
     <div className="space-y-5">
       {/* 标题 */}
       <div className="flex items-center justify-between">
@@ -383,7 +383,7 @@ export default function QuestionBankPage({ onStartPractice, lessonId = "" }) {
         </div>
       </FilterSection>
     </div>
-  );
+  ), [filters, filterOptions, expandedSection, clearFilters, updateFilter, hasActiveFilters]);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -499,7 +499,7 @@ export default function QuestionBankPage({ onStartPractice, lessonId = "" }) {
         {/* 左侧筛选面板 - 桌面端 */}
         <div className="hidden lg:block w-56 flex-shrink-0">
           <div className="sticky top-4 bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-            <FilterPanel />
+            {filterPanelElement}
           </div>
         </div>
 
@@ -508,7 +508,7 @@ export default function QuestionBankPage({ onStartPractice, lessonId = "" }) {
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-black/40" onClick={() => setShowMobileFilter(false)} />
             <div className="absolute right-0 top-0 h-full w-72 bg-white shadow-xl p-5 overflow-y-auto">
-              <FilterPanel />
+              {filterPanelElement}
             </div>
           </div>
         )}

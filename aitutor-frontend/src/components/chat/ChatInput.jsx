@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createOneShotRecognition } from '@/features/chat/pptSpeech.js';
 import { state } from '@/features/chat/pptState.js';
 import { stopVoiceDetection, startVoiceDetection } from '@/features/chat/pptVoiceControl.js';

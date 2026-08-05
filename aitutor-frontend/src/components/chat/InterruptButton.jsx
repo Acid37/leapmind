@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * 打断按钮 — 生成中可见，点击立刻停止 AI

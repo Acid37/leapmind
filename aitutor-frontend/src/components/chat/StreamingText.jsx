@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * 流式文本打字机效果

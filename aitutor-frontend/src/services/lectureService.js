@@ -1,12 +1,14 @@
 /**
  * M4 讲课模块 —— Service 层
  * 
- * Mock 模式：返回 mock 数据（前端独立开发用）
- * 真实模式：调用后端 API（联调时切换）
- * 
  * 已对接真实后端（2026-08-03）：
  *   - 讲课内容 CRUD（历史列表/详情/删除/发布）→ Java GET/PUT/DELETE /api/lesson-prep/contents
+ *   - 薄弱知识点查询 → GET /api/weak-points（M3 曾俊桥 / develop 分支）
  *   - 讲课文件解析 / 讲课生成 SSE → 等许沣睿的 /api/lecture/*（backend-M4 尚未实现）
+ * 
+ * 模式说明：
+ *   - CRUD + 薄弱点：默认走真实后端（设置 VITE_LECTURE_MOCK=true 回退 Mock）
+ *   - 文件解析 / 讲课生成：仍走 Mock（许沣睿 backend-M4 /api/lecture/* 未实现）
  */
 
 import { mockParseResult, mockPPTStructure, mockGenerationEvents, mockHistoryList } from '../data/mockLecture';
@@ -14,8 +16,13 @@ import { get, request } from './api';
 
 // ─── 模式开关 ──────────────────────────────────────
 
-/** 是否使用 Mock 数据（联调时改为 false） */
-const USE_MOCK = import.meta.env.VITE_LECTURE_MOCK !== 'false';
+/**
+ * Mock 开关
+ * - 默认走真实后端（VITE_LECTURE_MOCK 不设或为 false）。
+ * - 开发期如需回退 Mock：设置环境变量 VITE_LECTURE_MOCK=true。
+ * - 文件解析 / 讲课生成目前始终走 Mock（等许沣睿 /api/lecture/* 就绪后移除）。
+ */
+const USE_MOCK = import.meta.env.VITE_LECTURE_MOCK === 'true';
 
 /**
  * 解包后端统一响应 ApiResponse：{ code, message, data, timestamp }
@@ -62,6 +69,41 @@ function parsePptStructure(pptStructure) {
       interaction: s.interaction ?? null,
     }));
   } catch {
+    return [];
+  }
+}
+
+// ─── 0. 薄弱知识点查询（M3 曾俊桥 / develop 分支，始终走真实） ──
+
+/**
+ * 查询用户薄弱知识点列表
+ * GET /api/weak-points?userId=&subject=&status=
+ * 
+ * 后端返回 ApiResponse<List<UserWeakPointVO>>
+ * UserWeakPointVO: { id, knowledgePoint, subject, weaknessLevel, errorCount, accuracyRate, status }
+ * 
+ * 映射为前端 WeakPoint：{ kpId, kpName, weaknessScore }
+ * - kpId            ← id（数据库主键，唯一标识该薄弱点记录）
+ * - kpName          ← knowledgePoint
+ * - weaknessScore   ← 1 - accuracyRate（准确率越低薄弱度越高）
+ *                     若 accuracyRate 为空则按 weaknessLevel 估算：HIGH=0.75, MEDIUM=0.5, LOW=0.25
+ */
+export async function getWeakPoints(userId) {
+  try {
+    const res = unwrap(await get(`/api/weak-points?userId=${userId}&status=ACTIVE`));
+    const list = Array.isArray(res) ? res : [];
+    return list
+      .map((wp) => ({
+        kpId: wp.id,
+        kpName: wp.knowledgePoint || '',
+        weaknessScore: wp.accuracyRate != null
+          ? Math.round((1 - parseFloat(wp.accuracyRate)) * 100) / 100
+          : { HIGH: 0.75, MEDIUM: 0.50, LOW: 0.25 }[wp.weaknessLevel] ?? 0.30,
+        subject: wp.subject || '',
+      }))
+      .sort((a, b) => b.weaknessScore - a.weaknessScore); // 最薄弱排最前
+  } catch (err) {
+    console.warn('获取薄弱知识点失败，返回空列表:', err);
     return [];
   }
 }
@@ -115,13 +157,6 @@ export async function parseLectureFile(file, userId) {
  */
 export async function generateLecture(params, onEvent) {
   if (USE_MOCK) {
-    // 模拟 SSE 事件流
-    for (const event of mockGenerationEvents) {
-      await new Promise(r => setTimeout(r, event.delay - (mockGenerationEvents[0].delay || 0) > 0
-        ? 800 : event.delay)); // 压缩到约 800ms/事件
-      // 重构播放延迟
-    }
-
     // 逐个发送事件
     let lastDelay = 0;
     for (const event of mockGenerationEvents) {

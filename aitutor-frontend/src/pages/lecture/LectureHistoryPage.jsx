@@ -9,7 +9,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { getLectureList, deleteLecture } from '../../services/lectureService';
-import { mockHistoryList } from '../../data/mockLecture';
 import { Clock, BookOpen, Trash2, Play, MoreHorizontal, FileText, Filter, X } from 'lucide-react';
 
 // ─── 状态标签 ──────────────────────────────────────
@@ -53,8 +52,7 @@ const LectureHistoryPage = ({ userId = 1, onSelectLecture, onBack }) => {
         setList(result.items || []);
       } catch (err) {
         setError(err?.message || '加载失败');
-        // 降级到静态 mock
-        setList(mockHistoryList);
+        setList([]);
       } finally {
         setLoading(false);
       }
