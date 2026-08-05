@@ -114,14 +114,14 @@ const ChatInput = ({ onSendMessage, setIsTeacherListening }) => {
     };
 
     return (
-        <div className="flex items-center space-x-3">
-            <button type="button" id="voice-input-btn" onClick={handleVoiceInput} disabled={isVoiceListening} className="interactive-btn flex-shrink-0 w-12 h-12 bg-white text-slate-500 hover:text-blue-600 transition-all duration-300 rounded-full flex items-center justify-center shadow-md">
-                <svg id="voice-icon" className="w-6 h-6 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+        <div className="flex items-center gap-2">
+            <button type="button" id="voice-input-btn" onClick={handleVoiceInput} disabled={isVoiceListening} className="interactive-btn flex-shrink-0 w-9 h-9 bg-white/10 text-white/70 hover:text-white hover:bg-white/20 transition-all duration-300 rounded-full flex items-center justify-center">
+                <svg id="voice-icon" className="w-4 h-4 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
             </button>
-            <form onSubmit={handleSubmit} className="relative flex-1 flex items-center">
-                <input id="chat-input" type="search" placeholder="输入您的问题..." value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setIsTeacherListening(true)} onBlur={() => setIsTeacherListening(false)} className="w-full p-3 pl-4 pr-12 bg-white border-transparent rounded-full shadow-md focus:ring-2 focus:ring-blue-400 focus:border-transparent transition" />
-                <button type="submit" className="absolute right-1 top-1/2 -translate-y-1/2 interactive-btn w-10 h-10 text-white bg-blue-500 rounded-full hover:bg-blue-600 transition-colors flex items-center justify-center">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+            <form onSubmit={handleSubmit} className="relative flex-1 min-w-0 flex items-center">
+                <input id="chat-input" type="search" placeholder="问老师..." value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => setIsTeacherListening(true)} onBlur={() => setIsTeacherListening(false)} className="w-full py-2 pl-3 pr-8 bg-white/10 border border-white/20 rounded-full text-white text-sm placeholder-white/40 focus:ring-1 focus:ring-white/40 focus:border-white/40 transition outline-none" />
+                <button type="submit" className="absolute right-1 top-1/2 -translate-y-1/2 interactive-btn w-7 h-7 text-white bg-white/20 rounded-full hover:bg-white/30 transition-colors flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                 </button>
             </form>
         </div>

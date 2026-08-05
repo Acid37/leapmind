@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import RadarChart from '../components/m6/RadarChart'
 import KnowledgeTree from '../components/m6/KnowledgeTree'
-import { getLearningProfile, markReviewReminder } from '../services/learningProfileService'
+import { getLearningProfile } from '../services/learningProfileService'
 import { getUserInfo } from '../utils/tokenManager'
 
 const statIcons = [Clock3, BookOpenCheck, Flame, TrendingUp]
@@ -52,11 +52,9 @@ export default function LearningProfilePage({ onBack, onOpenKnowledgePoint }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [markingReminderId, setMarkingReminderId] = useState(null)
-  const [reminderError, setReminderError] = useState('')
 
   const userInfo = useMemo(() => getUserInfo() || {}, [])
-  const userId = userInfo.id ?? userInfo.userId ?? null
+  const userId = userInfo.id ?? userInfo.userId ?? 'me'
 
   const loadProfile = useCallback(async () => {
     setLoading(true)
@@ -75,23 +73,6 @@ export default function LearningProfilePage({ onBack, onOpenKnowledgePoint }) {
   useEffect(() => {
     loadProfile()
   }, [loadProfile])
-
-  const handleMarkReviewed = async (reminder) => {
-    if (!userId || profile?.isDemo || markingReminderId) return
-    setReminderError('')
-    setMarkingReminderId(reminder.id)
-    try {
-      await markReviewReminder(userId, reminder.id)
-      setProfile((current) => ({
-        ...current,
-        reminders: (current?.reminders || []).filter((item) => item.id !== reminder.id),
-      }))
-    } catch (markError) {
-      setReminderError(markError?.message || '标记复习失败，请稍后重试')
-    } finally {
-      setMarkingReminderId(null)
-    }
-  }
 
   if (loading) {
     return (
@@ -254,34 +235,19 @@ export default function LearningProfilePage({ onBack, onOpenKnowledgePoint }) {
             </div>
             <div className="mt-6 space-y-3">
               {(profile.reminders || []).map((reminder) => (
-                <div
+                <button
+                  type="button"
                   key={reminder.id}
+                  onClick={() => reminder.knowledgePointId && onOpenKnowledgePoint?.(reminder.knowledgePointId)}
                   className="w-full rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-left shadow-md transition duration-200 hover:-translate-y-0.5 hover:border-purple-200/40 hover:bg-white/10 hover:shadow-lg"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => reminder.knowledgePointId && onOpenKnowledgePoint?.(reminder.knowledgePointId)}
-                      className="min-w-0 flex-1 truncate text-left font-semibold hover:text-cyan-100"
-                    >
-                      {reminder.title}
-                    </button>
+                    <span className="font-semibold">{reminder.title}</span>
                     <span className="rounded-full bg-amber-300/15 px-2.5 py-1 text-xs text-amber-100">{reminder.dueLabel || formatDate(reminder.dueAt)}</span>
                   </div>
                   <p className="mt-2 text-sm text-white/48">{reminder.reason}</p>
-                  <div className="mt-3 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => handleMarkReviewed(reminder)}
-                      disabled={profile.isDemo || markingReminderId !== null}
-                      className="rounded-full border border-emerald-200/25 bg-emerald-300/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/25 disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      {markingReminderId === reminder.id ? '正在保存…' : '标记已复习'}
-                    </button>
-                  </div>
-                </div>
+                </button>
               ))}
-              {reminderError && <p className="text-sm text-rose-200">{reminderError}</p>}
               {!profile.reminders?.length && <div className="rounded-2xl bg-black/10 p-5 text-center text-sm text-white/45">当前没有待复习内容</div>}
             </div>
           </article>

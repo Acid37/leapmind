@@ -20,26 +20,16 @@ export async function login(username, password) {
     });
 
     if (response.code === 200 && response.data) {
-      // Java 登录契约返回 userInfo；兼容早期前端使用过的 user 字段。
-      const { token, tokenType, expiresIn, userInfo, user: legacyUser } = response.data;
-      const user = userInfo ?? legacyUser;
-      if (!token || !user) {
-        throw new Error('登录响应缺少 token 或用户信息');
-      }
-
-      // Java JwtConfig.expiration 使用毫秒；兼容可能返回秒的旧服务。
-      const expiresInSeconds = Number(expiresIn) > 7 * 24 * 60 * 60
-        ? Math.floor(Number(expiresIn) / 1000)
-        : Number(expiresIn);
+      const { token, tokenType, expiresIn, user } = response.data;
       
       // 保存 token 和用户信息
-      saveToken(token, Number.isFinite(expiresInSeconds) ? expiresInSeconds : undefined);
+      saveToken(token, expiresIn);
       saveUserInfo(user);
 
       return {
         token,
         tokenType,
-        expiresIn: expiresInSeconds,
+        expiresIn,
         user,
       };
     }
@@ -141,7 +131,7 @@ export async function checkAuth() {
   try {
     await getUserProfile();
     return true;
-  } catch {
+  } catch (error) {
     return false;
   }
 }

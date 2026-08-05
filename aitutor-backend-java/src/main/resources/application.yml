@@ -9,12 +9,6 @@ server:
 spring:
   application:
     name: leapmind-tts
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      timeout: 2s
   servlet:
     multipart:
       max-file-size: 50MB
@@ -48,15 +42,15 @@ logging:
 # 阿里云语音识别配置
 asr:
   api:
-    key: ${ASR_API_KEY:}
+    key: 1NKi3NqL8jyXC8PK
   app:
-    key: ${ASR_APP_KEY:}
+    key: 1NKi3NqL8jyXC8PK # AppKey
   region: cn-shanghai # 阿里云区域
 
 # AI服务配置
 ai:
   api:
-    key: ${AI_API_KEY:}
+    key: YOUR_AI_API_KEY
   prompt: '你是一个聪明且体贴的老师，请简洁的回答以下这个问题，回答完后需要加入"还有其他问题欢迎继续问我呀。”'
 
 # 阿里云TTS配置
@@ -64,16 +58,16 @@ tts:
   api:
     key: # 这个将通过TokenService动态获取
   app:
-    key: ${TTS_APP_KEY:}
+    key: 1NKi3NqL8jyXC8PK
   voice: zhixiaoxia # 发音人配置
 
 # 阿里云AccessKey配置
 aliyun:
-  access-key-id: ${ALIYUN_ACCESS_KEY_ID:}
-  access-key-secret: ${ALIYUN_ACCESS_KEY_SECRET:}
+  access-key-id: YOUR_ALIYUN_ACCESS_KEY_ID
+  access-key-secret: YOUR_ALIYUN_ACCESS_KEY_SECRET
   sms:
-    accessKeyId: ${ALIYUN_SMS_ACCESS_KEY_ID:}
-    accessKeySecret: ${ALIYUN_SMS_ACCESS_KEY_SECRET:}
+    accessKeyId: YOUR_ALIYUN_SMS_ACCESS_KEY_ID
+    accessKeySecret: YOUR_ALIYUN_SMS_ACCESS_KEY_SECRET
     endpoint: dysmsapi.aliyuncs.com
     sMVCode:
       signName: 阿里云短信测试
@@ -120,20 +114,20 @@ text-polishing:
 baidu:
   speech:
     app:
-      id: ${BAIDU_SPEECH_APP_ID:}
+      id: 119539340 # 百度智能云应用ID
     api:
-      key: ${BAIDU_SPEECH_API_KEY:}
+      key: YOUR_BAIDU_API_KEY # 百度智能云应用的API Key
     secret:
-      key: ${BAIDU_SPEECH_SECRET_KEY:}
+      key: YOUR_BAIDU_SECRET_KEY # 百度智能云应用的Secret Key
     format: pcm # 音频格式
     rate: 16000 # 采样率
     dev:
       pid: 1537 # 语言模型ID
   # 为了兼容其他服务的配置键
   asr:
-    api-key: ${BAIDU_SPEECH_API_KEY:}
-    secret-key: ${BAIDU_SPEECH_SECRET_KEY:}
-    app-id: ${BAIDU_ASR_APP_ID:}
+    api-key: YOUR_BAIDU_ASR_API_KEY
+    secret-key: YOUR_BAIDU_ASR_SECRET_KEY
+    app-id: 6986539
 
 # 分段语音配置 (Segmented Speech Configuration)
 segmented-speech:
@@ -214,29 +208,3 @@ knife4j:
     language: zh_cn
     enable-swagger-models: true
     enable-document-manage: true
-
-# M8 虚拟 AI 教师
-virtual-teacher:
-  cache-ttl: 24h
-  synthesis-timeout: 125s
-  rate-limit:
-    enabled: ${VIRTUAL_TEACHER_RATE_LIMIT_ENABLED:true}
-    requests-per-minute: ${VIRTUAL_TEACHER_REQUESTS_PER_MINUTE:20}
-    daily-characters: ${VIRTUAL_TEACHER_DAILY_CHARACTERS:20000}
-  storage:
-    # local 用于无 MinIO 的本地开发；部署时设为 minio
-    type: ${VIRTUAL_TEACHER_STORAGE_TYPE:local}
-    local-dir: ${VIRTUAL_TEACHER_LOCAL_DIR:${java.io.tmpdir}/leapmind-tts}
-    public-base-url: ${VIRTUAL_TEACHER_PUBLIC_BASE_URL:}
-    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-    access-key: ${MINIO_ACCESS_KEY:minioadmin}
-    secret-key: ${MINIO_SECRET_KEY:minioadmin}
-    bucket: ${MINIO_BUCKET:leapmind-tts}
-
-# Python AI 服务配置（复习计算、事件处理）
-python-service:
-  base-url: ${PYTHON_SERVICE_BASE_URL:http://localhost:8000}
-  review-calculation-path: /api/review/calculate-all
-  event-process-path: /api/events/process
-  connect-timeout: 30
-  read-timeout: 300

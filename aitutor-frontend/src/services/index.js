@@ -53,19 +53,7 @@ export {
 export {
   getLearningProfile,
   getKnowledgePointDetail,
-  markReviewReminder,
-  saveLearningEvent,
-  recordQuestionContext,
-  LEARNING_EVENT_TYPES,
 } from './learningProfileService';
-
-// M8 虚拟教师
-export {
-  fetchTeacherAvatars,
-  fetchTeacherPreference,
-  saveTeacherPreference,
-  synthesizeVirtualTeacherSpeech,
-} from './virtualTeacherService';
 
 // Token 管理
 export {

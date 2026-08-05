@@ -1,8 +1,6 @@
 package com.treepeople.leapmindtts.service.lesson;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.treepeople.leapmindtts.config.TextPolishingProperties;
-import com.treepeople.leapmindtts.pojo.dto.ConversationRequest.InputType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -11,15 +9,12 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  *
@@ -33,7 +28,6 @@ import java.util.Objects;
 public class AIModelService {
     // 阿里云百炼平台API端点
     private static final String AI_API_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation";
-    private static final String VL_API_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation";
 
     @Value("${ai.api.key}")
     private String apiKey;
@@ -43,12 +37,10 @@ public class AIModelService {
 
     private final WebClient webClient;
     private final TextPolishingProperties textPolishingProperties;
-    private final ObjectMapper objectMapper;
 
-    public AIModelService(WebClient.Builder webClientBuilder, TextPolishingProperties textPolishingProperties, ObjectMapper objectMapper) {
+    public AIModelService(WebClient.Builder webClientBuilder, TextPolishingProperties textPolishingProperties) {
         this.webClient = webClientBuilder.build();
         this.textPolishingProperties = textPolishingProperties;
-        this.objectMapper = objectMapper;
     }
 
     public Mono<String> getAIResponse(String userInput) {
@@ -168,188 +160,6 @@ public class AIModelService {
                     }
                 })
                 .onErrorReturn("抱歉，AI服务暂时不可用，请稍后再试。");
-    }
-
-    /**
-     * 流式 AI 响应
-     * 调用阿里云 DashScope 流式 API，返回增量文本块及 token 用量
-     */
-    public Flux<AiChunk> streamAIResponse(List<Map<String, String>> messages, InputType inputType, List<String> attachmentUrls) {
-        if (messages == null || messages.isEmpty()) {
-            log.warn("消息列表为空，返回空流");
-            return Flux.empty();
-        }
-        if (apiKey == null || apiKey.trim().isEmpty()) {
-            log.error("AI API Key未配置");
-            return Flux.just(new AiChunk("抱歉，AI服务暂时不可用。", true, null, null));
-        }
-
-        boolean isImage = inputType == InputType.image && attachmentUrls != null && !attachmentUrls.isEmpty();
-        log.info("发送流式AI请求: messagesCount={}, isImage={}", messages.size(), isImage);
-        var body = buildStreamingBody(messages, isImage, attachmentUrls);
-
-        return webClient.post()
-                .uri(isImage ? VL_API_URL : AI_API_URL)
-                .header("Authorization", "Bearer " + apiKey)
-                .header("X-DashScope-SSE", "enable")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
-                .retrieve()
-                .onStatus(status -> !status.is2xxSuccessful(), response ->
-                    response.bodyToMono(String.class).flatMap(errBody -> {
-                        log.error("DashScope HTTP {} body: {}", response.statusCode(), errBody);
-                        return Mono.error(new RuntimeException(
-                            "DashScope API error (HTTP " + response.statusCode() + "): " + errBody));
-                    })
-                )
-                .bodyToFlux(String.class)
-                .flatMap((String event) -> {
-                    if (event == null || event.trim().isEmpty()) {
-                        return Flux.empty();
-                    }
-                    List<AiChunk> chunks = new ArrayList<>();
-                    // DashScope 返回的是逐行 JSON（无 data: 前缀），每行独立解析
-                    for (String line : event.split("\n")) {
-                        String trimmed = line.trim();
-                        if (trimmed.isEmpty()) continue;
-                        try {
-                            var json = objectMapper.readTree(trimmed);
-
-                            log.info("=== DashScope RAW: {}", trimmed.substring(0, Math.min(200, trimmed.length())));
-
-                            var errCode = json.path("code").asText();
-                            if (!errCode.isEmpty()) {
-                                var errMsg = json.path("message").asText();
-                                log.error("DashScope API error: code={}, message={}", errCode, errMsg);
-                                chunks.add(new AiChunk(
-                                    "DashScope API error: " + errCode + " - " + errMsg, true, 0, 0));
-                                continue;
-                            }
-
-                            var choices = json.path("output").path("choices");
-                            String text = "";
-                            if (choices.isArray() && choices.size() > 0) {
-                                var contentNode = choices.get(0).path("message").path("content");
-                                if (contentNode.isArray()) {
-                                    StringBuilder sb = new StringBuilder();
-                                    for (var part : contentNode) {
-                                        sb.append(part.path("text").asText());
-                                    }
-                                    text = sb.toString();
-                                } else {
-                                    text = contentNode.asText();
-                                }
-                            } else {
-                                text = json.path("output").path("text").asText();
-                            }
-
-                            String finishReason = choices.isArray() && choices.size() > 0
-                                ? choices.get(0).path("finish_reason").asText("null") : "null";
-                            boolean isLast = !"null".equals(finishReason);
-
-                            Integer inTokens = null, outTokens = null;
-                            var usage = json.path("usage");
-                            if (!usage.isMissingNode() && !usage.isNull()) {
-                                var inNode = usage.path("input_tokens");
-                                var outNode = usage.path("output_tokens");
-                                if (inNode.isInt()) inTokens = inNode.asInt();
-                                if (outNode.isInt()) outTokens = outNode.asInt();
-                            }
-
-                            if (text.isEmpty()) {
-                                if (isLast) {
-                                    chunks.add(new AiChunk("", true, inTokens, outTokens));
-                                }
-                                continue;
-                            }
-                            chunks.add(new AiChunk(text, isLast, inTokens, outTokens));
-                        } catch (Exception e) {
-                            log.warn("解析流式响应行失败: {}", e.getMessage());
-                        }
-                    }
-                    return Flux.fromIterable(chunks);
-                })
-                .doOnNext(chunk -> log.info("流式AI块: {}", chunk.getChunk()))
-                .doOnComplete(() -> log.info("流式AI响应完成"))
-                .doOnError(err -> log.error("流式AI请求失败: {}", err.getMessage()));
-    }
-
-    private Object buildStreamingBody(List<Map<String, String>> messages, boolean isImage, List<String> attachmentUrls) {
-        var request = new DashScopeStreamRequest();
-        request.setModel(isImage ? "qwen-vl-plus" : "qwen-turbo");
-
-        var input = new DashScopeStreamRequest.Input();
-        for (int i = 0; i < messages.size() - 1; i++) {
-            var msg = messages.get(i);
-            input.addMessage(msg.get("role"), msg.get("content"));
-        }
-        if (!messages.isEmpty()) {
-            var last = messages.get(messages.size() - 1);
-            if (isImage) {
-                input.addMultiModalMessage(last.get("role"), last.get("content"), attachmentUrls);
-            } else {
-                input.addMessage(last.get("role"), last.get("content"));
-            }
-        }
-        request.setInput(input);
-
-        var params = new DashScopeStreamRequest.Parameters();
-        params.setResult_format("message");
-        params.setIncremental_output(true);
-        request.setParameters(params);
-
-        return request;
-    }
-
-    @Data
-    @AllArgsConstructor
-    public static class AiChunk {
-        private String chunk;
-        private boolean last;
-        private Integer inputTokens;
-        private Integer outputTokens;
-    }
-
-    @Data
-    private static class DashScopeStreamRequest {
-        private String model;
-        private Input input;
-        private Parameters parameters;
-
-        @Data
-        public static class Input {
-            private List<Message> messages = new ArrayList<>();
-
-            public void addMessage(String role, String content) {
-                messages.add(new Message(role, content));
-            }
-
-            public void addMultiModalMessage(String role, String text, List<String> imageUrls) {
-                List<Map<String, String>> contentParts = new ArrayList<>();
-                if (imageUrls != null) {
-                    for (String url : imageUrls) {
-                        contentParts.add(Map.of("image", url));
-                    }
-                }
-                if (text != null && !text.isEmpty()) {
-                    contentParts.add(Map.of("text", text));
-                }
-                messages.add(new Message(role, contentParts));
-            }
-
-            @Data
-            @AllArgsConstructor
-            public static class Message {
-                private String role;
-                private Object content;
-            }
-        }
-
-        @Data
-        public static class Parameters {
-            private String result_format;
-            private Boolean incremental_output;
-        }
     }
 
     /**

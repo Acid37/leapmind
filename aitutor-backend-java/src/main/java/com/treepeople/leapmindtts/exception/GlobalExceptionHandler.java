@@ -71,16 +71,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error(403, e.getMessage()));
     }
-
-    /**
-     * 处理限流异常
-     */
-    @ExceptionHandler(TooManyRequestsException.class)
-    public ResponseEntity<ApiResponse<Void>> handleTooManyRequestsException(TooManyRequestsException e) {
-        log.warn("请求过于频繁: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(ApiResponse.error(429, e.getMessage()));
-    }
     
     /**
      * 处理参数验证异常（@Valid注解）

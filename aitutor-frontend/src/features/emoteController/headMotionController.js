@@ -6,37 +6,26 @@ import { ExpressionController } from "./expressionController.js";
  * 头部动作与表情的搭配映射
  */
 const MOTION_TO_EXPRESSION = {
-  bigNod: "happy",       // 大幅点头 + 开心表情
-  smallNod: "relaxed",   // 轻微点头 + 放松表情
-  tiltHead: "surprised", // 歪头 + 惊讶表情
-  bigShake: "angry",     // 大幅摆头 + 愤怒表情
-  smallShake: "sad",     // 小幅摆头 + 悲伤表情
-  lookUp: "surprised",   // 仰头 + 惊讶表情
+  bigNod: "relaxed",
+  smallNod: "relaxed",
+  tiltHead: "surprised",
+  bigShake: "sad",
+  smallShake: "sad",
+  lookUp: "relaxed",
 };
 
 /**
  * 情绪到头部动作的映射
  */
 const EMOTION_TO_MOTION = {
-  // 开心：倾向于轻快的点头和仰头
-  happy: ["smallNod", "lookUp"],
-  
-  // 愤怒：倾向于摆头拒绝和大幅动作
-  angry: ["bigShake", "smallShake"],
-  
-  // 悲伤：倾向于轻微摆头和歪头
-  sad: ["smallShake", "tiltHead"],
-  
-  // 放松：倾向于轻微点头
+  happy: ["smallNod"],
+  angry: ["smallShake"],
+  sad: ["tiltHead"],
   relaxed: ["smallNod"],
-  
-  // 中性/默认：根据关键词决定
-  neutral: [], // 将完全依赖关键词检测
-  
-  // 对话风格映射
-  surprised: ["lookUp", "tiltHead"],
-  fear: ["tiltHead", "smallShake"],
-  talk: [], // 依赖关键词检测
+  neutral: [],
+  surprised: ["tiltHead"],
+  fear: ["tiltHead"],
+  talk: [],
 };
 
 // 精确触发关键词（每个动作 5-10 个，避免过于宽泛）
@@ -123,15 +112,14 @@ export class HeadMotionController {
     }
     this._clock.start();
 
-    // 头部动作数据库
-    this._motionDatabase = {
-      bigNod: {
+    // 头部动作数据库（降低幅度，只保留温和的讲课手势）
+      this._motionDatabase = {
+      bigNod: {  // 改为温和点头
         duration: 1.2,
         keyframes: [
           { time: 0.0, rotation: new THREE.Euler(0, 0, 0) },
-          { time: 0.3, rotation: new THREE.Euler(-0.4, 0, 0) },
-          { time: 0.6, rotation: new THREE.Euler(0.1, 0, 0) },
-          { time: 0.9, rotation: new THREE.Euler(-0.2, 0, 0) },
+          { time: 0.4, rotation: new THREE.Euler(-0.12, 0, 0) },
+          { time: 0.8, rotation: new THREE.Euler(0.03, 0, 0) },
           { time: 1.2, rotation: new THREE.Euler(0, 0, 0) }
         ]
       },
@@ -139,49 +127,48 @@ export class HeadMotionController {
         duration: 0.8,
         keyframes: [
           { time: 0.0, rotation: new THREE.Euler(0, 0, 0) },
-          { time: 0.4, rotation: new THREE.Euler(-0.15, 0, 0) },
+          { time: 0.4, rotation: new THREE.Euler(-0.08, 0, 0) },
           { time: 0.8, rotation: new THREE.Euler(0, 0, 0) }
         ]
       },
       tiltHead: {
-        duration: 1.8, // 延长歪头动作的停顿时间
+        duration: 1.2, // 缩短停顿
         keyframes: [
           { time: 0.0, rotation: new THREE.Euler(0, 0, 0) },
-          { time: 0.4, rotation: new THREE.Euler(0.1, 0.1, 0.3) },
-          { time: 1.2, rotation: new THREE.Euler(0.1, 0.1, 0.3) }, // 延长停顿
-          { time: 1.8, rotation: new THREE.Euler(0, 0, 0) }
+          { time: 0.3, rotation: new THREE.Euler(0.05, 0.05, 0.1) },
+          { time: 0.8, rotation: new THREE.Euler(0.05, 0.05, 0.1) },
+          { time: 1.2, rotation: new THREE.Euler(0, 0, 0) }
         ]
       },
-      bigShake: {
-        duration: 1.4,
+      bigShake: {  // 改为轻微摇头
+        duration: 1.0,
         keyframes: [
           { time: 0.0, rotation: new THREE.Euler(0, 0, 0) },
-          { time: 0.2, rotation: new THREE.Euler(0, -0.5, 0) },
-          { time: 0.5, rotation: new THREE.Euler(0, 0.5, 0) },
-          { time: 0.8, rotation: new THREE.Euler(0, -0.3, 0) },
-          { time: 1.1, rotation: new THREE.Euler(0, 0.2, 0) },
-          { time: 1.4, rotation: new THREE.Euler(0, 0, 0) }
+          { time: 0.2, rotation: new THREE.Euler(0, -0.15, 0) },
+          { time: 0.5, rotation: new THREE.Euler(0, 0.15, 0) },
+          { time: 0.7, rotation: new THREE.Euler(0, -0.08, 0) },
+          { time: 1.0, rotation: new THREE.Euler(0, 0, 0) }
         ]
       },
       smallShake: {
         duration: 0.6,
         keyframes: [
           { time: 0.0, rotation: new THREE.Euler(0, 0, 0) },
-          { time: 0.2, rotation: new THREE.Euler(0, -0.2, 0) },
-          { time: 0.4, rotation: new THREE.Euler(0, 0.2, 0) },
+          { time: 0.2, rotation: new THREE.Euler(0, -0.08, 0) },
+          { time: 0.4, rotation: new THREE.Euler(0, 0.08, 0) },
           { time: 0.6, rotation: new THREE.Euler(0, 0, 0) }
         ]
       },
-      lookUp: {
-        duration: 1.0,
+      lookUp: {  // 轻微抬眼（思考状）
+        duration: 0.8,
         keyframes: [
           { time: 0.0, rotation: new THREE.Euler(0, 0, 0) },
-          { time: 0.3, rotation: new THREE.Euler(0.3, 0, 0) },
-          { time: 0.7, rotation: new THREE.Euler(0.2, 0, 0) },
-          { time: 1.0, rotation: new THREE.Euler(0, 0, 0) }
+          { time: 0.3, rotation: new THREE.Euler(0.1, 0, 0) },
+          { time: 0.6, rotation: new THREE.Euler(0.05, 0, 0) },
+          { time: 0.8, rotation: new THREE.Euler(0, 0, 0) }
         ]
       }
-    };
+      };
   }
 
   /**

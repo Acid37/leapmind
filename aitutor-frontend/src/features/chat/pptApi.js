@@ -1,8 +1,7 @@
 // API requests related to PPT interactive player
 import { getOrCreateCourseId } from './pptSession';
 import { get, post } from '../../services/api';
-import { recordQuestionContext } from '../../services/learningProfileService';
-import { getToken, getUserInfo } from '../../utils/tokenManager';
+import { getToken } from '../../utils/tokenManager';
 
 /**
  * 获取 API 基础 URL（与 api.js 中的逻辑一致）
@@ -95,12 +94,6 @@ export async function askQuestion(courseId, question) {
     try {
       console.debug('[askQuestion] response:', data);
     } catch {}
-    const user = getUserInfo();
-    const userId = user?.id ?? user?.userId ?? user?.uid;
-    void recordQuestionContext({
-      userId,
-      courseId,
-    });
     return data;
   } catch (error) {
     throw new Error(`提问失败: ${error.message}`);

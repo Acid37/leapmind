@@ -20,6 +20,7 @@ export class Model {
 
   _lookAtTargetParent; // THREE.Object3D
   _lipSync; // LipSync
+  _simulatedSpeech = false; // speechSynthesis 模拟口型标志
 
   constructor(lookAtTargetParent) {
     this._lookAtTargetParent = lookAtTargetParent;
@@ -221,14 +222,98 @@ export class Model {
 
 
 
+  /**
+   * 开启/关闭模拟口型（speechSynthesis 无音频流时用）
+   */
+  setSimulatedSpeech(active) {
+    this._simulatedSpeech = !!active;
+    if (active) this.idleAnimationManager?.resetUserActivity();
+  }
+
+  /**
+   * 老师伸手指向 PPT（左手轻微抬起，右手指向左前方）
+   */
+  _pointingTimer = null;
+
+  pointAtPPT(active) {
+    const vrm = this.vrm;
+    if (!vrm) return;
+    clearTimeout(this._pointingTimer);
+
+    if (!active) {
+      this._resetArmPose();
+      return;
+    }
+
+    // 间歇性指向 PPT：避免一直举着太僵硬
+    const pointOnce = () => {
+      if (!this._simulatedSpeech) return;
+      this._setArmPose();
+      this._pointingTimer = setTimeout(() => {
+        if (!this._simulatedSpeech) { this._resetArmPose(); return; }
+        this._resetArmPose();
+        this._pointingTimer = setTimeout(pointOnce, 1500 + Math.random() * 1000);
+      }, 2500 + Math.random() * 1500);
+    };
+    pointOnce();
+  }
+
+  _setArmPose() {
+    const vrm = this.vrm;
+    if (!vrm) return;
+    const rightUpperArm = vrm.humanoid?.getRawBoneNode('rightUpperArm');
+    const rightLowerArm = vrm.humanoid?.getRawBoneNode('rightLowerArm');
+    const rightHand = vrm.humanoid?.getRawBoneNode('rightHand');
+    const leftUpperArm = vrm.humanoid?.getRawBoneNode('leftUpperArm');
+
+    if (rightUpperArm) {
+      rightUpperArm.rotation.set(0.4, 0.1, 1.2, 'YXZ'); // 外展 + 前抬
+    }
+    if (rightLowerArm) {
+      rightLowerArm.rotation.set(-0.6, 1.2, 0.3, 'YXZ'); // 前臂伸展指向左前
+    }
+    if (rightHand) {
+      rightHand.rotation.set(-0.2, 0, 0.5, 'YXZ'); // 手掌平展
+    }
+    if (leftUpperArm) {
+      leftUpperArm.rotation.set(-0.2, 0.6, -0.3, 'YXZ'); // 左臂自然微抬
+    }
+  }
+
+  _resetArmPose() {
+    const vrm = this.vrm;
+    if (!vrm) return;
+    ['rightUpperArm', 'rightLowerArm', 'rightHand', 'leftUpperArm'].forEach(name => {
+      const bone = vrm.humanoid?.getRawBoneNode(name);
+      if (bone) bone.rotation.set(0, 0, 0);
+    });
+  }
+
   update(delta) {
     if (this._lipSync) {
       const { volume, weights } = this._lipSync.update();
-      if (weights) {
-        this.emoteController?.lipSyncWeights(weights);
+      let effectiveVolume = volume;
+      let effectiveWeights = weights;
+
+      // speechSynthesis 无音频流 → 模拟口型
+      if (this._simulatedSpeech && effectiveVolume < 0.05) {
+        const t = performance.now() * 0.001;
+        const pulse = Math.abs(Math.sin(t * 5.0)) * 0.6 + Math.abs(Math.sin(t * 3.3)) * 0.3;
+        effectiveVolume = 0.25 + pulse * 0.75;
+        effectiveWeights = {
+          aa: effectiveVolume * (0.5 + 0.5 * Math.sin(t * 2.7)),
+          ee: effectiveVolume * (0.3 + 0.3 * Math.sin(t * 4.1 + 1.0)) * 0.6,
+          ih: effectiveVolume * (0.3 + 0.3 * Math.sin(t * 4.1 + 1.0)),
+          oh: effectiveVolume * (0.4 + 0.4 * Math.sin(t * 3.5 + 2.0)),
+          ou: effectiveVolume * (0.35 + 0.35 * Math.sin(t * 3.5 + 2.0)) * 0.9,
+        };
+      }
+
+      if (effectiveWeights) {
+        this.emoteController?.lipSyncWeights(effectiveWeights);
       } else {
         // 回退：至少用音量驱动 aa
-        this.emoteController?.lipSync("aa", volume);
+        this.emoteController?.lipSync("aa", effectiveVolume);
       }
     }
 

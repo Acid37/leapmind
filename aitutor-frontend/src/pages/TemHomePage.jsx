@@ -1,10 +1,10 @@
 "use client"
 
-import { Star, ChevronRight, MessageCircle, ChevronDown, Sparkles } from "lucide-react"
+import { Star, ChevronRight, MessageCircle, ChevronDown } from "lucide-react"
 import { useState, useRef, useLayoutEffect, useEffect } from "react"
 import { getAllStages, getGradesByStage } from '../services/educationService'
 import { getSections, SEMESTER } from '../services/courseService'
-import { getUserInfo, inferStageCodeFromGrade } from '../utils/tokenManager'
+import { getUserInfo, inferStageCodeFromGrade, saveUserInfo } from '../utils/tokenManager'
 import { getUserProfile } from '../services/authService'
 import { ApiError } from '../services/api'
 
@@ -38,7 +38,6 @@ const scrollbarStyles = `
 export default function LearningApp({
   onOpenProfile,
   onEnterProject,
-  onOpenTeacherAvatar,
   onM2PhotoQa,
   onM2Explain,
   onOpenLearningProfile,
@@ -56,7 +55,7 @@ export default function LearningApp({
   const lastDotRef = useRef(null)
 
   // API 数据状态
-  const [, setStages] = useState([]) // 教育阶段列表
+  const [stages, setStages] = useState([]) // 教育阶段列表
   const [selectedStage, setSelectedStage] = useState(null) // 选中的教育阶段
   const [grades, setGrades] = useState([]) // 年级列表
   const [selectedGrade, setSelectedGrade] = useState(null) // 选中的年级
@@ -503,14 +502,6 @@ export default function LearningApp({
           </nav>
         </div>
         <div className="relative inline-flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => onOpenTeacherAvatar?.()}
-            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-bold text-white shadow-lg backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white/20"
-          >
-            <Sparkles className="h-4 w-4 text-cyan-200" />
-            虚拟教师
-          </button>
           {/* 学期选择器 */}
           <div className="relative">
             <div className="inline-flex items-center rounded-full bg-[#A286FF]/40 p-1 shadow-lg">
@@ -700,21 +691,6 @@ export default function LearningApp({
                         />
                       ))}
                     </div>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        if (section.courseId) {
-                          onOpenTeacherAvatar?.(section.courseId)
-                        } else {
-                          showFeatureToast('课程ID缺失，无法进入虚拟教师课堂')
-                        }
-                      }}
-                      className="mr-3 shrink-0 rounded-full border border-cyan-200/40 bg-cyan-300/20 px-4 py-2 text-sm font-black text-cyan-50 transition hover:bg-cyan-300 hover:text-purple-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-200/60"
-                      aria-label={`使用虚拟教师讲解${section.title}`}
-                    >
-                      AI 教师
-                    </button>
                   </div>
                 </div>
                 ))

@@ -19,13 +19,7 @@ public class PPTSlidesVO {
 
     private String courseId;
 
-    private Integer slideIndex;
-
-    private String slideId;
-
     private String title;
-
-    private String contentType;
 
     private String htmlContent;
 }

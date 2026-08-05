@@ -50,8 +50,8 @@ export class LipSync {
     // 非线性映射以增强动态范围
     let env = 1 / (1 + Math.exp(-35 * combinedVolume + 3));
     if (env < 0.03) env = 0; // 静音门限
-    env = Math.pow(env, 0.8) * 1.2;
-    env = Math.min(env, 1.0);
+    env = Math.pow(env, 0.8) * 2.2;
+    env = Math.min(env, 1.5); // 允许超1.0以放大口型
 
     // Attack/Release 平滑（独立上升/下降常数）
     const attack = 0.35; // 越大上升越快

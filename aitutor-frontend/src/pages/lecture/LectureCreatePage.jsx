@@ -220,7 +220,7 @@ const LectureCreatePage = ({ userId = 1, onStartGeneration, onViewHistory, onExi
   // 是否可以生成
   const canGenerate = inputMode === 'file'
     ? !!parseResult
-    : textContent.trim().length > 10;
+    : textContent.trim().length >= 5;
 
   const handleGenerate = () => {
     if (!canGenerate) return;
@@ -298,13 +298,27 @@ const LectureCreatePage = ({ userId = 1, onStartGeneration, onViewHistory, onExi
               )}
             </div>
           ) : (
-            <textarea
-              value={textContent}
-              onChange={(e) => setTextContent(e.target.value)}
-              placeholder="输入你想讲解的内容，例如：&#10;&#10;勾股定理是初中数学的重要定理。直角三角形两直角边的平方和等于斜边的平方…"
-              rows={1}
-              className="w-full h-24 sm:h-40 p-3 border-2 border-slate-200 rounded-xl text-sm leading-6 resize-none focus:border-purple-400 focus:ring-0 transition-colors placeholder:text-slate-300"
-            />
+            <div>
+              <textarea
+                value={textContent}
+                onChange={(e) => setTextContent(e.target.value)}
+                placeholder="输入你想讲解的内容，例如：&#10;&#10;勾股定理是初中数学的重要定理。直角三角形两直角边的平方和等于斜边的平方…"
+                rows={1}
+                className="w-full h-24 sm:h-40 p-3 border-2 border-slate-200 rounded-xl text-sm leading-6 resize-none focus:border-purple-400 focus:ring-0 transition-colors placeholder:text-slate-300"
+              />
+              <div className="flex justify-between items-center mt-1.5">
+                <p className="text-xs text-slate-400">
+                  {textContent.trim().length === 0 
+                    ? '输入至少 5 个字即可开始生成' 
+                    : textContent.trim().length < 5 
+                      ? `还差 ${5 - textContent.trim().length} 个字即可开始` 
+                      : '已满足要求，点击下方按钮开始生成'}
+                </p>
+                <span className={`text-xs font-medium ${textContent.trim().length >= 5 ? 'text-green-600' : 'text-slate-400'}`}>
+                  {textContent.trim().length} 字
+                </span>
+              </div>
+            </div>
           )}
 
           {/* 讲课风格 */}
@@ -348,7 +362,12 @@ const LectureCreatePage = ({ userId = 1, onStartGeneration, onViewHistory, onExi
             }`}
           >
             <ArrowRight className="w-5 h-5" />
-            {canGenerate ? '开始生成讲课内容' : '请先上传文件或输入文本内容'}
+            {canGenerate
+              ? '开始生成讲课内容'
+              : inputMode === 'file'
+                ? '请先上传文件并等待解析完成'
+                : `请输入至少 5 个字的内容`
+            }
           </button>
         </div>
       </div>

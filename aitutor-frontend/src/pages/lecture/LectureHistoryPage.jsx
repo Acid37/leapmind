@@ -36,7 +36,7 @@ const styleLabels = {
 
 // ─── 主页面 ─────────────────────────────────────────
 
-const LectureHistoryPage = ({ userId = 1, onSelectLecture, onBack }) => {
+const LectureHistoryPage = ({ userId = 1, onSelectLecture, onBack, loading: externalLoading }) => {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,6 +73,7 @@ const LectureHistoryPage = ({ userId = 1, onSelectLecture, onBack }) => {
   };
 
   const handleStart = (item) => {
+    if (externalLoading) return; // 防止重复点击
     onSelectLecture?.(item);
   };
 
@@ -156,10 +157,10 @@ const LectureHistoryPage = ({ userId = 1, onSelectLecture, onBack }) => {
         </div>
 
         {/* 加载 / 错误 */}
-        {loading && (
+        {(loading || externalLoading) && (
           <div className="flex flex-col items-center py-20">
             <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-sm text-slate-400">加载中…</p>
+            <p className="text-sm text-slate-400">{externalLoading ? '正在加载讲课内容…' : '加载中…'}</p>
           </div>
         )}
         {error && !loading && (
@@ -169,7 +170,7 @@ const LectureHistoryPage = ({ userId = 1, onSelectLecture, onBack }) => {
         )}
 
         {/* 卡片网格 */}
-        {!loading && !error && (
+        {!loading && !externalLoading && !error && (
           <>
             {filtered.length === 0 ? (
               <div className="text-center py-20">

@@ -14,8 +14,8 @@ export class ExpressionController {
     this._currentLipSync = null; // 兼容单嘴型输入
     this._currentVisemeWeights = null; // 多嘴型输入 { aa, ih, ou, ee, oh }
     this._prevVisemeWeights = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
-    this._lipRise = 0.5; // 上升平滑系数
-    this._lipFall = 0.25; // 下降平滑系数
+    this._lipRise = 0.7; // 上升平滑系数（加快张口）
+    this._lipFall = 0.3;  // 下降平滑系数
 
     this._emotionTimeout = null; // 添加表情超时管理
 

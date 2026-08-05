@@ -1,0 +1,80 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/leapmind-voice?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  flyway:
+    # 开发环境可启用 clean（仅限本地开发！）
+    clean-disabled: false
+    # 显示详细迁移日志
+    out-of-order: false
+    # SQL迁移文件编码
+    encoding: UTF-8
+
+# MyBatis-Plus配置 - 开发环境特定配置
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 日志配置 - 开发环境启用详细日志
+logging:
+  level:
+    # 应用程序包的详细日志
+    com.treepeople.leapmindtts: DEBUG
+    # WebSocket相关日志
+    org.java_websocket: DEBUG
+    # 文本润色服务日志
+    com.treepeople.leapmindtts.service.TextPolishingService: DEBUG
+    # Spring配置属性日志
+    org.springframework.boot.context.properties: DEBUG
+
+# 开发环境下的文本润色配置
+# 开发环境可以使用不同的配置参数来便于调试和测试
+text-polishing:
+  # 开发环境保持功能启用，便于测试
+  enabled: true
+
+  # 开发环境设置更长的超时时间，便于调试和网络不稳定情况
+  # 增加到15秒以应对AI API的响应延迟
+  timeout: 25
+
+  # 开发环境可以设置更多重试次数，便于测试重试机制
+  max-retries: 3
+
+  # 开发环境可以使用不同的提示词进行测试
+  prompt: |
+    [开发环境] 请将以下文本润色为适合老师讲课的内容，要求：
+    1. 保持原意不变，确保信息准确性
+    2. 语言更加生动、易懂，适合学生理解
+    3. 适合口语化表达，增强互动感
+    4. 增加适当的过渡词和解释，提升连贯性
+    5. 保持专业术语的准确性，必要时添加简单解释
+    6. 【重要】润色后的内容字数不得超过原文字数+200字
+    7. 根据页面类型（如目录、标题页等）调整讲解风格和篇幅
+    8. 只返回润色后的教学内容，不要包含任何说明、引导语、分隔符或额外的话语
+
+    原文：
+
+  # 开发环境的降级配置
+  fallback:
+    enabled: true
+    use-original-on-error: true
+
+  # 开发环境的验证配置 - 可以设置不同的限制用于测试
+  validation:
+    # 开发环境可以设置更大的文本长度限制，便于测试长文本
+    max-text-length: 1000
+    # 开发环境保持较小的最小长度，便于测试边界情况
+    min-text-length: 1

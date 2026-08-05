@@ -6,26 +6,11 @@
  * 并通过顶层 `isDemo: true` 明确标记。
  */
 
-import { get, post } from './api';
+import { get } from './api';
 
 const PROFILE_ENDPOINT = (userId) => `/api/user-profile/${encodeURIComponent(userId)}`;
 const KNOWLEDGE_STATUS_ENDPOINT = (userId) => `${PROFILE_ENDPOINT(userId)}/knowledge-status`;
 const REVIEW_REMINDERS_ENDPOINT = (userId) => `${PROFILE_ENDPOINT(userId)}/review-reminders`;
-const MARK_REVIEWED_ENDPOINT = (userId) => `${PROFILE_ENDPOINT(userId)}/mark-reviewed`;
-const LEARNING_EVENTS_ENDPOINT = (userId) => `${PROFILE_ENDPOINT(userId)}/record-event`;
-
-export const LEARNING_EVENT_TYPES = Object.freeze({
-  ANSWER_QUESTION: 'answer_question',
-  FINISH_PRACTICE: 'finish_practice',
-  REQUEST_EXPLANATION: 'request_explanation',
-  EXPLANATION_FEEDBACK: 'explanation_feedback',
-  WEAK_POINT_CHANGED: 'weak_point_changed',
-  LECTURE_INTERACT: 'lecture_interact',
-  LESSON_MATERIAL_USED: 'lesson_material_used',
-  ASK_DOUBT: 'ask_doubt',
-  MARK_REVIEWED: 'mark_reviewed',
-  PREFERENCE_CHANGED: 'preference_changed',
-});
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -54,11 +39,6 @@ function numberValue(value, fallback = 0) {
 
 function percentage(value, fallback = 0) {
   return Math.min(100, Math.max(0, numberValue(value, fallback)));
-}
-
-function masteryPercentage(value, fallback = 0) {
-  const normalized = numberValue(value, fallback);
-  return percentage(normalized >= 0 && normalized <= 1 ? normalized * 100 : normalized, fallback);
 }
 
 /**
@@ -370,10 +350,10 @@ function normalizeDimensions(source, fallback) {
 }
 
 function normalizeKnowledgeNode(item, index, fallbackSubject = '') {
-  const mastery = masteryPercentage(pick(item, ['mastery', 'masteryScore', 'masteryRate', 'score', 'progress', 'value'], 0));
+  const mastery = percentage(pick(item, ['mastery', 'masteryRate', 'score', 'progress', 'value'], 0));
   const children = collectionFrom(item, ['children', 'knowledgePoints', 'nodes', 'items']);
-  const id = pick(item, ['id', 'kpId', 'knowledgePointId', 'pointId', 'knowledgeId', 'code'], `knowledge-${index + 1}`);
-  const name = pick(item, ['name', 'knowledgePointName', 'pointName', 'title'], `\u77e5\u8bc6\u70b9 ${id}`);
+  const id = pick(item, ['id', 'knowledgePointId', 'pointId', 'knowledgeId', 'code'], `knowledge-${index + 1}`);
+  const name = pick(item, ['name', 'knowledgePointName', 'pointName', 'title'], '\u672a\u547d\u540d\u77e5\u8bc6\u70b9');
   const subject = pick(item, ['subject', 'subjectName', 'courseName', 'category'], fallbackSubject);
 
   return {
@@ -390,7 +370,7 @@ function normalizeKnowledgeNode(item, index, fallbackSubject = '') {
 }
 
 function normalizeKnowledgeTree(source, fallback) {
-  const raw = collectionFrom(source, ['knowledgeTree', 'knowledge', 'knowledgeStatus', 'knowledgeStatuses', 'knowledgePoints', 'statuses', 'records', 'list', 'items']);
+  const raw = collectionFrom(source, ['knowledgeTree', 'knowledgeStatus', 'knowledgeStatuses', 'knowledgePoints', 'statuses', 'records', 'list', 'items']);
   if (!raw.length) return clone(fallback);
 
   const nodes = raw.map((item, index) => normalizeKnowledgeNode(item, index));
@@ -479,19 +459,14 @@ function normalizeReminders(source, fallback) {
 }
 
 function normalizePreferences(source, fallback) {
-  const preferences = pick(source, ['preferences', 'learningPreferences', 'settings'], source);
-  const contentModes = collectionFrom(preferences, ['preferredContentModes']);
+  const preferences = pick(source, ['preferences', 'learningPreferences', 'settings'], {});
   return {
     weeklyGoalMinutes: numberValue(pick(preferences, ['weeklyGoalMinutes', 'weekGoalMinutes'], fallback.weeklyGoalMinutes), fallback.weeklyGoalMinutes),
     preferredStudyTime: pick(preferences, ['preferredStudyTime', 'studyTime', 'preferredTime'], fallback.preferredStudyTime),
     preferredSessionMinutes: numberValue(pick(preferences, ['preferredSessionMinutes', 'sessionMinutes'], fallback.preferredSessionMinutes), fallback.preferredSessionMinutes),
     reminderEnabled: Boolean(pick(preferences, ['reminderEnabled', 'enableReminder'], fallback.reminderEnabled)),
-    difficulty: pick(preferences, ['difficulty', 'difficultyPreference', 'learningPace'], fallback.difficulty),
-    learningStyle: pick(
-      preferences,
-      ['learningStyle', 'preferredLearningStyle', 'preferredExplanationStyle'],
-      contentModes.length ? contentModes.join(' + ') : fallback.learningStyle,
-    ),
+    difficulty: pick(preferences, ['difficulty', 'difficultyPreference'], fallback.difficulty),
+    learningStyle: pick(preferences, ['learningStyle', 'preferredLearningStyle'], fallback.learningStyle),
   };
 }
 
@@ -526,19 +501,20 @@ export async function getLearningProfile(userId) {
 
   if (!userId) return demo;
 
-  const [profileResult, reminderResult] = await Promise.allSettled([
+  const [profileResult, knowledgeResult, reminderResult] = await Promise.allSettled([
     get(PROFILE_ENDPOINT(normalizedUserId)),
+    get(KNOWLEDGE_STATUS_ENDPOINT(normalizedUserId)),
     get(REVIEW_REMINDERS_ENDPOINT(normalizedUserId)),
   ]);
 
   const profileSource = resultPayload(profileResult);
+  const knowledgeSource = resultPayload(knowledgeResult);
   const reminderSource = resultPayload(reminderResult);
-  const profileReady = ['READY', 'STALE'].includes(String(profileSource?.profileStatus || '').toUpperCase());
   const isDemo = !requestSucceeded(profileResult)
-    || !profileReady
+    || !requestSucceeded(knowledgeResult)
     || !requestSucceeded(reminderResult);
 
-  if (!profileSource && !reminderSource) return demo;
+  if (!profileSource && !knowledgeSource && !reminderSource) return demo;
 
   const summary = normalizeSummary(profileSource || {}, demo.summary);
   return {
@@ -548,7 +524,7 @@ export async function getLearningProfile(userId) {
     summary,
     stats: normalizeStats(profileSource || {}, summary, demo.stats),
     dimensions: normalizeDimensions(profileSource || {}, demo.dimensions),
-    knowledgeTree: normalizeKnowledgeTree(profileSource || {}, demo.knowledgeTree),
+    knowledgeTree: normalizeKnowledgeTree(knowledgeSource || profileSource || {}, demo.knowledgeTree),
     timeline: normalizeTimeline(profileSource || {}, demo.timeline),
     reminders: normalizeReminders(reminderSource || profileSource || {}, demo.reminders),
     preferences: normalizePreferences(profileSource || {}, demo.preferences),
@@ -562,35 +538,18 @@ function findKnowledgePoint(source, knowledgePointId) {
     ? pick(source, ['detail', 'knowledgePoint', 'knowledgeStatus'], source)
     : null;
   if (isObject(possibleDetail)) {
-    const directId = pick(possibleDetail, ['id', 'kpId', 'knowledgePointId', 'pointId', 'knowledgeId'], null);
+    const directId = pick(possibleDetail, ['id', 'knowledgePointId', 'pointId', 'knowledgeId'], null);
     if (directId === null || String(directId) === String(knowledgePointId)) return possibleDetail;
   }
 
-  const collection = collectionFrom(source, ['knowledge', 'knowledgeStatus', 'knowledgeStatuses', 'knowledgePoints', 'records', 'list', 'items']);
+  const collection = collectionFrom(source, ['knowledgeStatus', 'knowledgeStatuses', 'knowledgePoints', 'records', 'list', 'items']);
   return collection.find((item) => String(
-    pick(item, ['id', 'kpId', 'knowledgePointId', 'pointId', 'knowledgeId'], '')
+    pick(item, ['id', 'knowledgePointId', 'pointId', 'knowledgeId'], '')
   ) === String(knowledgePointId)) || null;
 }
 
 function normalizeTrend(source, fallback) {
   const rawTrend = pick(source, ['trend', 'masteryTrend', 'change', 'masteryChange'], fallback.value);
-  if (typeof rawTrend === 'string') {
-    const directionMap = {
-      IMPROVING: 'up',
-      STABLE: 'stable',
-      DECLINING: 'down',
-    };
-    const direction = directionMap[rawTrend.toUpperCase()] || fallback.direction;
-    return {
-      direction,
-      value: fallback.value,
-      label: direction === 'up'
-        ? '\u638c\u63e1\u5ea6\u6b63\u5728\u63d0\u5347'
-        : direction === 'down'
-          ? '\u638c\u63e1\u5ea6\u6709\u6240\u4e0b\u964d'
-          : '\u638c\u63e1\u5ea6\u4fdd\u6301\u7a33\u5b9a',
-    };
-  }
   if (isObject(rawTrend)) {
     const value = Math.abs(numberValue(pick(rawTrend, ['value', 'change', 'rate'], fallback.value)));
     const direction = pick(rawTrend, ['direction', 'type'], fallback.direction);
@@ -703,7 +662,7 @@ export async function getKnowledgePointDetail(userId, knowledgePointId) {
 
   const [knowledgeResult, reminderResult] = await Promise.allSettled([
     get(KNOWLEDGE_STATUS_ENDPOINT(normalizedUserId), {
-      kpId: normalizedPointId,
+      knowledgePointId: normalizedPointId,
     }),
     get(REVIEW_REMINDERS_ENDPOINT(normalizedUserId), {
       knowledgePointId: normalizedPointId,
@@ -717,11 +676,11 @@ export async function getKnowledgePointDetail(userId, knowledgePointId) {
 
   if (!pointSource) return demo;
 
-  const mastery = masteryPercentage(pick(pointSource, ['mastery', 'masteryScore', 'masteryRate', 'score', 'progress'], demo.mastery), demo.mastery);
+  const mastery = percentage(pick(pointSource, ['mastery', 'masteryRate', 'score', 'progress'], demo.mastery), demo.mastery);
   return {
     isDemo,
     demoReason: isDemo ? demo.demoReason : null,
-    id: String(pick(pointSource, ['id', 'kpId', 'knowledgePointId', 'pointId', 'knowledgeId'], normalizedPointId)),
+    id: String(pick(pointSource, ['id', 'knowledgePointId', 'pointId', 'knowledgeId'], normalizedPointId)),
     name: pick(pointSource, ['name', 'knowledgePointName', 'pointName', 'title'], demo.name),
     subject: pick(pointSource, ['subject', 'subjectName', 'courseName'], demo.subject),
     mastery,
@@ -736,104 +695,7 @@ export async function getKnowledgePointDetail(userId, knowledgePointId) {
   };
 }
 
-function createEventId() {
-  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
-  return `learning-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function identifier(value, fallback) {
-  const normalized = String(value || fallback || '')
-    .replace(/[^A-Za-z0-9._:-]/g, '-')
-    .slice(0, 64);
-  return normalized || fallback;
-}
-
-/**
- * 向 M6 写入一条符合 backend-M6 1.0 契约的学习行为。
- */
-export async function saveLearningEvent(userId, event) {
-  const numericUserId = Number(userId);
-  if (!Number.isInteger(numericUserId) || numericUserId < 1) {
-    throw new Error('记录学习行为需要 userId');
-  }
-  if (!event?.eventType || !Object.values(LEARNING_EVENT_TYPES).includes(event.eventType)) {
-    throw new Error('eventType 不合法');
-  }
-
-  const payload = {
-    eventId: event.eventId || createEventId(),
-    userId: numericUserId,
-    eventType: event.eventType,
-    sourceModule: event.sourceModule,
-    occurredAt: event.occurredAt || new Date().toISOString(),
-    schemaVersion: '1.0',
-    data: isObject(event.data) ? event.data : {},
-  };
-  const kpId = Number(event.kpId ?? event.knowledgePointId);
-  if (Number.isInteger(kpId) && kpId > 0) payload.kpId = kpId;
-  if (event.sessionId) payload.sessionId = identifier(event.sessionId, 'session');
-  if (event.traceId) payload.traceId = identifier(event.traceId, 'trace');
-
-  const response = await post(LEARNING_EVENTS_ENDPOINT(String(userId)), payload);
-  return unwrapResponse(response);
-}
-
-export async function markReviewReminder(userId, reminderId, notes = '') {
-  const numericUserId = Number(userId);
-  const numericReminderId = Number(reminderId);
-  if (!Number.isInteger(numericUserId) || numericUserId < 1) {
-    throw new Error('标记复习需要登录用户 ID');
-  }
-  if (!Number.isInteger(numericReminderId) || numericReminderId < 1) {
-    throw new Error('复习提醒 ID 不合法');
-  }
-
-  const response = await post(MARK_REVIEWED_ENDPOINT(numericUserId), {
-    reminderId: numericReminderId,
-    notes: String(notes || '').slice(0, 500),
-  });
-  return unwrapResponse(response);
-}
-
-/**
- * 非阻塞记录课堂提问。M8 是形象层，事件按正式契约归属 M4。
- */
-export async function recordQuestionContext({
-  userId,
-  courseId,
-  knowledgePointId,
-  sessionId,
-  chapterId,
-}) {
-  if (userId === undefined || userId === null || userId === '') {
-    return { synced: false, reason: 'missing-user-id' };
-  }
-
-  try {
-    const result = await saveLearningEvent(userId, {
-      eventType: LEARNING_EVENT_TYPES.LECTURE_INTERACT,
-      sourceModule: 'M4',
-      knowledgePointId,
-      sessionId,
-      data: {
-        lectureId: identifier(courseId, 'lecture'),
-        chapterId: identifier(chapterId || knowledgePointId || 'general', 'general'),
-        action: 'ask',
-      },
-    });
-    return { synced: true, data: result };
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn('[M6] 提问上下文暂未写入:', error);
-    }
-    return { synced: false, reason: error?.message || 'request-failed' };
-  }
-}
-
 export default {
   getLearningProfile,
   getKnowledgePointDetail,
-  markReviewReminder,
-  saveLearningEvent,
-  recordQuestionContext,
 };

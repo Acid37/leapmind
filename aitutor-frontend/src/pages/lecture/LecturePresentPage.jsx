@@ -14,12 +14,13 @@
  *  - "做配套练习"按钮（跳转 M1 做题）
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Header from '../../components/common/Header';
 import SlideViewer from '../../components/lecture/SlideViewer';
 import TeacherPanel from '../../components/teacher/TeacherPanel';
-import ChatPanelPlaceholder from '../../components/lecture/ChatPanelPlaceholder';
+import { ChatPanel } from '../../components/chat';
 import { Flag, BookOpen, MessageCircle, Monitor, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { state } from '../../features/chat/pptState';
 
 const TABS = [
   { key: 'slides', label: '幻灯片', icon: Monitor },
@@ -179,6 +180,12 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
   const [showEndPanel, setShowEndPanel] = useState(false);
   const [mobileTab, setMobileTab] = useState('slides');
 
+  // 同步课程 ID 到全局状态，让虚拟老师知道当前讲课上下文
+  useEffect(() => {
+    state.currentCourseId = courseId || String(lectureId || '');
+    state.currentPageNumber = currentSlide;
+  }, [lectureId, courseId, currentSlide]);
+
   // 幻灯片切换回调（由 SlideViewer 内部翻页时触发）
   const handleSlideChange = useCallback((pageNum) => {
     setCurrentSlide(pageNum);
@@ -234,9 +241,9 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
 
   return (
     <div className="w-full h-screen flex flex-col lg:flex-row bg-gradient-to-br from-purple-700 via-purple-600 via-blue-600 to-blue-700" style={bgGradient}>
-      {/* ═══════════════ 桌面端：左右两栏布局 ═══════════════ */}
-      {/* 左侧：幻灯片区 (75%) - PPT 全图 + 缩略图条 */}
-      <div className="hidden lg:flex lg:w-[75%] flex-col overflow-hidden">
+      {/* ═══════════════ 桌面端：两栏布局（幻灯片 80% | 虚拟老师 20%） ═══════════════ */}
+      {/* 左侧：幻灯片区 (80%) - PPT 全图 + 缩略图条 */}
+      <div className="hidden lg:flex lg:w-[80%] flex-col overflow-hidden">
         <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
           <Header lessonSubtitle={title} dark={true} onBack={onBack} />
         </div>
@@ -249,16 +256,16 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
         )}
       </div>
 
-      {/* 右侧：追问对话面板 (25%) - 含输入框 */}
-      <div className="hidden lg:flex lg:w-[25%] flex-col p-3 gap-3">
-        <div className="flex-1 min-h-0">
-          <ChatPanelPlaceholder sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} />
+      {/* 右侧：虚拟老师形象 (20%) */}
+      <div className="hidden lg:flex lg:w-[20%] flex-col border-l border-white/10 overflow-hidden">
+        <div className="flex-1 overflow-hidden">
+          <TeacherPanel dark={true} lectureId={lectureId || courseId} slides={mockSlides} currentSlide={currentSlide} onSlideChange={handleSlideChange} />
         </div>
         <button
           onClick={handleEndLecture}
-          className="flex-shrink-0 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-red-500/90 hover:bg-red-500 text-white text-sm font-medium shadow-lg transition-colors"
+          className="flex-shrink-0 w-full flex items-center justify-center gap-2 py-2 bg-red-500/20 hover:bg-red-500/50 text-white/50 hover:text-white text-xs font-medium transition-colors"
         >
-          <Flag className="w-4 h-4" />结束讲课
+          <Flag className="w-3 h-3" />结束讲课
         </button>
       </div>
 
@@ -298,7 +305,7 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
           </div>
         </div>
         <div className="flex-1 p-3 overflow-hidden">
-          <ChatPanelPlaceholder sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} />
+          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} visible={true} />
         </div>
       </div>
 

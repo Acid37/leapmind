@@ -21,11 +21,14 @@ import LectureCreatePage from './LectureCreatePage';
 import LectureWaitingPage from './LectureWaitingPage';
 import LecturePresentPage from './LecturePresentPage';
 import LectureHistoryPage from './LectureHistoryPage';
+import { getLectureDetail } from '../../services/lectureService';
+import { mockPPTStructure } from '../../data/mockLecture';
 
 export default function M4LectureContainer({ onExit }) {
   const [route, setRoute] = useState('create'); // create | waiting | present | history
   const [params, setParams] = useState(null);
   const [result, setResult] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const handleStartGeneration = useCallback((p) => {
     setParams(p);
@@ -82,9 +85,32 @@ export default function M4LectureContainer({ onExit }) {
     return (
       <LectureHistoryPage
         userId={1}
-        onSelectLecture={(item) => {
-          setResult({ lectureId: item.lectureId, title: item.title, slides: item.slides || item.previewSlides });
-          setRoute('present');
+        loading={loadingHistory}
+        onSelectLecture={async (item) => {
+          // 历史记录条目可能没有完整的 slides 数据，需要异步加载详情
+          setLoadingHistory(true);
+          try {
+            const detail = await getLectureDetail(item.lectureId);
+            const slides = detail?.pptStructure?.slides || mockPPTStructure.slides;
+            setResult({
+              lectureId: item.lectureId,
+              title: item.title,
+              slides: slides,
+              totalPages: slides.length,
+            });
+            setRoute('present');
+          } catch {
+            // 降级：使用 mock幻灯片数据
+            setResult({
+              lectureId: item.lectureId,
+              title: item.title,
+              slides: mockPPTStructure.slides,
+              totalPages: mockPPTStructure.slides.length,
+            });
+            setRoute('present');
+          } finally {
+            setLoadingHistory(false);
+          }
         }}
         onBack={handleBackFromLecture}
       />

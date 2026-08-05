@@ -20,15 +20,15 @@ export class IdleAnimationManager {
   currentAnimationIndex = 0;
   naturalIdleAction = null; // 自然待机动作
 
-  // 动作文件列表
+  // 动作文件列表（已禁用舞台动作，只保留自然待机呼吸动画）
   ANIMATION_FILES = [
-    "movement/VRMA_01.vrma",
-    "movement/VRMA_02.vrma",
-    "movement/VRMA_03.vrma",
-    "movement/VRMA_04.vrma",
-    "movement/VRMA_05.vrma",
-    "movement/VRMA_06.vrma",
-    "movement/VRMA_07.vrma",
+    // "movement/VRMA_01.vrma",  // 已禁用：这些是女团舞台动作，不适合讲课
+    // "movement/VRMA_02.vrma",
+    // "movement/VRMA_03.vrma",
+    // "movement/VRMA_04.vrma",
+    // "movement/VRMA_05.vrma",
+    // "movement/VRMA_06.vrma",
+    // "movement/VRMA_07.vrma",
   ];
 
   constructor(model) {

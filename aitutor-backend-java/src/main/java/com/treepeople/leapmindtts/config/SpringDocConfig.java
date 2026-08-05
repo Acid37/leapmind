@@ -88,10 +88,4 @@ public class SpringDocConfig {
                 .pathsToMatch("/api/admin/**", "/admin/**", "/api/admin/review/**")
                 .build();
     }
-
-    @Bean
-    public GroupedOpenApi m6ProfileApi() {
-        return GroupedOpenApi.builder().group("m6-user-profile").displayName("M6 用户画像")
-                .pathsToMatch("/api/user-profile/**").build();
-    }
 }

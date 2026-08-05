@@ -24,7 +24,6 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsConfig corsConfig;
-    private final com.treepeople.leapmindtts.service.profile.security.M6SecurityErrorHandler m6SecurityErrorHandler;
 
     /**
      * 密码编码器Bean
@@ -65,17 +64,12 @@ public class SecurityConfig {
                         // 允许访问 API 文档
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/doc.html", "/webjars/**").permitAll()
                         // 允许访问静态资源
-                        .requestMatchers("/static/**", "/docs/**", "/*.html", "/*.js", "/*.css", "/admin/**", "/css/**", "/js/**", "/image/**").permitAll()
+                        .requestMatchers("/static/**", "/*.html", "/*.js", "/*.css", "/admin/**", "/css/**", "/js/**", "/image/**").permitAll()
                         // 允许访问短信测试接口
                         .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/admin/**").permitAll()
                         // 允许访问管理后台审核接口
                         .requestMatchers("/admin/review/**").permitAll()
-                        // 允许访问流式对话和打断接口
-                        .requestMatchers("/api/conversation/**").permitAll()
-                        // TTS 音频需要允许浏览器直接播放，其余虚拟教师接口需要登录
-                        .requestMatchers(HttpMethod.GET, "/api/virtual-teacher/audio/**").permitAll()
-                        .requestMatchers("/api/virtual-teacher/**").authenticated()
                         // 语音合成和音频相关接口需要认证
                         .requestMatchers("/api/speech/**").authenticated()
                         // 语音对话接口需要认证
@@ -86,11 +80,6 @@ public class SecurityConfig {
                         // 其他请求需要认证
                         .anyRequest().authenticated()
                 )
-                .exceptionHandling(exceptions -> exceptions
-                        .defaultAuthenticationEntryPointFor(m6SecurityErrorHandler,
-                                new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/api/user-profile/**"))
-                        .defaultAccessDeniedHandlerFor(m6SecurityErrorHandler,
-                                new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/api/user-profile/**")))
                 // 添加JWT认证过滤器
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';  
 import GlobalStyles from './styles/GlobalStyles.jsx';
 import LoginPage from './pages/LoginPage';
 import LoginPage2 from './pages/LoginPage2.jsx';
@@ -17,9 +17,7 @@ import M4LectureContainer from './pages/lecture/M4LectureContainer';
 // M1 做题页
 import PracticePage from './pages/PracticePage.jsx';
 import { hasValidToken } from './utils/tokenManager';
-import { checkAuth } from './services/authService';
-
-const TeacherAvatarPage = lazy(() => import('./pages/TeacherAvatarPage.jsx'));
+import { checkAuth, logout } from './services/authService';
 
 export default function App() {
     const [isChecking, setIsChecking] = useState(true);
@@ -27,8 +25,6 @@ export default function App() {
     const [currentCourseId, setCurrentCourseId] = useState('');
     const [guestRoute, setGuestRoute] = useState('home'); // home | profile
     const [showProfile, setShowProfile] = useState(false);
-    const [showTeacherAvatar, setShowTeacherAvatar] = useState(false);
-    const [teacherCourseId, setTeacherCourseId] = useState('');
     const [m2Page, setM2Page] = useState(null); // null | 'photo-qa' | 'explain' | 'explain-history'
     const [m2Params, setM2Params] = useState({}); // 传递给 M2 页面的参数
     const [learningProfileView, setLearningProfileView] = useState(null); // null | overview | detail
@@ -59,6 +55,13 @@ export default function App() {
         };
         checkSession();
     }, []);
+
+    const handleLogout = () => {
+        logout();
+        setCurrentCourseId('');
+        setIsAuthed(false);
+        window.location.reload();
+    };
 
     const handleLoginSuccess = (user) => {
         console.log('登录成功，用户信息:', user);
@@ -135,16 +138,6 @@ export default function App() {
                     onBack={() => setLearningProfileView(null)}
                     onOpenKnowledgePoint={handleOpenKnowledgePoint}
                 />
-            ) : showTeacherAvatar ? (
-                <Suspense fallback={<div className="m-auto text-slate-600">正在加载虚拟教师课堂…</div>}>
-                    <TeacherAvatarPage
-                        courseId={teacherCourseId}
-                        onBack={() => {
-                            setShowTeacherAvatar(false);
-                            setTeacherCourseId('');
-                        }}
-                    />
-                </Suspense>
             ) : (
                 showProfile ? (
                     <ProfilePage onBack={() => setShowProfile(false)} />
@@ -155,10 +148,6 @@ export default function App() {
                         onOpenProfile={handleOpenProfile}
                         onM2PhotoQa={() => setM2Page('photo-qa')}
                         onM2Explain={() => { setM2Params({}); setM2Page('explain'); }}
-                        onOpenTeacherAvatar={(courseId = '') => {
-                            setTeacherCourseId(courseId);
-                            setShowTeacherAvatar(true);
-                        }}
                         onOpenLearningProfile={handleOpenLearningProfile}
                         onM1Practice={handleLaunchM1}
                     />

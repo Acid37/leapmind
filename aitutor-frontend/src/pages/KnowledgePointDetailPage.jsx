@@ -100,7 +100,7 @@ export default function KnowledgePointDetailPage({ knowledgePointId, onBack, onH
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const userInfo = useMemo(() => getUserInfo() || {}, [])
-  const userId = userInfo.id ?? userInfo.userId ?? null
+  const userId = userInfo.id ?? userInfo.userId ?? 'me'
 
   const loadDetail = useCallback(async () => {
     setLoading(true)

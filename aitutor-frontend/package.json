@@ -28,7 +28,7 @@
     "@eslint/js": "^9.32.0",
     "@jest/globals": "^30.2.0",
     "@tailwindcss/postcss": "^4.1.11",
-    "@tailwindcss/vite": "^4.1.11",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^4.7.0",
@@ -41,5 +41,10 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.11",
     "vite": "^7.1.0"
+  },
+  "allowScripts": {
+    "esbuild@0.25.8": true,
+    "unrs-resolver@1.11.1": true,
+    "@tailwindcss/oxide@4.1.11": true
   }
 }
