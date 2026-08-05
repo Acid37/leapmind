@@ -382,6 +382,16 @@ export default function SlideRenderer({
   const [showInteraction, setShowInteraction] = useState(false);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  const animTimerRef = useRef(null);
+  const autoAdvanceTimerRef = useRef(null);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(animTimerRef.current);
+      clearTimeout(autoAdvanceTimerRef.current);
+    };
+  }, []);
 
   // Sync with initialPage prop
   useEffect(() => {
@@ -394,7 +404,7 @@ export default function SlideRenderer({
     setAnimating(true);
     setCurrent(index);
     onPageChange?.(index + 1);
-    setTimeout(() => setAnimating(false), 300);
+    animTimerRef.current = setTimeout(() => setAnimating(false), 300);
   }, [animating, current, slides.length, onPageChange]);
 
   const goNext = useCallback(() => goTo(current + 1), [goTo, current]);
@@ -431,7 +441,7 @@ export default function SlideRenderer({
     onInteractionSubmit?.(current + 1, answer);
     setShowInteraction(false);
     // Auto-advance after answering
-    setTimeout(() => goNext(), 500);
+    autoAdvanceTimerRef.current = setTimeout(() => goNext(), 500);
   };
 
   const slide = slides[current];

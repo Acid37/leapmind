@@ -78,8 +78,8 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
     loadFilterSource();
   }, [loadFilterSource]);
 
-  const handleToggleFocus = async (id) => {
-    await toggleFocus(id);
+  const handleToggleFocus = async (id, focused) => {
+    await toggleFocus(id, focused);
     setQuestions((prev) =>
       prev.map((q) => (q.id === id ? { ...q, isKeyFocus: !q.isKeyFocus } : q))
     );
@@ -318,7 +318,7 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
                 {/* 操作按钮 */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   <button
-                    onClick={() => handleToggleFocus(q.id)}
+                    onClick={() => handleToggleFocus(q.id, !q.isKeyFocus)}
                     className={`p-2 rounded-lg cursor-pointer transition-colors
                       ${q.isKeyFocus ? "text-amber-500 bg-amber-50" : "text-slate-400 hover:text-amber-500 hover:bg-amber-50"}`}
                     title="标记重点"

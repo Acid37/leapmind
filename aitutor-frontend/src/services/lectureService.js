@@ -157,13 +157,6 @@ export async function parseLectureFile(file, userId) {
  */
 export async function generateLecture(params, onEvent) {
   if (USE_MOCK) {
-    // 模拟 SSE 事件流
-    for (const event of mockGenerationEvents) {
-      await new Promise(r => setTimeout(r, event.delay - (mockGenerationEvents[0].delay || 0) > 0
-        ? 800 : event.delay)); // 压缩到约 800ms/事件
-      // 重构播放延迟
-    }
-
     // 逐个发送事件
     let lastDelay = 0;
     for (const event of mockGenerationEvents) {

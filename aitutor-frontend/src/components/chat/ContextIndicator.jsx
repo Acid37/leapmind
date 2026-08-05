@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * 场景标签映射

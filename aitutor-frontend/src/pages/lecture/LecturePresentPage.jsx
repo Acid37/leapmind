@@ -76,36 +76,6 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
     backgroundImage: "linear-gradient(135deg, #861FCE 0%, #861FCE 16%, #731CCD 16%, #731CCD 32%, #6B1CCF 32%, #6B1CCF 48%, #631DCE 48%, #631DCE 64%, #5A1BCE 64%, #5A1BCE 80%, rgb(86,43,205) 80%, rgb(47,8,154) 100%)",
   };
 
-  // ─── 结束面板（共用） ──────────────────────────
-  const EndPanel = () => (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full text-center">
-        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-          <span className="text-2xl sm:text-3xl">🎉</span>
-        </div>
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">讲课结束！</h2>
-        <p className="text-sm sm:text-base text-slate-500 mb-5 sm:mb-6">
-          你已完成「{title}」的学习，来检验一下掌握情况吧。
-        </p>
-        <div className="space-y-2.5 sm:space-y-3">
-          <button
-            onClick={handleGoPractice}
-            className="w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors text-sm sm:text-base"
-          >
-            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
-            做配套练习
-          </button>
-          <button
-            onClick={() => setShowEndPanel(false)}
-            className="w-full py-2 sm:py-2.5 text-slate-500 text-sm hover:text-slate-700 transition-colors"
-          >
-            继续讲课
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="w-full h-screen flex flex-col lg:flex-row bg-gradient-to-br from-purple-700 via-purple-600 via-blue-600 to-blue-700" style={bgGradient}>
       {/* ═══════════════ 桌面端：左右两栏布局 ═══════════════ */}
@@ -225,9 +195,41 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
       </div>
 
       {/* 讲课结束面板 */}
-      {showEndPanel && <EndPanel />}
+      {showEndPanel && <EndPanel title={title} onPractice={handleGoPractice} onContinue={() => setShowEndPanel(false)} />}
     </div>
   );
 };
+
+// ─── 结束面板（提取为模块级组件，避免每次渲染重建） ──
+function EndPanel({ title, onPractice, onContinue }) {
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full text-center">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+          <span className="text-2xl sm:text-3xl">🎉</span>
+        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">讲课结束！</h2>
+        <p className="text-sm sm:text-base text-slate-500 mb-5 sm:mb-6">
+          你已完成「{title}」的学习，来检验一下掌握情况吧。
+        </p>
+        <div className="space-y-2.5 sm:space-y-3">
+          <button
+            onClick={onPractice}
+            className="w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors text-sm sm:text-base"
+          >
+            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
+            做配套练习
+          </button>
+          <button
+            onClick={onContinue}
+            className="w-full py-2 sm:py-2.5 text-slate-500 text-sm hover:text-slate-700 transition-colors"
+          >
+            继续讲课
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default LecturePresentPage;

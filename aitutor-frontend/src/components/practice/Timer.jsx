@@ -9,7 +9,10 @@ export default function Timer({ isRunning, onTick, resetKey }) {
   const [seconds, setSeconds] = useState(0);
   const intervalRef = useRef(null);
   const onTickRef = useRef(onTick);
-  onTickRef.current = onTick; // 始终保持最新回调
+
+  useEffect(() => {
+    onTickRef.current = onTick;
+  });
 
   useEffect(() => {
     setSeconds(0);

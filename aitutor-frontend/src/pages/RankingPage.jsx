@@ -4,7 +4,7 @@
  * Tab 切换：日榜 / 周榜 / 月榜
  * Top 3 特殊样式，当前用户高亮
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Trophy, Medal, Crown, TrendingUp, User } from "lucide-react";
 import { getRanking } from "../services/practiceService";
 import { getUserInfo } from "../utils/tokenManager";
@@ -14,22 +14,27 @@ export default function RankingPage() {
   const [type, setType] = useState("daily");
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    loadRanking();
-  }, [type]);
+    return () => { mountedRef.current = false; };
+  }, []);
 
-  const loadRanking = async () => {
+  const loadRanking = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getRanking(type);
-      setRanking(data);
+      if (mountedRef.current) setRanking(data);
     } catch (err) {
       console.error("加载排行榜失败:", err);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
-  };
+  }, [type]);
+
+  useEffect(() => {
+    loadRanking();
+  }, [loadRanking]);
 
   const tabs = [
     { value: "daily", label: "日榜" },
