@@ -1,0 +1,158 @@
+openapi: 3.0.3
+info:
+  title: LeapMind M6 User Profile API
+  version: '1.0'
+  description: Self-only M6 profile context API. contractVersion 1.0 freezes the ten event payload schemas.
+security: [{bearerAuth: []}]
+paths:
+  /api/user-profile/{userId}/record-event:
+    post:
+      summary: Record exactly one immutable M6 learning event
+      parameters: [{$ref: '#/components/parameters/UserId'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LearningEvent'}}}}
+      responses: {'200': {$ref: '#/components/responses/EventAcknowledged'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '409': {$ref: '#/components/responses/Conflict'}, '415': {$ref: '#/components/responses/UnsupportedMediaType'}, '503': {$ref: '#/components/responses/Degraded'}}
+  /api/user-profile/{userId}/batch-events:
+    post:
+      summary: Record 1 to 100 events, preserving input order and reporting item failures
+      parameters: [{$ref: '#/components/parameters/UserId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: false, required: [events], properties: {events: {type: array, minItems: 1, maxItems: 100, items: {$ref: '#/components/schemas/LearningEvent'}}}}}}
+      responses: {'200': {$ref: '#/components/responses/BatchAcknowledged'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '415': {$ref: '#/components/responses/UnsupportedMediaType'}, '503': {$ref: '#/components/responses/Degraded'}}
+  /api/user-profile/{userId}:
+    get:
+      summary: Get own full profile; returns NOT_READY until a READY profile is committed
+      parameters: [{$ref: '#/components/parameters/UserId'}]
+      responses: {'200': {$ref: '#/components/responses/ProfileRead'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '503': {$ref: '#/components/responses/Degraded'}}
+  /api/user-profile/{userId}/summary:
+    get:
+      summary: Get minimum scene-specific summary; explaining and photo_qa require kpId, while lecturing and conversation accept it optionally; lesson_prep is always denied
+      parameters: [{$ref: '#/components/parameters/UserId'}, {name: sceneType, in: query, required: true, description: 'photo_qa is a deprecated alias normalized to explaining and returns RFC 9745 Deprecation header.', schema: {enum: [explaining, lecturing, conversation, lesson_prep, photo_qa]}}, {name: kpId, in: query, schema: {type: integer, format: int64, minimum: 1}}]
+      responses: {'200': {$ref: '#/components/responses/SummaryRead'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '503': {$ref: '#/components/responses/Degraded'}}
+  /api/user-profile/{userId}/knowledge-status:
+    get:
+      summary: Get knowledge status in query kpId order; unknown points are EMPTY
+      parameters: [{$ref: '#/components/parameters/UserId'}, {name: kpId, in: query, required: true, schema: {type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: {type: integer, format: int64, minimum: 1}}}]
+      responses: {'200': {$ref: '#/components/responses/KnowledgeStatusRead'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '503': {$ref: '#/components/responses/Degraded'}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    UserId: {name: userId, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+  schemas:
+    ErrorData:
+      type: object
+      additionalProperties: false
+      required: [requestId, errorCode, details]
+      properties:
+        requestId: {type: string, maxLength: 128}
+        errorCode: {type: string, enum: [PROFILE_EVENT_INVALID, PROFILE_EVENT_TYPE_UNSUPPORTED, PROFILE_EVENT_VERSION_UNSUPPORTED, PROFILE_IDEMPOTENCY_CONFLICT, PROFILE_UNAUTHENTICATED, PROFILE_ACCESS_DENIED, PROFILE_NOT_READY, PROFILE_SERVICE_DEGRADED, PROFILE_INTERNAL_ERROR]}
+        details: {type: array, description: 'Safe FieldViolation metadata only; never includes rejected values or sensitive content.', items: {type: object, additionalProperties: false, required: [field, reason], properties: {field: {type: string, example: 'data.hintCount'}, reason: {type: string, enum: [INVALID, REQUIRED, UNSUPPORTED, TOO_LARGE]}}}}
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data, timestamp]
+      properties: {code: {type: integer}, message: {type: string}, data: {$ref: '#/components/schemas/ErrorData'}, timestamp: {type: integer, format: int64}}
+    EventAck:
+      type: object
+      additionalProperties: false
+      required: [acknowledged, eventId, eventStatus, duplicate, profileUpdateStatus, receivedAt, requestId]
+      properties:
+        acknowledged: {type: boolean}
+        eventId: {type: string, maxLength: 64}
+        eventStatus: {type: string, enum: [ACCEPTED, DUPLICATE]}
+        duplicate: {type: boolean}
+        profileUpdateStatus: {type: string, enum: [PENDING, QUARANTINED, PROCESSED, FAILED]}
+        receivedAt: {type: string, format: date-time}
+        requestId: {type: string, maxLength: 128}
+    EventResult:
+      type: object
+      additionalProperties: false
+      required: [index, status, requestId]
+      properties:
+        index: {type: integer, minimum: 0}
+        eventId: {type: string, maxLength: 64, nullable: true}
+        status: {type: string, enum: [ACCEPTED, DUPLICATE, FAILED]}
+        profileUpdateStatus: {type: string, enum: [PENDING, QUARANTINED, PROCESSED, FAILED], nullable: true}
+        receivedAt: {type: string, format: date-time, nullable: true}
+        errorCode: {type: string, nullable: true}
+        requestId: {type: string, maxLength: 128}
+    EventEnvelope:
+      type: object
+      additionalProperties: false
+      required: [eventId, userId, eventType, sourceModule, occurredAt, schemaVersion, data]
+      properties:
+        eventId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$'}
+        userId: {type: integer, format: int64, minimum: 1}
+        eventType: {type: string}
+        sourceModule: {type: string}
+        occurredAt: {type: string, format: date-time}
+        schemaVersion: {type: string, enum: ['1.0']}
+        sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$', nullable: true}
+        kpId: {type: integer, format: int64, minimum: 1, nullable: true}
+        traceId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$', nullable: true}
+        data: {type: object}
+    LearningEvent:
+      oneOf:
+        - {$ref: '#/components/schemas/AnswerQuestionEvent'}
+        - {$ref: '#/components/schemas/FinishPracticeEvent'}
+        - {$ref: '#/components/schemas/RequestExplanationEvent'}
+        - {$ref: '#/components/schemas/ExplanationFeedbackEvent'}
+        - {$ref: '#/components/schemas/WeakPointChangedEvent'}
+        - {$ref: '#/components/schemas/LectureInteractEvent'}
+        - {$ref: '#/components/schemas/LessonMaterialUsedEvent'}
+        - {$ref: '#/components/schemas/AskDoubtEvent'}
+        - {$ref: '#/components/schemas/MarkReviewedEvent'}
+        - {$ref: '#/components/schemas/PreferenceChangedEvent'}
+    AnswerQuestionEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [answer_question]}, sourceModule: {enum: [M1]}, data: {$ref: '#/components/schemas/AnswerQuestionData'}}}]}
+    FinishPracticeEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [finish_practice]}, sourceModule: {enum: [M1]}, data: {$ref: '#/components/schemas/FinishPracticeData'}}}]}
+    RequestExplanationEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [request_explanation]}, sourceModule: {enum: [M2]}, data: {$ref: '#/components/schemas/RequestExplanationData'}}}]}
+    ExplanationFeedbackEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [explanation_feedback]}, sourceModule: {enum: [M2]}, data: {$ref: '#/components/schemas/ExplanationFeedbackData'}}}]}
+    WeakPointChangedEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [weak_point_changed]}, sourceModule: {enum: [M3]}, data: {$ref: '#/components/schemas/WeakPointChangedData'}}}]}
+    LectureInteractEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [lecture_interact]}, sourceModule: {enum: [M4]}, data: {$ref: '#/components/schemas/LectureInteractData'}}}]}
+    LessonMaterialUsedEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [lesson_material_used]}, sourceModule: {enum: [M5]}, data: {$ref: '#/components/schemas/LessonMaterialUsedData'}}}]}
+    AskDoubtEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [ask_doubt]}, sourceModule: {enum: [M7]}, data: {$ref: '#/components/schemas/AskDoubtData'}}}]}
+    MarkReviewedEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [mark_reviewed]}, sourceModule: {enum: [M6]}, data: {$ref: '#/components/schemas/MarkReviewedData'}}}]}
+    PreferenceChangedEvent: {allOf: [{$ref: '#/components/schemas/EventEnvelope'}, {type: object, properties: {eventType: {enum: [preference_changed]}, sourceModule: {enum: [M6]}, data: {$ref: '#/components/schemas/PreferenceChangedData'}}}]}
+    AnswerQuestionData: {type: object, additionalProperties: false, required: [isCorrect, difficulty, timeSpentSec, hintCount], properties: {isCorrect: {type: boolean}, difficulty: {type: integer, minimum: 1, maximum: 5}, timeSpentSec: {type: integer, minimum: 0, maximum: 86400}, hintCount: {type: integer, minimum: 0, maximum: 100}, confusionTag: {$ref: '#/components/schemas/ConfusionTag'}}}
+    FinishPracticeData: {type: object, additionalProperties: false, required: [questionCount, accuracy, durationSec], properties: {questionCount: {type: integer, minimum: 1, maximum: 10000}, accuracy: {type: number, minimum: 0, maximum: 1}, durationSec: {type: integer, minimum: 0, maximum: 86400}}}
+    RequestExplanationData: {type: object, additionalProperties: false, required: [explainId, reasonTag], properties: {explainId: {$ref: '#/components/schemas/Identifier'}, reasonTag: {$ref: '#/components/schemas/ExplanationReason'}}}
+    ExplanationFeedbackData: {type: object, additionalProperties: false, required: [explainId, feedback, repeatCount], properties: {explainId: {$ref: '#/components/schemas/Identifier'}, feedback: {type: string, enum: [understood, partly_understood, still_confused]}, repeatCount: {type: integer, minimum: 0, maximum: 100}}}
+    WeakPointChangedData: {type: object, additionalProperties: false, required: [oldScore, newScore, reason], properties: {oldScore: {type: number, minimum: 0, maximum: 1}, newScore: {type: number, minimum: 0, maximum: 1}, reason: {$ref: '#/components/schemas/WeakReason'}}}
+    LectureInteractData: {type: object, additionalProperties: false, required: [lectureId, chapterId, action], properties: {lectureId: {$ref: '#/components/schemas/Identifier'}, chapterId: {$ref: '#/components/schemas/Identifier'}, action: {type: string, enum: [pause, resume, replay, ask, complete]}}}
+    LessonMaterialUsedData: {type: object, additionalProperties: false, required: [contentId, materialType, result], properties: {contentId: {$ref: '#/components/schemas/Identifier'}, materialType: {type: string, enum: [text, image, audio, video, exercise]}, result: {type: string, enum: [completed, skipped, helpful, not_helpful]}}}
+    AskDoubtData: {type: object, additionalProperties: false, required: [topic, confusionTag, isFollowUp], properties: {topic: {type: string, minLength: 1, maxLength: 120, pattern: '.*\S.*'}, confusionTag: {$ref: '#/components/schemas/ConfusionTag'}, isFollowUp: {type: boolean}}}
+    MarkReviewedData: {type: object, additionalProperties: false, required: [result, timeSpentSec, hintCount], properties: {result: {type: string, enum: [correct_without_hint, correct_with_hint, incorrect, still_confused, postponed]}, timeSpentSec: {type: integer, minimum: 0, maximum: 86400}, hintCount: {type: integer, minimum: 0, maximum: 100}}}
+    PreferenceChangedData:
+      oneOf:
+        - {type: object, additionalProperties: false, required: [preferenceKey, preferenceValue], properties: {preferenceKey: {enum: [content_mode]}, preferenceValue: {enum: [text, image, audio, video, exercise]}}}
+        - {type: object, additionalProperties: false, required: [preferenceKey, preferenceValue], properties: {preferenceKey: {enum: [explanation_style]}, preferenceValue: {enum: [step_by_step, example_first, concise, detailed]}}}
+        - {type: object, additionalProperties: false, required: [preferenceKey, preferenceValue], properties: {preferenceKey: {enum: [learning_pace]}, preferenceValue: {enum: [slow, moderate, fast]}}}
+    Identifier: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$'}
+    ConfusionTag: {type: string, enum: [concept_unclear, formula_confusion, step_unclear, application_difficulty, careless_error]}
+    ExplanationReason: {type: string, enum: [WRONG_ANSWER, REPEATED_ERROR, USER_REQUEST, LOW_CONFIDENCE, REVIEW_NEEDED]}
+    WeakReason: {type: string, enum: [ACCURACY_DROP, REPEATED_ERROR, TEACHER_MARKED, RECALCULATED]}
+    NotReadyProfile: {type: object, additionalProperties: false, required: [userId, profileStatus, profileVersion], properties: {userId: {type: integer, format: int64, minimum: 1}, profileStatus: {enum: [NOT_READY]}, statusReason: {type: string, nullable: true}, profileVersion: {type: integer, format: int64, minimum: 0}}}
+    RecentFocus: {type: object, additionalProperties: false, required: [kpId, weight], properties: {kpId: {type: integer, format: int64, minimum: 1}, weight: {type: number, minimum: 0, maximum: 1}}}
+    RecentConfusion: {type: object, additionalProperties: false, required: [kpId, detail, evidenceCount, confidence, lastOccurredAt], properties: {kpId: {type: integer, format: int64, minimum: 1}, detail: {type: string, maxLength: 120}, evidenceCount: {type: integer, format: int64, minimum: 0, maximum: 4294967295}, confidence: {type: number, minimum: 0, maximum: 1}, lastOccurredAt: {type: string, format: date-time}}}
+    KnowledgeContext: {type: object, additionalProperties: false, required: [kpId, status, evidenceCount], properties: {kpId: {type: integer, format: int64, minimum: 1}, status: {type: string, enum: [AVAILABLE, INSUFFICIENT_EVIDENCE, EMPTY, NOT_READY]}, masteryScore: {type: number, minimum: 0, maximum: 1, nullable: true}, masteryStatus: {type: string, enum: [WEAK, CONSOLIDATING, BASIC_MASTERY, MASTERED, INSUFFICIENT_EVIDENCE], nullable: true}, confidence: {type: number, minimum: 0, maximum: 1, nullable: true}, trend: {type: string, enum: [IMPROVING, STABLE, DECLINING], nullable: true}, evidenceCount: {type: integer, format: int64, minimum: 0, maximum: 4294967295, nullable: true}}}
+    NullableKnowledgeContext: {type: object, nullable: true, allOf: [{$ref: '#/components/schemas/KnowledgeContext'}]}
+    FullProfile: {type: object, additionalProperties: false, required: [userId, profileStatus, profileVersion, preferredContentModes, recentFocus, recentConfusions, knowledge], properties: {userId: {type: integer, format: int64, minimum: 1}, profileStatus: {type: string, enum: [READY, STALE]}, statusReason: {type: string, nullable: true}, profileVersion: {type: integer, format: int64, minimum: 1}, grade: {type: string, maxLength: 30, nullable: true}, preferredContentModes: {type: array, maxItems: 5, items: {enum: [text, image, audio, video, exercise]}}, preferredExplanationStyle: {type: string, maxLength: 50, nullable: true}, learningPace: {type: string, enum: [slow, moderate, fast], nullable: true}, recentFocus: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/RecentFocus'}}, recentConfusions: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/RecentConfusion'}}, summaryProfile: {type: string, maxLength: 16383, nullable: true}, confidence: {type: number, minimum: 0, maximum: 1, nullable: true}, algorithmVersion: {type: string, nullable: true}, lastEventAt: {type: string, format: date-time, nullable: true}, computedAt: {type: string, format: date-time, nullable: true}, knowledge: {type: array, items: {$ref: '#/components/schemas/KnowledgeContext'}}}}
+    ExplainingSummary: {type: object, additionalProperties: false, required: [userId, sceneType, profileStatus, profileVersion, lastUpdated, knowledgeContext, recentConfusions, preferredContentModes], properties: {userId: {type: integer, format: int64, minimum: 1}, sceneType: {enum: [explaining]}, profileStatus: {enum: [READY, STALE]}, statusReason: {type: string, nullable: true}, profileVersion: {type: integer, format: int64, minimum: 1}, lastUpdated: {type: string, format: date-time}, grade: {type: string, nullable: true}, knowledgeContext: {$ref: '#/components/schemas/KnowledgeContext'}, recentConfusions: {type: array, maxItems: 3, items: {$ref: '#/components/schemas/RecentConfusion'}}, preferredContentModes: {type: array, maxItems: 5, items: {enum: [text, image, audio, video, exercise]}}, preferredExplanationStyle: {type: string, nullable: true}, learningPace: {type: string, enum: [slow, moderate, fast], nullable: true}}}
+    LecturingSummary: {type: object, additionalProperties: false, required: [userId, sceneType, profileStatus, profileVersion, lastUpdated, weakKnowledgePoints, recentFocus, preferredContentModes], properties: {userId: {type: integer, format: int64, minimum: 1}, sceneType: {enum: [lecturing]}, profileStatus: {enum: [READY, STALE]}, statusReason: {type: string, nullable: true}, profileVersion: {type: integer, format: int64, minimum: 1}, lastUpdated: {type: string, format: date-time}, grade: {type: string, nullable: true}, knowledgeContext: {$ref: '#/components/schemas/NullableKnowledgeContext'}, weakKnowledgePoints: {type: array, maxItems: 5, items: {$ref: '#/components/schemas/KnowledgeContext'}}, recentFocus: {type: array, maxItems: 3, items: {$ref: '#/components/schemas/RecentFocus'}}, preferredContentModes: {type: array, maxItems: 5, items: {enum: [text, image, audio, video, exercise]}}, learningPace: {type: string, enum: [slow, moderate, fast], nullable: true}}}
+    ConversationSummary: {type: object, additionalProperties: false, required: [userId, sceneType, profileStatus, profileVersion, lastUpdated, recentConfusions, preferredContentModes], properties: {userId: {type: integer, format: int64, minimum: 1}, sceneType: {enum: [conversation]}, profileStatus: {enum: [READY, STALE]}, statusReason: {type: string, nullable: true}, profileVersion: {type: integer, format: int64, minimum: 1}, lastUpdated: {type: string, format: date-time}, knowledgeContext: {$ref: '#/components/schemas/NullableKnowledgeContext'}, recentConfusions: {type: array, maxItems: 3, items: {$ref: '#/components/schemas/RecentConfusion'}}, preferredContentModes: {type: array, maxItems: 5, items: {enum: [text, image, audio, video, exercise]}}, preferredExplanationStyle: {type: string, nullable: true}}}
+    KnowledgeStatusResponse: {type: object, additionalProperties: false, required: [userId, profileStatus, profileVersion, knowledge], properties: {userId: {type: integer, format: int64, minimum: 1}, profileStatus: {type: string}, statusReason: {type: string, nullable: true}, profileVersion: {type: integer, format: int64, minimum: 0}, knowledge: {type: array, items: {$ref: '#/components/schemas/KnowledgeContext'}}}}
+  responses:
+    EventAcknowledged: {description: Accepted or duplicate event ACK, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {type: object, additionalProperties: false, required: [code, message, data, timestamp], properties: {code: {type: integer}, message: {type: string}, data: {$ref: '#/components/schemas/EventAck'}, timestamp: {type: integer, format: int64}}}}}}
+    BatchAcknowledged: {description: Ordered item results, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {type: object, additionalProperties: false, required: [code, message, data, timestamp], properties: {code: {type: integer}, message: {type: string}, data: {type: array, items: {$ref: '#/components/schemas/EventResult'}}, timestamp: {type: integer, format: int64}}}}}}
+    ProfileRead: {description: Full profile or NOT_READY, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {type: object, additionalProperties: false, required: [code, message, data, timestamp], properties: {code: {type: integer}, message: {type: string}, data: {oneOf: [{$ref: '#/components/schemas/FullProfile'}, {$ref: '#/components/schemas/NotReadyProfile'}]}, timestamp: {type: integer, format: int64}}}}}}
+    SummaryRead: {description: Scene-specific summary or NOT_READY. photo_qa responses include RFC 9745 deprecation metadata, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}, Deprecation: {description: 'photo_qa only; RFC 9745 SF-Date formatted as @<unix-seconds>.', schema: {type: string, pattern: '^@[0-9]+$'}, example: '@1784505600'}, Link: {description: 'photo_qa only; deprecation documentation link.', schema: {type: string, pattern: '^</docs/m6/user-profile-openapi.yaml>; rel="deprecation"$'}, example: '</docs/m6/user-profile-openapi.yaml>; rel="deprecation"'}}, content: {application/json: {schema: {type: object, additionalProperties: false, required: [code, message, data, timestamp], properties: {code: {type: integer}, message: {type: string}, data: {oneOf: [{$ref: '#/components/schemas/ExplainingSummary'}, {$ref: '#/components/schemas/LecturingSummary'}, {$ref: '#/components/schemas/ConversationSummary'}, {$ref: '#/components/schemas/NotReadyProfile'}]}, timestamp: {type: integer, format: int64}}}}}}
+    KnowledgeStatusRead: {description: Ordered knowledge statuses, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {type: object, additionalProperties: false, required: [code, message, data, timestamp], properties: {code: {type: integer}, message: {type: string}, data: {$ref: '#/components/schemas/KnowledgeStatusResponse'}, timestamp: {type: integer, format: int64}}}}}}
+    BadEvent: {description: Invalid event or query parameters, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    UnsupportedMediaType: {description: Unsupported request media type, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Unauthenticated: {description: M6 PROFILE_UNAUTHENTICATED error, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Denied: {description: M6 PROFILE_ACCESS_DENIED error, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Conflict: {description: PROFILE_IDEMPOTENCY_CONFLICT, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Degraded: {description: 'Sanitized PROFILE_SERVICE_DEGRADED response. A systemic DataAccessException is request-level 503, not an item parameter failure; prior REQUIRES_NEW batch items remain committed and later items are not attempted.', headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+  headers:
+    RequestId: {schema: {type: string, maxLength: 128}}
