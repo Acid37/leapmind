@@ -1,6 +1,7 @@
 package com.treepeople.leapmindtts.service.lesson;
 
 import com.treepeople.leapmindtts.pojo.dto.ExerciseRecordRequest;
+import com.treepeople.leapmindtts.pojo.result.PageResult;
 import com.treepeople.leapmindtts.pojo.vo.ExerciseVO;
 import com.treepeople.leapmindtts.pojo.vo.KnowledgeGraphVO;
 import com.treepeople.leapmindtts.pojo.vo.RecommendQuestionVO;
@@ -15,9 +16,16 @@ import java.util.List;
 public interface WeakPointsService {
 
     /**
-     * 查询用户薄弱点列表
+     * 查询用户薄弱点列表（分页）
+     *
+     * @param userId  用户ID
+     * @param subject 学科（可选）
+     * @param status  状态（可选）：ACTIVE/RESOLVED/IMPROVING
+     * @param page    页码（默认1）
+     * @param size    每页数量（默认20）
+     * @return 分页结果
      */
-    List<UserWeakPointVO> getUserWeakPoints(Long userId, String subject, String status);
+    PageResult<UserWeakPointVO> getUserWeakPoints(Long userId, String subject, String status, Integer page, Integer size);
 
     /**
      * 获取/触发 AI 综合分析

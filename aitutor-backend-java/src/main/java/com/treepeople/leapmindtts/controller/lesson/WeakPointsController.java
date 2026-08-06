@@ -2,6 +2,7 @@ package com.treepeople.leapmindtts.controller.lesson;
 
 import com.treepeople.leapmindtts.pojo.dto.ExerciseRecordRequest;
 import com.treepeople.leapmindtts.pojo.result.ApiResponse;
+import com.treepeople.leapmindtts.pojo.result.PageResult;
 import com.treepeople.leapmindtts.pojo.vo.ExerciseVO;
 import com.treepeople.leapmindtts.pojo.vo.KnowledgeGraphVO;
 import com.treepeople.leapmindtts.pojo.vo.RecommendQuestionVO;
@@ -36,26 +37,34 @@ public class WeakPointsController {
     // ==================== 薄弱点查询 ====================
 
     /**
-     * 查询用户薄弱点列表
+     * 查询用户薄弱点列表（分页）
      *
      * @param userId  用户ID（必填）
      * @param subject 学科（可选）
      * @param status  状态过滤（可选）：ACTIVE/RESOLVED/IMPROVING
-     * @return 薄弱点列表
+     * @param page    页码（默认1）
+     * @param size    每页数量（默认20）
+     * @return 薄弱点分页列表
      */
     @GetMapping("/weak-points")
-    @Operation(summary = "查询用户薄弱点列表", description = "按用户ID查询薄弱点，可按学科和状态过滤")
-    public ResponseEntity<ApiResponse<List<UserWeakPointVO>>> getWeakPoints(
+    @Operation(summary = "查询用户薄弱点列表（分页）", description = "按用户ID查询薄弱点，可按学科和状态过滤，支持分页")
+    public ResponseEntity<ApiResponse<PageResult<UserWeakPointVO>>> getWeakPoints(
             @Parameter(description = "用户ID", required = true)
             @RequestParam Long userId,
             @Parameter(description = "学科（可选）")
             @RequestParam(required = false) String subject,
             @Parameter(description = "状态（可选）：ACTIVE/RESOLVED/IMPROVING")
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @Parameter(description = "页码（默认1）")
+            @RequestParam(defaultValue = "1") Integer page,
+            @Parameter(description = "每页数量（默认20）")
+            @RequestParam(defaultValue = "20") Integer size) {
 
-        log.info("查询薄弱点: userId={}, subject={}, status={}", userId, subject, status);
+        log.info("查询薄弱点: userId={}, subject={}, status={}, page={}, size={}",
+                userId, subject, status, page, size);
         try {
-            List<UserWeakPointVO> result = weakPointsService.getUserWeakPoints(userId, subject, status);
+            PageResult<UserWeakPointVO> result = weakPointsService
+                    .getUserWeakPoints(userId, subject, status, page, size);
             return ResponseEntity.ok(ApiResponse.success(result, "查询成功"));
         } catch (Exception e) {
             log.error("查询薄弱点失败: {}", e.getMessage());

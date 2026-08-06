@@ -1,0 +1,421 @@
+{
+  "info": {
+    "name": "LeapMind - 薄弱点分析",
+    "description": "薄弱点列表及关联接口测试集合\n\n使用流程：注册 → 登录 → 测试业务接口",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "🔑 认证（无需Token）",
+      "description": "这两个接口在 SecurityConfig 中配置为 permitAll，无需 JWT Token。注册后会自动把 token 写入 Collection 变量。",
+      "item": [
+        {
+          "name": "1-注册新用户",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "var msg = jsonData.message || '注册成功';",
+                  "console.log('注册结果:', msg);",
+                  "if (jsonData.code === 200) {",
+                  "    console.log('注册成功，请执行第2步“登录”');",
+                  "    pm.collectionVariables.set('registeredUsername', pm.variables.get('regUser'));",
+                  "    pm.collectionVariables.set('registeredPassword', pm.variables.get('regPwd'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"123456\",\n  \"grade\": \"GRADE_7\",\n  \"studentName\": \"测试学生\",\n  \"phone\": \"13900001111\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "2-登录获取Token（会自动保存）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.code === 200 && jsonData.data && jsonData.data.token) {",
+                  "    pm.collectionVariables.set('token', jsonData.data.token);",
+                  "    console.log('✅ Token 已自动保存！');",
+                  "    console.log('Token:', jsonData.data.token.substring(0, 50) + '...');",
+                  "    console.log('用户ID:', jsonData.data.userInfo ? jsonData.data.userInfo.id : 'N/A');",
+                  "} else {",
+                  "    console.log('❌ 登录失败:', jsonData.message);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 薄弱点查询",
+      "description": "GET /api/weak-points — 查询用户薄弱点列表，支持按学科和状态过滤",
+      "item": [
+        {
+          "name": "查询全部薄弱点 (userId=1)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points?userId=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points"],
+              "query": [
+                { "key": "userId", "value": "1", "description": "用户ID（必填）" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "按学科过滤 (subject=数学)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points?userId=1&subject=数学",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points"],
+              "query": [
+                { "key": "userId", "value": "1" },
+                { "key": "subject", "value": "数学" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "按状态过滤 (status=ACTIVE)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points?userId=1&status=ACTIVE",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points"],
+              "query": [
+                { "key": "userId", "value": "1" },
+                { "key": "status", "value": "ACTIVE" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "双条件过滤 (subject=数学 & status=ACTIVE) ⚡核心优化场景",
+          "description": "优化前：全量查询 + 内存 filter\n优化后：数据库 WHERE 三条件联合查询",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points?userId=1&subject=数学&status=ACTIVE",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points"],
+              "query": [
+                { "key": "userId", "value": "1" },
+                { "key": "subject", "value": "数学" },
+                { "key": "status", "value": "ACTIVE" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "分页查询 - 默认(page=1, size=20)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.test('Response has code 200', function () { pm.expect(json.code).to.equal(200); });",
+                  "pm.test('data is PageResult object', function () {",
+                  "  pm.expect(json.data).to.have.property('total');",
+                  "  pm.expect(json.data).to.have.property('pages');",
+                  "  pm.expect(json.data).to.have.property('current');",
+                  "  pm.expect(json.data).to.have.property('size');",
+                  "  pm.expect(json.data).to.have.property('records');",
+                  "  pm.expect(json.data.records).to.be.an('array');",
+                  "});",
+                  "pm.test('current equals 1', function () { pm.expect(json.data.current).to.equal(1); });",
+                  "pm.test('size equals 20', function () { pm.expect(json.data.size).to.equal(20); });",
+                  "pm.test('records length <= size', function () { pm.expect(json.data.records.length).to.be.at.most(20); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points?userId=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points"],
+              "query": [
+                { "key": "userId", "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "分页查询 - page=1 & size=5",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.test('size equals 5', function () { pm.expect(json.data.size).to.equal(5); });",
+                  "pm.test('records length <= 5', function () { pm.expect(json.data.records.length).to.be.at.most(5); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points?userId=1&page=1&size=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points"],
+              "query": [
+                { "key": "userId", "value": "1" },
+                { "key": "page", "value": "1" },
+                { "key": "size", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "分页查询 - page=2 第二页",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.test('current equals 2', function () { pm.expect(json.data.current).to.equal(2); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points?userId=1&page=2&size=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points"],
+              "query": [
+                { "key": "userId", "value": "1" },
+                { "key": "page", "value": "2" },
+                { "key": "size", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "分页查询 - 过滤+分页 (subject=数学, status=ACTIVE, page=1, size=5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.test('Response success', function () { pm.expect(json.code).to.equal(200); });",
+                  "pm.test('Has PageResult structure', function () {",
+                  "  pm.expect(json.data).to.have.property('total');",
+                  "  pm.expect(json.data).to.have.property('records');",
+                  "});",
+                  "pm.test('records all match filters', function () {",
+                  "  json.data.records.forEach(function(r) {",
+                  "    pm.expect(r.subject).to.equal('数学');",
+                  "    pm.expect(r.status).to.equal('ACTIVE');",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points?userId=1&subject=数学&status=ACTIVE&page=1&size=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points"],
+              "query": [
+                { "key": "userId", "value": "1" },
+                { "key": "subject", "value": "数学" },
+                { "key": "status", "value": "ACTIVE" },
+                { "key": "page", "value": "1" },
+                { "key": "size", "value": "5" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🤖 AI 分析",
+      "description": "POST — 触发 AI 综合分析，调用 Python 服务",
+      "item": [
+        {
+          "name": "触发AI综合薄弱点分析",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points/7/analysis",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points", "7", "analysis"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 练习推荐 & 记录",
+      "item": [
+        {
+          "name": "获取推荐练习",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/exercises/recommend?userId=1&count=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "exercises", "recommend"],
+              "query": [
+                { "key": "userId", "value": "1" },
+                { "key": "count", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "记录练习结果",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"exerciseId\": \"2001\",\n  \"isCorrect\": 0,\n  \"knowledgePoint\": \"二次函数\",\n  \"subject\": \"数学\",\n  \"timeTaken\": 45,\n  \"answer\": \"B\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/exercises/record",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "exercises", "record"]
+            }
+          }
+        },
+        {
+          "name": "推荐题目（薄弱点详情页）",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points/recommend-questions?userId=1&knowledgePoint=二次函数&count=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points", "recommend-questions"],
+              "query": [
+                { "key": "userId", "value": "1" },
+                { "key": "knowledgePoint", "value": "二次函数" },
+                { "key": "count", "value": "5" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 知识图谱",
+      "description": "GET /api/weak-points/knowledge-graph — 获取用户知识图谱（节点+边）",
+      "item": [
+        {
+          "name": "获取知识图谱（全部学科）",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points/knowledge-graph?userId=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points", "knowledge-graph"],
+              "query": [
+                { "key": "userId", "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取知识图谱（数学学科）",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/weak-points/knowledge-graph?userId=1&subject=数学",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "weak-points", "knowledge-graph"],
+              "query": [
+                { "key": "userId", "value": "1" },
+                { "key": "subject", "value": "数学" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

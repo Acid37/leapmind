@@ -1,5 +1,6 @@
 package com.treepeople.leapmindtts.service.lesson.impl;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.treepeople.leapmindtts.mapper.UserExerciseMapper;
 import com.treepeople.leapmindtts.mapper.UserWeakPointMapper;
 import com.treepeople.leapmindtts.pojo.dto.AiAnalysisRequest;
@@ -7,6 +8,7 @@ import com.treepeople.leapmindtts.pojo.dto.AiAnalysisResponse;
 import com.treepeople.leapmindtts.pojo.dto.ExerciseRecordRequest;
 import com.treepeople.leapmindtts.pojo.entity.UserExercise;
 import com.treepeople.leapmindtts.pojo.entity.UserWeakPoint;
+import com.treepeople.leapmindtts.pojo.result.PageResult;
 import com.treepeople.leapmindtts.pojo.vo.ExerciseVO;
 import com.treepeople.leapmindtts.pojo.vo.KnowledgeGraphVO;
 import com.treepeople.leapmindtts.pojo.vo.RecommendQuestionVO;
@@ -52,35 +54,34 @@ public class WeakPointsServiceImpl implements WeakPointsService {
     private int timeoutSeconds;
 
     @Override
-    public List<UserWeakPointVO> getUserWeakPoints(Long userId, String subject, String status) {
+    public PageResult<UserWeakPointVO> getUserWeakPoints(Long userId, String subject, String status,
+                                                          Integer page, Integer size) {
         if (userId == null) {
-            return Collections.emptyList();
+            return PageResult.<UserWeakPointVO>builder()
+                    .total(0L).pages(0L).current(1L).size(20L)
+                    .records(Collections.emptyList())
+                    .build();
         }
 
-        final boolean hasSubject = subject != null && !subject.isEmpty();
-        final boolean hasStatus  = status != null && !status.isEmpty();
+        // 应用默认值
+        int pageNum  = (page  != null && page  > 0) ? page  : 1;
+        int pageSize = (size  != null && size  > 0) ? size  : 20;
 
-        List<UserWeakPoint> weakPoints;
+        Page<UserWeakPoint> mpPage = new Page<>(pageNum, pageSize);
+        Page<UserWeakPoint> result = userWeakPointMapper.selectPageByFilters(
+                mpPage, userId, subject, status);
 
-        if (hasSubject && hasStatus) {
-            // 数据库层面联合过滤，避免全量查询后在内存中过滤
-            weakPoints = userWeakPointMapper.selectByUserIdSubjectStatus(userId, subject, status);
-        } else if (hasSubject) {
-            weakPoints = userWeakPointMapper.selectByUserIdAndSubject(userId, subject);
-        } else if (hasStatus) {
-            weakPoints = userWeakPointMapper.selectByUserIdAndStatus(userId, status);
-        } else {
-            weakPoints = userWeakPointMapper.selectByUserId(userId);
-        }
-
-        if (weakPoints == null) {
-            return Collections.emptyList();
-        }
-
-        // 单次 stream 完成 Entity → VO 转换，避免多次遍历
-        return weakPoints.stream()
+        List<UserWeakPointVO> voList = result.getRecords().stream()
                 .map(this::convertToVO)
                 .collect(Collectors.toList());
+
+        return PageResult.<UserWeakPointVO>builder()
+                .total(result.getTotal())
+                .pages(result.getPages())
+                .current(result.getCurrent())
+                .size(result.getSize())
+                .records(voList)
+                .build();
     }
 
     @Override
@@ -94,6 +95,21 @@ public class WeakPointsServiceImpl implements WeakPointsService {
                     .detailAnalyses(Collections.emptyList())
                     .recommendedPriority(Collections.emptyList())
                     .build();
+        }
+
+        // 24h 缓存检查：如果最新分析时间在 24 小时内，直接返回缓存结果
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime latestAnalyzed = null;
+        for (UserWeakPoint wp : weakPoints) {
+            if (wp.getAnalyzedAt() != null) {
+                if (latestAnalyzed == null || wp.getAnalyzedAt().isAfter(latestAnalyzed)) {
+                    latestAnalyzed = wp.getAnalyzedAt();
+                }
+            }
+        }
+        if (latestAnalyzed != null && Duration.between(latestAnalyzed, now).toHours() < 24) {
+            log.info("AI分析缓存命中: userId={}, analyzedAt={}", userId, latestAnalyzed);
+            return buildCachedAnalysisVO(weakPoints);
         }
 
         // 构建调用 Python AI 服务的请求
@@ -362,6 +378,42 @@ public class WeakPointsServiceImpl implements WeakPointsService {
                 .learningSuggestions(response.getLearningSuggestions())
                 .detailAnalyses(details)
                 .recommendedPriority(response.getRecommendedPriority())
+                .build();
+    }
+
+    /**
+     * 从数据库缓存的 ai_analysis/ai_suggestion 字段构建分析 VO
+     * 用于 24 小时内的缓存命中场景，避免重复调用 Python AI 服务
+     */
+    private WeakPointsAnalysisVO buildCachedAnalysisVO(List<UserWeakPoint> weakPoints) {
+        StringBuilder comprehensive = new StringBuilder("## 薄弱点分析（24h缓存）\n\n");
+
+        List<WeakPointsAnalysisVO.DetailItem> details = new ArrayList<>();
+        for (UserWeakPoint wp : weakPoints) {
+            if (wp.getAiAnalysis() != null) {
+                comprehensive.append("- **").append(wp.getKnowledgePoint())
+                        .append("**: ").append(wp.getAiAnalysis()).append("\n");
+            }
+            details.add(WeakPointsAnalysisVO.DetailItem.builder()
+                    .knowledgePoint(wp.getKnowledgePoint())
+                    .analysis(wp.getAiAnalysis())
+                    .suggestion(wp.getAiSuggestion())
+                    .build());
+        }
+
+        // 推荐优先级：按薄弱程度降序
+        List<String> priority = weakPoints.stream()
+                .sorted((a, b) -> Integer.compare(
+                        getWeaknessLevelWeight(b.getWeaknessLevel()),
+                        getWeaknessLevelWeight(a.getWeaknessLevel())))
+                .map(UserWeakPoint::getKnowledgePoint)
+                .collect(Collectors.toList());
+
+        return WeakPointsAnalysisVO.builder()
+                .comprehensiveAnalysis(comprehensive.toString())
+                .learningSuggestions("以下分析基于缓存数据（最近24小时内生成）。持续练习后将自动刷新分析。")
+                .detailAnalyses(details)
+                .recommendedPriority(priority)
                 .build();
     }
 

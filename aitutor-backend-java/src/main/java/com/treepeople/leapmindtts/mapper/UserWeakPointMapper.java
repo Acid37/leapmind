@@ -1,6 +1,7 @@
 package com.treepeople.leapmindtts.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.treepeople.leapmindtts.pojo.entity.UserWeakPoint;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -62,4 +63,21 @@ public interface UserWeakPointMapper extends BaseMapper<UserWeakPoint> {
      */
     @Select("SELECT DISTINCT knowledge_point FROM user_weak_points WHERE user_id = #{userId} AND status = 'RESOLVED'")
     List<String> selectResolvedKnowledgePoints(@Param("userId") Long userId);
+
+    /**
+     * 分页查询薄弱点（支持学科和状态可选过滤）
+     * <p>
+     * MyBatis-Plus PaginationInnerInterceptor 自动处理 COUNT 和 LIMIT。
+     * Page 作为第一个参数且不带 @Param，让 interceptor 识别。
+     */
+    @Select("<script>" +
+            "SELECT * FROM user_weak_points WHERE user_id = #{userId}" +
+            "<if test='subject != null and subject != \"\"'> AND subject = #{subject}</if>" +
+            "<if test='status != null and status != \"\"'> AND status = #{status}</if>" +
+            " ORDER BY FIELD(weakness_level, 'HIGH', 'MEDIUM', 'LOW'), error_count DESC" +
+            "</script>")
+    Page<UserWeakPoint> selectPageByFilters(Page<UserWeakPoint> page,
+                                            @Param("userId") Long userId,
+                                            @Param("subject") String subject,
+                                            @Param("status") String status);
 }
