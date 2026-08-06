@@ -7,6 +7,7 @@ import com.treepeople.leapmindtts.pojo.entity.TeachingContent;
 import com.treepeople.leapmindtts.pojo.result.ApiResponse;
 import com.treepeople.leapmindtts.pojo.vo.TeachingContentVO;
 import com.treepeople.leapmindtts.service.PptxExportService;
+import com.treepeople.leapmindtts.service.PythonApiClient;
 import com.treepeople.leapmindtts.service.TeachingContentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -39,6 +40,7 @@ public class TeachingContentController {
 
     private final TeachingContentService teachingContentService;
     private final PptxExportService pptxExportService;
+    private final PythonApiClient pythonApiClient;
     private final ObjectMapper om;
     /**
      * SSE 流式任务线程池（Bean 名 = sseStreamExecutor，Spring 按构造参数名匹配注入）。
@@ -329,6 +331,29 @@ public class TeachingContentController {
             }
         }
 
+        return TeachingContentVO.builder()
+                .id(content.getId())
+                .prepId(content.getPrepId())
+                .userId(content.getUserId())
+                .title(content.getTitle())
+                .status(content.getStatus())
+                .type("ppt")
+                .subject(subject)
+                .grade(grade)
+                .slideCount(slideCount)
+                .styleTemplate(content.getTemplateId() != null
+                        ? String.valueOf(content.getTemplateId())
+                        : "default")
+                .knowledgePoints(knowledgePoints)
+                .pptStructure(content.getPptStructure())
+                .templateId(content.getTemplateId())
+                .pptDownloadUrl(content.getPptDownloadUrl())
+                .generatedContentJson(content.getGeneratedContentJson())
+                .createdAt(content.getCreatedAt())
+                .updatedAt(content.getUpdatedAt())
+                .build();
+    }
+
     // ======================== [跨端联桥] SSE 流式 ========================
 
     /**
@@ -452,30 +477,4 @@ public class TeachingContentController {
         }
     }
 
-    /**
-     * 将 TeachingContent 实体转换为 TeachingContentVO
-     */
-    private TeachingContentVO convertToVO(TeachingContent content) {
-        return TeachingContentVO.builder()
-                .id(content.getId())
-                .prepId(content.getPrepId())
-                .userId(content.getUserId())
-                .title(content.getTitle())
-                .status(content.getStatus())
-                .type("ppt")
-                .subject(subject)
-                .grade(grade)
-                .slideCount(slideCount)
-                .styleTemplate(content.getTemplateId() != null
-                        ? String.valueOf(content.getTemplateId())
-                        : "default")
-                .knowledgePoints(knowledgePoints)
-                .pptStructure(content.getPptStructure())
-                .templateId(content.getTemplateId())
-                .pptDownloadUrl(content.getPptDownloadUrl())
-                .generatedContentJson(content.getGeneratedContentJson())
-                .createdAt(content.getCreatedAt())
-                .updatedAt(content.getUpdatedAt())
-                .build();
-    }
 }
