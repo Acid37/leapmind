@@ -59,6 +59,7 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
   const { lectureId, title = '在线课堂', courseId, slides: rawSlides } = lectureData || {};
   const slides = useMemo(() => normalizeSlides(rawSlides), [rawSlides]);
   const hasSlides = slides.length > 0;
+  const currentSlideData = slides[currentSlide - 1];
   const [currentSlide, setCurrentSlide] = useState(1);
   const [showEndPanel, setShowEndPanel] = useState(false);
   const [mobileTab, setMobileTab] = useState('slides');
@@ -156,7 +157,7 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
           {isPaused ? '继续讲课' : '暂停讲课'}
         </button>
         <div className="flex-1 min-h-0">
-          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} visible={true} onMessageSent={handleMessageSent} />
+          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide, slideContent: currentSlideData?.bulletPoints?.join('\n') || '', title: currentSlideData?.title || '' }} userId={userId} visible={true} onMessageSent={handleMessageSent} />
         </div>
         <button
           onClick={handleEndLecture}
@@ -223,7 +224,7 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
           </div>
         </div>
         <div className="flex-1 p-3 overflow-hidden">
-          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide }} userId={userId} visible={true} onMessageSent={handleMessageSent} />
+          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide, slideContent: currentSlideData?.bulletPoints?.join('\n') || '', title: currentSlideData?.title || '' }} userId={userId} visible={true} onMessageSent={handleMessageSent} />
         </div>
       </div>
 

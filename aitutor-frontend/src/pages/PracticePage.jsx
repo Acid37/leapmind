@@ -725,7 +725,13 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
           <div className="pointer-events-auto w-96 h-full shadow-2xl">
             <ChatPanel
               sceneType="doing_exercise"
-              context={{ questionId: currentQuestion?.questionId }}
+              context={{
+                questionId: currentQuestion?.questionId,
+                stem: currentQuestion?.content?.stem,
+                options: currentQuestion?.content?.options,
+                type: currentQuestion?.type,
+                knowledgePoint: setup.knowledgePoint,
+              }}
               userId={userInfo?.id}
               visible={chatPanelOpen}
               onClose={() => setChatPanelOpen(false)}
