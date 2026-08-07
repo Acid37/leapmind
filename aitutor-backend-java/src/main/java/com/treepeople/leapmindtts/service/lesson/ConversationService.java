@@ -16,6 +16,7 @@ import com.treepeople.leapmindtts.pojo.entity.EventCollection;
 import com.treepeople.leapmindtts.service.EventCollectionService;
 import com.treepeople.leapmindtts.service.common.RedisCacheService;
 import com.treepeople.leapmindtts.service.common.MetricsService;
+import com.treepeople.leapmindtts.service.common.ContextCompressService;
 import com.treepeople.leapmindtts.util.CacheKeyBuilder;
 
 import jakarta.annotation.PostConstruct;
@@ -57,6 +58,7 @@ public class ConversationService {
     private final MetricsService metricsService;
     private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
     private final com.treepeople.leapmindtts.service.common.RequestMergeService requestMergeService;
+    private final ContextCompressService contextCompressService;
     private final EventCollectionService eventCollectionService;
 
     private final ConcurrentHashMap<String, BaseSubscriber<AIModelService.AiChunk>> activeSubscribers = new ConcurrentHashMap<>();
@@ -76,6 +78,7 @@ public class ConversationService {
                                MetricsService metricsService,
                                io.micrometer.core.instrument.MeterRegistry meterRegistry,
                                com.treepeople.leapmindtts.service.common.RequestMergeService requestMergeService,
+                               ContextCompressService contextCompressService,
                                EventCollectionService eventCollectionService) {
         this.aiModelService = aiModelService;
         this.aiTeacherBaiduAsrService = aiTeacherBaiduAsrService;
@@ -89,6 +92,7 @@ public class ConversationService {
         this.metricsService = metricsService;
         this.meterRegistry = meterRegistry;
         this.requestMergeService = requestMergeService;
+        this.contextCompressService = contextCompressService;
         this.eventCollectionService = eventCollectionService;
     }
 
@@ -372,10 +376,9 @@ public class ConversationService {
                         sessionMapper.updateMessageCount(sessionId, msgCount);
                         saveSessionToRedis(session);
 
-                        cacheAnswerIfNeeded(req, answer, isFollowUp);
-                        publishAskDoubtEvent(sessionId, req, isFollowUp);
-                        metricsService.incrementQuestionProcessed("full", "success");
-                        streamFinished.set(true);
+                        // 【新增】将高频问答存入 Redis 缓存 (TTL 1h)
+                        String cacheKey = CacheKeyBuilder.dedupKey(String.valueOf(session.getUserId()), req.getQuestion());
+                        redisCacheService.set(cacheKey, answer, Duration.ofHours(1));
 
                         fluxSink.next(sseEvent("message",
                             String.format("{\"type\":\"done\",\"callId\":\"%s\",\"sessionId\":\"%s\",\"tokenUsage\":{\"input\":%d,\"output\":%d}}",
@@ -445,18 +448,46 @@ public class ConversationService {
             };
 
             List<Map<String, String>> allHistory = session.getMessages();
-            final List<Map<String, String>> history;
+            reactor.core.publisher.Mono<List<Map<String, String>>> historyMono;
             if (allHistory.size() > properties.getMessageLimit()) {
-                history = allHistory.subList(allHistory.size() - properties.getMessageLimit(), allHistory.size());
+                try {
+                    String contextText = objectMapper.writeValueAsString(allHistory);
+                    historyMono = contextCompressService.compressContext(contextText)
+                            .map(compressedContext -> {
+                                List<Map<String, String>> newHistory = new ArrayList<>();
+                                newHistory.add(Map.of("role", "system", "content", "前情提要：" + compressedContext));
+                                // 保留最后一条用户消息，确保当前问题不丢失
+                                newHistory.add(allHistory.get(allHistory.size() - 1));
+                                return newHistory;
+                            })
+                            .onErrorResume(e -> {
+                                log.error("Context compression failed, fallback to truncation: {}", e.getMessage());
+                                // 降级策略：截断，但确保包含最后一条用户消息
+                                List<Map<String, String>> fallbackHistory = new ArrayList<>(allHistory.subList(allHistory.size() - properties.getMessageLimit(), allHistory.size()));
+                                if (!fallbackHistory.contains(allHistory.get(allHistory.size() - 1))) {
+                                    fallbackHistory.add(allHistory.get(allHistory.size() - 1));
+                                }
+                                return reactor.core.publisher.Mono.just(fallbackHistory);
+                            });
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    log.error("Failed to serialize history for compression", e);
+                    List<Map<String, String>> fallbackHistory = new ArrayList<>(allHistory.subList(allHistory.size() - properties.getMessageLimit(), allHistory.size()));
+                    historyMono = reactor.core.publisher.Mono.just(fallbackHistory);
+                }
             } else {
-                history = allHistory;
+                historyMono = reactor.core.publisher.Mono.just(allHistory);
             }
-            List<Map<String, String>> aiMessages = new ArrayList<>(history.size() + 1);
-            aiMessages.add(Map.of("role", "system", "content", buildScenePrompt(session.getSceneType(), session.getContext())));
-            aiMessages.addAll(history);
-            aiModelService.streamAIResponse(aiMessages, req.getInputType(), req.getAttachmentUrls())
-                .subscribe(subscriber);
-            activeSubscribers.put(sessionId, subscriber);
+            SceneType effectiveSceneType = req.getSceneType() != null ? req.getSceneType() : session.getSceneType();
+            Map<String, Object> effectiveContext = (req.getContext() != null && !req.getContext().isEmpty())
+                    ? req.getContext() : session.getContext();
+            historyMono.subscribe(history -> {
+                List<Map<String, String>> aiMessages = new ArrayList<>(history.size() + 1);
+                aiMessages.add(Map.of("role", "system", "content", buildScenePrompt(effectiveSceneType, effectiveContext)));
+                aiMessages.addAll(history);
+                aiModelService.streamAIResponse(aiMessages, req.getInputType(), req.getAttachmentUrls())
+                    .subscribe(subscriber);
+                activeSubscribers.put(sessionId, subscriber);
+            });
 
             fluxSink.onCancel(() -> {
                 log.info("Flux cancelled for session: {}", sessionId);
