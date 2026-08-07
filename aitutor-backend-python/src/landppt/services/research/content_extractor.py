@@ -13,7 +13,10 @@ from typing import Dict, List, Optional, Any, Set
 from urllib.parse import urljoin, urlparse
 import aiohttp
 from bs4 import BeautifulSoup, Comment
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+try:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+except ImportError:
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from ...core.config import ai_config
 

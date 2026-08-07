@@ -238,12 +238,15 @@ class AppConfig(BaseSettings):
     
     # Server Configuration
     host: str = Field(default="0.0.0.0", env="HOST")
-    port: int = Field(default=8000, env="PORT")
+    port: int = Field(default=8001, env="PORT")
     debug: bool = Field(default=True, env="DEBUG")
     reload: bool = Field(default=True, env="RELOAD")
     
     # Database Configuration (for future use)
-    database_url: str = Field(default="sqlite:///./landppt.db", env="DATABASE_URL")
+    database_url: str = Field(
+        default="mysql+pymysql://root:1234@localhost:3306/leapmind-voice?charset=utf8mb4",
+        env="DATABASE_URL"
+    )
     
     # Security Configuration
     secret_key: str = Field(default="your-secret-key-here", env="SECRET_KEY")

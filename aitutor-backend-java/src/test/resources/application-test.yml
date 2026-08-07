@@ -1,0 +1,30 @@
+
+ spring:
+   # Use an in-memory database for tests to ensure isolation and speed
+   datasource:
+     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+     username: sa
+     password:
+     driver-class-name: org.h2.Driver
+   # Disable Flyway migrations for most tests, can be enabled selectively
+   flyway:
+     enabled: false
+   # Use a different server port for tests to avoid conflicts with a running application
+   server:
+     port: 8081
+ 
+ # Ensure logging is clean for tests
+ logging:
+   level:
+     com.treepeople.leapmindtts: INFO
+     org.springframework.boot.test: INFO
+
+ # Resilience4j test configuration
+ resilience4j:
+   ratelimiter:
+     configs:
+       default:
+         limitForPeriod: 100
+         limitRefreshPeriod: 50ms  # 周期设为极短的 50毫秒，下个用例运行前肯定已自动恢复！
+         timeoutDuration: 1s
+ 

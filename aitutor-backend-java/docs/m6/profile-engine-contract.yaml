@@ -1,0 +1,164 @@
+openapi: 3.0.3
+info:
+  title: LeapMind M6 Profile Engine Internal API
+  version: '1.0'
+  description: Internal HTTP contract only. Java client, scheduler, algorithm and writer are outside this task.
+servers:
+  - url: http://localhost:8001
+    description: Development default; deployments override with PROFILE_ENGINE_BASE_URL.
+x-state-rules:
+  READY: {targetVersionDelta: 1, profile: required, knowledgeMastery: allowed}
+  INSUFFICIENT_DATA: {targetVersionDelta: 1, profile: forbidden, knowledgeMastery: empty}
+  NO_CHANGE: {targetVersionDelta: 0, profile: forbidden, knowledgeMastery: forbidden, evaluatedAtPersisted: false}
+paths:
+  /api/internal/ai/build-profile:
+    post:
+      security: [{serviceBearer: []}]
+      operationId: buildProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BuildProfileRequest'}
+      responses:
+        '200':
+          description: Validated computation outcome
+          content: {application/json: {schema: {$ref: '#/components/schemas/BuildProfileResponse'}}}
+        '400': {description: Contract validation failed}
+        '401': {description: Missing service authentication}
+        '403': {description: Service identity denied}
+        '409': {description: Same requestId with different payload or CAS conflict}
+        '503': {description: Engine unavailable}
+components:
+  securitySchemes:
+    serviceBearer: {type: http, scheme: bearer, bearerFormat: opaque-service-credential}
+  schemas:
+    BuildProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [contractVersion, requestId, userId, mode, baseProfileVersion, fromEventIdExclusive, eventWatermarkInclusive, events]
+      properties:
+        contractVersion: {type: string, enum: ['1.0']}
+        requestId: {type: string, format: uuid}
+        userId: {type: integer, format: int64, minimum: 1, maximum: 9223372036854775807}
+        mode: {type: string, enum: [INCREMENTAL, FULL]}
+        baseProfileVersion: {type: integer, format: int64, minimum: 0, maximum: 9223372036854775807}
+        fromEventIdExclusive: {type: integer, format: int64, minimum: 0, maximum: 9223372036854775807}
+        eventWatermarkInclusive: {type: integer, format: int64, minimum: 0, maximum: 9223372036854775807}
+        events:
+          type: array
+          description: Strictly increasing dbEventId; only validated PENDING rows, never QUARANTINED or FAILED.
+          items: {$ref: '#/components/schemas/ProfileEvent'}
+    ProfileEvent:
+      type: object
+      additionalProperties: false
+      required: [dbEventId, eventId, eventType, sourceModule, occurredAt, schemaVersion, data]
+      properties:
+        dbEventId: {type: integer, format: int64, minimum: 1, maximum: 9223372036854775807}
+        eventId: {type: string}
+        eventType: {type: string}
+        sourceModule: {type: string}
+        occurredAt: {type: string, format: date-time}
+        schemaVersion: {type: string, enum: ['1.0']}
+        sessionId: {type: string}
+        kpId: {type: integer, format: int64, minimum: 1, maximum: 9223372036854775807}
+        traceId: {type: string}
+        data: {type: object}
+    BuildProfileResponse:
+      oneOf:
+        - {$ref: '#/components/schemas/ReadyResponse'}
+        - {$ref: '#/components/schemas/InsufficientResponse'}
+        - {$ref: '#/components/schemas/NoChangeResponse'}
+      discriminator:
+        propertyName: status
+        mapping:
+          READY: '#/components/schemas/ReadyResponse'
+          INSUFFICIENT_DATA: '#/components/schemas/InsufficientResponse'
+          NO_CHANGE: '#/components/schemas/NoChangeResponse'
+    ResponseBase:
+      type: object
+      required: [contractVersion, requestId, userId, baseProfileVersion, targetProfileVersion, eventWatermarkInclusive, status, algorithmVersion, evaluatedAt]
+      properties:
+        contractVersion: {type: string, enum: ['1.0']}
+        requestId: {type: string, format: uuid}
+        userId: {type: integer, format: int64, minimum: 1, maximum: 9223372036854775807}
+        baseProfileVersion: {type: integer, format: int64, minimum: 0, maximum: 9223372036854775807}
+        targetProfileVersion: {type: integer, format: int64, minimum: 0, maximum: 9223372036854775807}
+        eventWatermarkInclusive: {type: integer, format: int64, minimum: 0, maximum: 9223372036854775807}
+        status: {type: string}
+        algorithmVersion: {type: string, minLength: 1, maxLength: 30}
+        evaluatedAt: {type: string, format: date-time, description: Evaluation time; NO_CHANGE never persists it over profile computedAt.}
+    ReadyResponse:
+      allOf:
+        - {$ref: '#/components/schemas/ResponseBase'}
+        - type: object
+          required: [profile, knowledgeMastery]
+          description: status=READY and targetProfileVersion=baseProfileVersion+1.
+          properties:
+            status: {type: string, enum: [READY]}
+            profile: {$ref: '#/components/schemas/Profile'}
+            knowledgeMastery: {type: array, items: {$ref: '#/components/schemas/KnowledgeMastery'}}
+    InsufficientResponse:
+      allOf:
+        - {$ref: '#/components/schemas/ResponseBase'}
+        - type: object
+          required: [knowledgeMastery]
+          description: status=INSUFFICIENT_DATA, target=base+1; profile is forbidden and mastery is empty.
+          properties:
+            status: {type: string, enum: [INSUFFICIENT_DATA]}
+            profile: {not: {}}
+            knowledgeMastery: {type: array, maxItems: 0}
+    NoChangeResponse:
+      allOf:
+        - {$ref: '#/components/schemas/ResponseBase'}
+        - type: object
+          description: status=NO_CHANGE, target=base; profile and mastery are forbidden. First outcome atomically creates version-0 NOT_READY stub and advances watermark.
+          properties:
+            status: {type: string, enum: [NO_CHANGE]}
+            profile: {not: {}}
+            knowledgeMastery: {not: {}}
+    Profile:
+      type: object
+      additionalProperties: false
+      required: [preferredContentModes, recentFocus, recentConfusions]
+      properties:
+        grade: {type: string, maxLength: 30, nullable: true}
+        preferredContentModes: {type: array, maxItems: 5, items: {type: string, enum: [text, image, audio, video, exercise]}}
+        preferredExplanationStyle: {type: string, maxLength: 50, nullable: true}
+        learningPace: {type: string, enum: [slow, moderate, fast], nullable: true}
+        recentFocus: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/RecentFocus'}}
+        recentConfusions: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/RecentConfusion'}}
+        summaryProfile: {type: string, maxLength: 16383, nullable: true}
+        confidence: {type: number, minimum: 0, maximum: 1, multipleOf: 0.001, nullable: true}
+    RecentFocus:
+      type: object
+      additionalProperties: false
+      required: [kpId, weight]
+      properties:
+        kpId: {type: integer, format: int64, minimum: 1}
+        weight: {type: number, minimum: 0, maximum: 1}
+    RecentConfusion:
+      type: object
+      additionalProperties: false
+      required: [kpId, detail, evidenceCount, confidence, lastOccurredAt]
+      properties:
+        kpId: {type: integer, format: int64, minimum: 1}
+        detail: {type: string, maxLength: 120}
+        evidenceCount: {type: integer, format: int64, minimum: 0, maximum: 4294967295}
+        confidence: {type: number, minimum: 0, maximum: 1}
+        lastOccurredAt: {type: string, format: date-time}
+    KnowledgeMastery:
+      type: object
+      additionalProperties: false
+      required: [kpId, masteryScore, masteryStatus, confidence, evidenceCount, algorithmVersion, updatedAt]
+      properties:
+        kpId: {type: integer, format: int64, minimum: 1, maximum: 9223372036854775807}
+        masteryScore: {type: number, minimum: 0, maximum: 1, multipleOf: 0.0001}
+        masteryStatus: {type: string, enum: [WEAK, CONSOLIDATING, BASIC_MASTERY, MASTERED, INSUFFICIENT_EVIDENCE]}
+        confidence: {type: number, minimum: 0, maximum: 1, multipleOf: 0.0001}
+        evidenceCount: {type: integer, format: int64, minimum: 0, maximum: 4294967295}
+        trend: {type: string, enum: [IMPROVING, STABLE, DECLINING], nullable: true}
+        algorithmVersion: {type: string, minLength: 1, maxLength: 30}
+        windowStart: {type: string, format: date-time}
+        windowEnd: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}

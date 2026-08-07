@@ -6,7 +6,14 @@
 
 权重默认值：
     w1 = 0.4, w2 = 0.4, w3 = 0.2
+
+数据来源：
+    - user_answers         (M1) — 答题正确/错误记录
+    - conversation_messages (M7) — 用户提问中的困惑知识点
+    - wrong_question_book   (M1) — 错题本中的题目，反映持续困惑
+    - user_profiles         (M6) — 画像中的困惑话题，补充 confusionCount
 """
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -17,11 +24,38 @@ import pandas as pd
 DEFAULT_WEIGHTS = {"w1": 0.4, "w2": 0.4, "w3": 0.2}
 
 
+def _extract_confusion_topics(confusion_history) -> set:
+    """从 user_profiles.confusion_history_json 中提取困惑话题集合
+
+    支持多种常见 JSON 格式：
+        ["topic1", "topic2"]
+        [{"topic": "topic1"}, {"name": "topic2"}, {"keyword": "topic3"}]
+        "single topic"
+    """
+    topics = set()
+    if isinstance(confusion_history, list):
+        for item in confusion_history:
+            if isinstance(item, str):
+                topics.add(item)
+            elif isinstance(item, dict):
+                for key in ("topic", "name", "keyword", "label", "text"):
+                    val = item.get(key)
+                    if isinstance(val, str) and val.strip():
+                        topics.add(val.strip())
+    elif isinstance(confusion_history, str):
+        topic = confusion_history.strip()
+        if topic:
+            topics.add(topic)
+    return topics
+
+
 def calculate_weakness_scores(
     user_answers: list[dict],
     conversation_messages: list[dict],
     knowledge_points: list[dict],
     weights: Optional[dict[str, float]] = None,
+    wrong_question_book: Optional[list[dict]] = None,
+    user_profile: Optional[dict] = None,
 ) -> list[dict]:
     """
     计算用户各知识点的薄弱度
@@ -33,11 +67,16 @@ def calculate_weakness_scores(
     user_answers : list[dict]
         用户答题记录（M1），每项包含 kp_id, is_correct, created_at
     conversation_messages : list[dict]
-        用户提问记录（M7），每项包含 kp_id
+        用户提问记录（M7），每项包含 kp_id, content
     knowledge_points : list[dict]
         知识点列表（基础数据），每项包含 id, name, parent_id
     weights : dict | None
         权重，默认 {w1: 0.4, w2: 0.4, w3: 0.2}
+    wrong_question_book : list[dict] | None
+        错题本记录（M1），每项包含 kp_id。错题越多 → confusionCount 越高
+    user_profile : dict | None
+        用户画像（M6），包含 confusion_history_json。
+        画像中的困惑话题 → 匹配知识点名称 → 增加 confusionCount
 
     返回
     ----
@@ -73,7 +112,8 @@ def calculate_weakness_scores(
 
     stats = stats.join(recent_correct)
 
-    # ── 3. 提问困惑频率 ──
+    # ── 3. 提问困惑频率（多源融合） ──
+    # 数据来源①：对话消息（M7）
     df_msgs = pd.DataFrame(conversation_messages)
     if not df_msgs.empty:
         confusion_counts = df_msgs.groupby("kp_id").size()
@@ -81,6 +121,35 @@ def calculate_weakness_scores(
         stats = stats.join(confusion_counts, how="left")
     else:
         stats["confusion_count"] = 0
+
+    stats["confusion_count"] = stats["confusion_count"].fillna(0)
+
+    # 数据来源②：错题本（M1）— 错题本中同一知识点的题目越多，反映困惑越深
+    if wrong_question_book:
+        df_wrong = pd.DataFrame(wrong_question_book)
+        if not df_wrong.empty and "kp_id" in df_wrong.columns:
+            wrong_counts = df_wrong.groupby("kp_id").size()
+            for kp_id, count in wrong_counts.items():
+                if kp_id in stats.index:
+                    stats.at[kp_id, "confusion_count"] += float(count)
+
+    # 数据来源③：用户画像 confusion_history_json（M6）
+    if user_profile and user_profile.get("confusion_history_json"):
+        try:
+            confusion_history = json.loads(user_profile["confusion_history_json"])
+            confusion_topics = _extract_confusion_topics(confusion_history)
+            if confusion_topics:
+                kp_name_to_id = {kp["name"]: kp["id"] for kp in knowledge_points}
+                for topic in confusion_topics:
+                    # 先精确匹配，再模糊匹配（包含关系）
+                    matched = False
+                    for kp_name, kp_id in kp_name_to_id.items():
+                        if topic == kp_name or topic in kp_name or kp_name in topic:
+                            if kp_id in stats.index:
+                                stats.at[kp_id, "confusion_count"] += 1.0
+                                matched = True
+        except (json.JSONDecodeError, TypeError):
+            pass
 
     stats["confusion_count"] = stats["confusion_count"].fillna(0).astype(int)
 

@@ -103,12 +103,19 @@ class JSONExtractor:
     @staticmethod
     def _extract_first_json(text: str) -> Optional[Any]:
         """Strategy 2: Find the first complete JSON object or array."""
-        # Try to find {...} or [...] with proper nesting
-        for start_char, end_char in [("{", "}"), ("[", "]")]:
-            start_idx = text.find(start_char)
-            if start_idx == -1:
-                continue
+        # 按最早出现的 '{' 或 '[' 作为起点（不能固定优先 '{'：
+        # 若 AI 输出 JSON 数组，text.find('{') 会命中数组内第一个对象，
+        # 只提取出单个对象而丢掉整个数组）
+        starts = []
+        idx = text.find("{")
+        if idx != -1:
+            starts.append((idx, "{", "}"))
+        idx = text.find("[")
+        if idx != -1:
+            starts.append((idx, "[", "]"))
+        starts.sort(key=lambda x: x[0])
 
+        for start_idx, start_char, end_char in starts:
             depth = 0
             for i in range(start_idx, len(text)):
                 ch = text[i]
@@ -121,8 +128,8 @@ class JSONExtractor:
                         try:
                             return json.loads(candidate)
                         except json.JSONDecodeError:
-                            # Continue searching for a deeper valid JSON
-                            pass
+                            # 该起点不是完整JSON，尝试下一个起点
+                            break
         return None
 
     @staticmethod

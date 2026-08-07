@@ -19,7 +19,11 @@ public class CorsConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // 允许来源
-        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:5173"));
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "http://[::1]:*"
+        ));
         
         // 允许所有HTTP方法
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));

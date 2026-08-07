@@ -1,0 +1,892 @@
+{
+  "info": {
+    "_postman_id": "43e3bbca-e4a1-461b-9342-afbf1aaad17a",
+    "name": "LeapMind M6 上下文记忆与用户画像演示",
+    "description": "Apifox 演示集合。真实调用前先执行“登录并提取 Token/UserId”；后端未就绪时，只打开内置离线响应示例，不发送请求。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 登录与环境",
+      "item": [
+        {
+          "name": "登录并提取 Token/UserId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('登录返回 token 和 userId', () => {",
+                  "  pm.expect(json.data.token).to.be.a('string').and.not.empty;",
+                  "  pm.expect(json.data.userInfo.id).to.exist;",
+                  "});",
+                  "pm.environment.set('accessToken', json.data.token);",
+                  "pm.environment.set('userId', String(json.data.userInfo.id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "使用本地演示账号登录。后置脚本会把 data.token 与 data.userInfo.id 写入当前 Apifox 环境。"
+          },
+          "response": [
+            {
+              "name": "200 登录成功（离线示例）",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"token\": \"demo.jwt.placeholder\",\n    \"expiresIn\": 7200,\n    \"userInfo\": {\n      \"id\": 1,\n      \"username\": \"demo_user\"\n    }\n  },\n  \"timestamp\": 1785456000000\n}"
+            }
+          ]
+        },
+        {
+          "name": "验证当前用户",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "profile"
+              ]
+            },
+            "description": "确认当前环境的 Bearer Token 可用。"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "01 事件采集（主演示）",
+      "item": [
+        {
+          "name": "1. 首次写入 - ACCEPTED",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = Date.now().toString();",
+                  "pm.environment.set('eventId', `apifox-answer-${suffix}`);",
+                  "pm.environment.set('occurredAt', new Date().toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('首次写入为 ACCEPTED', () => {",
+                  "  pm.expect(json.data.eventStatus).to.eql('ACCEPTED');",
+                  "  pm.expect(json.data.duplicate).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "apifox-demo-accepted"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"userId\": {{userId}},\n  \"eventType\": \"answer_question\",\n  \"sourceModule\": \"M1\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"schemaVersion\": \"1.0\",\n  \"sessionId\": \"apifox-demo-session\",\n  \"kpId\": {{kpId}},\n  \"traceId\": \"apifox-demo-trace\",\n  \"data\": {\n    \"isCorrect\": false,\n    \"difficulty\": 3,\n    \"timeSpentSec\": 42,\n    \"hintCount\": 1,\n    \"confusionTag\": \"concept_unclear\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}/record-event",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}",
+                "record-event"
+              ]
+            },
+            "description": "每次发送前生成新的 eventId，演示事件被接收并进入画像投影队列。"
+          },
+          "response": [
+            {
+              "name": "200 ACCEPTED（离线示例）",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "X-Request-Id",
+                  "value": "apifox-demo-accepted"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"acknowledged\": true,\n    \"eventId\": \"apifox-answer-1785456000000\",\n    \"eventStatus\": \"ACCEPTED\",\n    \"duplicate\": false,\n    \"profileUpdateStatus\": \"PENDING\",\n    \"receivedAt\": \"2026-07-31T10:00:00Z\",\n    \"requestId\": \"apifox-demo-accepted\"\n  },\n  \"timestamp\": 1785456000000\n}"
+            }
+          ]
+        },
+        {
+          "name": "2. 原样重试 - DUPLICATE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('相同 eventId 与内容被识别为 DUPLICATE', () => {",
+                  "  pm.expect(json.data.eventStatus).to.eql('DUPLICATE');",
+                  "  pm.expect(json.data.duplicate).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "apifox-demo-duplicate"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"userId\": {{userId}},\n  \"eventType\": \"answer_question\",\n  \"sourceModule\": \"M1\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"schemaVersion\": \"1.0\",\n  \"sessionId\": \"apifox-demo-session\",\n  \"kpId\": {{kpId}},\n  \"traceId\": \"apifox-demo-trace\",\n  \"data\": {\n    \"isCorrect\": false,\n    \"difficulty\": 3,\n    \"timeSpentSec\": 42,\n    \"hintCount\": 1,\n    \"confusionTag\": \"concept_unclear\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}/record-event",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}",
+                "record-event"
+              ]
+            },
+            "description": "必须紧接首次写入执行；复用同一个 eventId、occurredAt 和完整载荷。"
+          },
+          "response": [
+            {
+              "name": "200 DUPLICATE（离线示例）",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"acknowledged\": true,\n    \"eventId\": \"apifox-answer-1785456000000\",\n    \"eventStatus\": \"DUPLICATE\",\n    \"duplicate\": true,\n    \"profileUpdateStatus\": \"PENDING\",\n    \"receivedAt\": \"2026-07-31T10:00:00Z\",\n    \"requestId\": \"apifox-demo-duplicate\"\n  },\n  \"timestamp\": 1785456001000\n}"
+            }
+          ]
+        },
+        {
+          "name": "3. 同 ID 改内容 - 409 CONFLICT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('返回幂等冲突错误码', () => {",
+                  "  pm.expect(json.data.errorCode).to.eql('PROFILE_IDEMPOTENCY_CONFLICT');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "apifox-demo-conflict"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"userId\": {{userId}},\n  \"eventType\": \"answer_question\",\n  \"sourceModule\": \"M1\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"schemaVersion\": \"1.0\",\n  \"sessionId\": \"apifox-demo-session\",\n  \"kpId\": {{kpId}},\n  \"traceId\": \"apifox-demo-trace\",\n  \"data\": {\n    \"isCorrect\": true,\n    \"difficulty\": 3,\n    \"timeSpentSec\": 42,\n    \"hintCount\": 1,\n    \"confusionTag\": \"concept_unclear\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}/record-event",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}",
+                "record-event"
+              ]
+            },
+            "description": "复用同一 eventId，但把 isCorrect 从 false 改成 true，证明幂等键不会静默覆盖旧事实。"
+          },
+          "response": [
+            {
+              "name": "409 幂等冲突（离线示例）",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 409,\n  \"message\": \"事件标识冲突\",\n  \"data\": {\n    \"requestId\": \"apifox-demo-conflict\",\n    \"errorCode\": \"PROFILE_IDEMPOTENCY_CONFLICT\",\n    \"details\": []\n  },\n  \"timestamp\": 1785456002000\n}"
+            }
+          ]
+        },
+        {
+          "name": "4. 敏感字段拒绝 - 400",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('sensitiveEventId', `apifox-sensitive-${Date.now()}`);",
+                  "pm.environment.set('occurredAt', new Date().toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "const json = pm.response.json();",
+                  "pm.test('敏感/未知字段被严格校验拒绝', () => {",
+                  "  pm.expect(json.data.errorCode).to.eql('PROFILE_EVENT_INVALID');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{sensitiveEventId}}\",\n  \"userId\": {{userId}},\n  \"eventType\": \"answer_question\",\n  \"sourceModule\": \"M1\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"schemaVersion\": \"1.0\",\n  \"kpId\": {{kpId}},\n  \"data\": {\n    \"isCorrect\": false,\n    \"difficulty\": 3,\n    \"timeSpentSec\": 42,\n    \"hintCount\": 1,\n    \"authorization\": \"Bearer demo-placeholder-only\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}/record-event",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}",
+                "record-event"
+              ]
+            },
+            "description": "authorization 只是固定占位串，不含真实凭据；用于演示严格白名单和隐私防线。"
+          },
+          "response": [
+            {
+              "name": "400 PROFILE_EVENT_INVALID（离线示例）",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 400,\n  \"message\": \"Invalid learning event\",\n  \"data\": {\n    \"requestId\": \"apifox-demo-invalid\",\n    \"errorCode\": \"PROFILE_EVENT_INVALID\",\n    \"details\": [\n      {\n        \"field\": \"data\",\n        \"reason\": \"INVALID\"\n      }\n    ]\n  },\n  \"timestamp\": 1785456003000\n}"
+            }
+          ]
+        },
+        {
+          "name": "5. 批量事件 - 部分失败",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = Date.now().toString();",
+                  "pm.environment.set('batchEventId1', `apifox-batch-ok-${suffix}`);",
+                  "pm.environment.set('batchEventId2', `apifox-batch-bad-${suffix}`);",
+                  "pm.environment.set('occurredAt', new Date().toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('结果保持输入顺序且允许部分失败', () => {",
+                  "  pm.expect(json.data).to.have.length(2);",
+                  "  pm.expect(json.data[0].index).to.eql(0);",
+                  "  pm.expect(json.data[0].status).to.eql('ACCEPTED');",
+                  "  pm.expect(json.data[1].index).to.eql(1);",
+                  "  pm.expect(json.data[1].status).to.eql('FAILED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"events\": [\n    {\n      \"eventId\": \"{{batchEventId1}}\",\n      \"userId\": {{userId}},\n      \"eventType\": \"answer_question\",\n      \"sourceModule\": \"M1\",\n      \"occurredAt\": \"{{occurredAt}}\",\n      \"schemaVersion\": \"1.0\",\n      \"kpId\": {{kpId}},\n      \"data\": {\n        \"isCorrect\": true,\n        \"difficulty\": 2,\n        \"timeSpentSec\": 20,\n        \"hintCount\": 0\n      }\n    },\n    {\n      \"eventId\": \"{{batchEventId2}}\",\n      \"userId\": {{userId}},\n      \"eventType\": \"answer_question\",\n      \"sourceModule\": \"M2\",\n      \"occurredAt\": \"{{occurredAt}}\",\n      \"schemaVersion\": \"1.0\",\n      \"kpId\": {{kpId2}},\n      \"data\": {\n        \"isCorrect\": false,\n        \"difficulty\": 4,\n        \"timeSpentSec\": 65,\n        \"hintCount\": 2\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}/batch-events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}",
+                "batch-events"
+              ]
+            },
+            "description": "第二条故意把 answer_question 的来源写成 M2，服务返回有序的 item 级 FAILED，而不是回滚第一条。"
+          },
+          "response": [
+            {
+              "name": "200 部分失败（离线示例）",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"操作成功\",\n  \"data\": [\n    {\n      \"index\": 0,\n      \"eventId\": \"apifox-batch-ok-1785456000000\",\n      \"status\": \"ACCEPTED\",\n      \"profileUpdateStatus\": \"PENDING\",\n      \"receivedAt\": \"2026-07-31T10:00:00Z\",\n      \"errorCode\": null,\n      \"requestId\": \"apifox-demo-batch\"\n    },\n    {\n      \"index\": 1,\n      \"eventId\": null,\n      \"status\": \"FAILED\",\n      \"profileUpdateStatus\": null,\n      \"receivedAt\": null,\n      \"errorCode\": \"PROFILE_EVENT_INVALID\",\n      \"requestId\": \"apifox-demo-batch\"\n    }\n  ],\n  \"timestamp\": 1785456004000\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 画像查询",
+      "item": [
+        {
+          "name": "1. 完整画像",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('返回明确画像状态', () => {",
+                  "  pm.expect(['READY', 'STALE', 'NOT_READY']).to.include(json.data.profileStatus);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}"
+              ]
+            },
+            "description": "真实模式可能返回 NOT_READY；只有数据库中存在已投影画像时才会返回 READY/STALE。"
+          },
+          "response": [
+            {
+              "name": "200 READY（离线示例）",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"userId\": 1,\n    \"profileStatus\": \"READY\",\n    \"statusReason\": null,\n    \"profileVersion\": 7,\n    \"grade\": \"高一\",\n    \"preferredContentModes\": [\"image\", \"exercise\"],\n    \"preferredExplanationStyle\": \"先给直观图示，再分步骤推导\",\n    \"learningPace\": \"moderate\",\n    \"recentFocus\": [\n      {\"kpId\": 101, \"weight\": 0.92}\n    ],\n    \"recentConfusions\": [\n      {\n        \"kpId\": 101,\n        \"detail\": \"边缘检测中梯度方向判断不稳定\",\n        \"evidenceCount\": 4,\n        \"confidence\": 0.84,\n        \"lastOccurredAt\": \"2026-07-31T09:50:00Z\"\n      }\n    ],\n    \"summaryProfile\": \"偏好图示与练习结合，对梯度方向仍需巩固。\",\n    \"confidence\": 0.86,\n    \"algorithmVersion\": \"profile-engine-demo\",\n    \"lastEventAt\": \"2026-07-31T09:55:00Z\",\n    \"computedAt\": \"2026-07-31T09:56:00Z\",\n    \"knowledge\": [\n      {\n        \"kpId\": 101,\n        \"status\": \"AVAILABLE\",\n        \"masteryScore\": 0.58,\n        \"masteryStatus\": \"CONSOLIDATING\",\n        \"confidence\": 0.81,\n        \"trend\": \"IMPROVING\",\n        \"evidenceCount\": 8\n      }\n    ]\n  },\n  \"timestamp\": 1785456005000\n}"
+            }
+          ]
+        },
+        {
+          "name": "1b. 完整画像 - NOT_READY 离线示例",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}"
+              ]
+            },
+            "description": "仅用于在 Apifox 中打开 NOT_READY 响应示例；真实发送仍由当前数据库状态决定。"
+          },
+          "response": [
+            {
+              "name": "200 NOT_READY（离线示例）",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"操作成功\",\n  \"data\": {\n    \"userId\": 1,\n    \"profileStatus\": \"NOT_READY\",\n    \"statusReason\": \"PROFILE_NOT_COMPUTED\",\n    \"profileVersion\": 0\n  },\n  \"timestamp\": 1785456005000\n}"
+            }
+          ]
+        },
+        {
+          "name": "2. 讲解场景摘要",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}/summary?sceneType=explaining&kpId={{kpId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "sceneType",
+                  "value": "explaining"
+                },
+                {
+                  "key": "kpId",
+                  "value": "{{kpId}}"
+                }
+              ]
+            },
+            "description": "展示 M2 等下游模块只读取场景化摘要，不必消费整份画像。"
+          },
+          "response": [
+            {
+              "name": "200 explaining 摘要（离线示例）",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"userId\": 1,\n    \"sceneType\": \"explaining\",\n    \"profileStatus\": \"READY\",\n    \"statusReason\": null,\n    \"profileVersion\": 7,\n    \"lastUpdated\": \"2026-07-31T09:56:00Z\",\n    \"grade\": \"高一\",\n    \"knowledgeContext\": {\n      \"kpId\": 101,\n      \"status\": \"AVAILABLE\",\n      \"masteryScore\": 0.58,\n      \"masteryStatus\": \"CONSOLIDATING\",\n      \"confidence\": 0.81,\n      \"trend\": \"IMPROVING\",\n      \"evidenceCount\": 8\n    },\n    \"recentConfusions\": [],\n    \"preferredContentModes\": [\"image\", \"exercise\"],\n    \"preferredExplanationStyle\": \"先给直观图示，再分步骤推导\",\n    \"learningPace\": \"moderate\"\n  },\n  \"timestamp\": 1785456006000\n}"
+            }
+          ]
+        },
+        {
+          "name": "3. 知识点状态",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('返回知识点数组', () => pm.expect(json.data.knowledge).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}/knowledge-status?kpId={{kpId}}&kpId={{kpId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}",
+                "knowledge-status"
+              ],
+              "query": [
+                {
+                  "key": "kpId",
+                  "value": "{{kpId}}"
+                },
+                {
+                  "key": "kpId",
+                  "value": "{{kpId2}}"
+                }
+              ]
+            },
+            "description": "同名 kpId 查询参数可重复，按请求顺序返回知识点状态。"
+          },
+          "response": [
+            {
+              "name": "200 知识点状态（离线示例）",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"message\": \"success\",\n  \"data\": {\n    \"userId\": 1,\n    \"profileStatus\": \"READY\",\n    \"statusReason\": null,\n    \"profileVersion\": 7,\n    \"knowledge\": [\n      {\n        \"kpId\": 101,\n        \"status\": \"AVAILABLE\",\n        \"masteryScore\": 0.58,\n        \"masteryStatus\": \"CONSOLIDATING\",\n        \"confidence\": 0.81,\n        \"trend\": \"IMPROVING\",\n        \"evidenceCount\": 8\n      },\n      {\n        \"kpId\": 102,\n        \"status\": \"INSUFFICIENT_EVIDENCE\",\n        \"masteryScore\": null,\n        \"masteryStatus\": \"INSUFFICIENT_EVIDENCE\",\n        \"confidence\": null,\n        \"trend\": null,\n        \"evidenceCount\": 1\n      }\n    ]\n  },\n  \"timestamp\": 1785456007000\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 权限与协议边界",
+      "item": [
+        {
+          "name": "1. 未登录访问 - 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}"
+              ]
+            },
+            "description": "覆盖集合级 Bearer 鉴权，证明画像接口不是匿名资源。"
+          },
+          "response": [
+            {
+              "name": "401 未认证（离线示例）",
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 401,\n  \"message\": \"未认证\",\n  \"data\": {\n    \"requestId\": \"apifox-demo-unauthenticated\",\n    \"errorCode\": \"PROFILE_UNAUTHENTICATED\",\n    \"details\": []\n  },\n  \"timestamp\": 1785456008000\n}"
+            }
+          ]
+        },
+        {
+          "name": "2. 越权访问其他用户 - 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{otherUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{otherUserId}}"
+              ]
+            },
+            "description": "确保 otherUserId 与登录账号 ID 不同，演示 M6 的 self-only 数据隔离。"
+          },
+          "response": [
+            {
+              "name": "403 无权访问（离线示例）",
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 403,\n  \"message\": \"无权访问\",\n  \"data\": {\n    \"requestId\": \"apifox-demo-denied\",\n    \"errorCode\": \"PROFILE_ACCESS_DENIED\",\n    \"details\": []\n  },\n  \"timestamp\": 1785456009000\n}"
+            }
+          ]
+        },
+        {
+          "name": "3. 非法用户 ID - 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "0"
+              ]
+            },
+            "description": "路径 userId 必须为正整数。"
+          },
+          "response": []
+        },
+        {
+          "name": "4. 不支持的媒体类型 - 415",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('mediaEventId', `apifox-media-${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 415', () => pm.response.to.have.status(415));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "not-json"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user-profile/{{userId}}/record-event",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "user-profile",
+                "{{userId}}",
+                "record-event"
+              ]
+            },
+            "description": "事件写入只接受 application/json 或 application/*+json。"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -61,6 +61,18 @@ public class TeachingContent {
     private Long templateId;
 
     /**
+     * PPT导出下载链接
+     */
+    @TableField("ppt_download_url")
+    private String pptDownloadUrl;
+
+    /**
+     * 完整备课生成内容（含大纲、PPT、讲稿），供 generate-ppt 接口读取 syllabus
+     */
+    @TableField("generated_content_json")
+    private String generatedContentJson;
+
+    /**
      * 创建时间
      */
     @TableField(value = "created_at", fill = FieldFill.INSERT)

@@ -139,23 +139,24 @@ def build_stage1_messages(
 STAGE2_SYSTEM_TEMPLATE = """你是PPT教学设计专家，擅长将教案内容转化为视觉化幻灯片结构。
 
 ## 设计原则
-1. 每页5-7个信息点（7±2原则）
-2. 核心概念需要突出显示
-3. 如有公式，用LaTeX格式输出
-4. 在适当位置插入互动问题（选择题/思考题）
+1. 将教学内容拆分为多张幻灯片，页数由内容复杂度决定（典型3-8页，覆盖完整教学流程）
+2. 每页5-7个信息点（7±2原则）
+3. 核心概念需要突出显示
+4. 如有公式，用LaTeX格式输出
+5. 在适当位置插入互动问题（选择题/思考题）
 
 ## 幻灯片类型说明
-- cover: 封面页（仅标题页使用）
+- cover: 封面页（仅标题页使用，一个section最多一张）
 - content: 内容页（知识点讲解）
 - interactive: 互动页（提问/练习）
 - summary: 总结页
 - homework: 课后作业页
 
 ## 输出格式
-请严格按以下JSON格式输出，不要包含markdown代码块标记：
+请输出一个JSON数组，数组的每个元素是一张幻灯片，严格遵循以下schema，不要包含markdown代码块标记：
 {slide_schema_desc}"""
 
-STAGE2_USER_TEMPLATE = """请为以下教学内容生成幻灯片JSON：
+STAGE2_USER_TEMPLATE = """请为以下教学内容生成多张幻灯片JSON数组：
 
 ## 教学内容
 {section_json}
@@ -163,14 +164,16 @@ STAGE2_USER_TEMPLATE = """请为以下教学内容生成幻灯片JSON：
 ## 学生特点
 {student_profile}
 
-请输出一个JSON对象，严格遵循schema格式。"""
+请根据教学内容的完整教学流程，输出一个JSON数组（包含多张幻灯片），
+按"导入→讲解→练习→总结→作业"的结构拆分，不要只输出一页。
+数组的每个元素严格遵循schema格式。"""
 
 
 def build_stage2_messages(
     section_json: str,
     user_profile_summary: Optional[str] = None,
 ) -> list:
-    """Build messages for Stage 2: Single PPT slide generation."""
+    """Build messages for Stage 2: Multi-page PPT slide generation."""
     from ...ai import AIMessage, MessageRole
 
     system = STAGE2_SYSTEM_TEMPLATE.format(slide_schema_desc=SLIDE_SCHEMA_DESC)

@@ -11,13 +11,22 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
   flyway:
-    # 生产环境必须禁止自动清理（保护数据安全）
     clean-disabled: true
-    # 严格按版本顺序执行，不允许乱序
     out-of-order: false
-    # 迁移前验证，及早发现文件损坏
     validate-on-migrate: true
     encoding: UTF-8
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+      lettuce:
+        pool:
+          max-active: 16
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 4
 
 # MyBatis-Plus配置 - 生产环境
 mybatis-plus:
@@ -66,3 +75,11 @@ text-polishing:
     max-text-length: 300
     # 保持合理的最小长度要求
     min-text-length: 5
+
+# AI 对话会话配置
+conversation:
+  session:
+    # 会话超时时间（30分钟无操作自动结束）
+    timeout: 30m
+    # Redis 中保留的最新消息数（超过此数量则截断旧消息）
+    message-limit: 20

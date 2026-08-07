@@ -7,14 +7,11 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class MinioConfig {
-
-    @Value("${minio.endpoint:http://localhost:9000}")
+    @Value("${minio.endpoint}")
     private String endpoint;
-
-    @Value("${minio.access-key:minioadmin}")
+    @Value("${minio.access-key}")
     private String accessKey;
-
-    @Value("${minio.secret-key:minioadmin}")
+    @Value("${minio.secret-key}")
     private String secretKey;
 
     @Bean

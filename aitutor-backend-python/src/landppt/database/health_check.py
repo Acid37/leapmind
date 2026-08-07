@@ -78,7 +78,7 @@ class DatabaseHealthChecker:
     async def _check_tables(self, session: AsyncSession) -> Dict[str, Any]:
         """Check table existence and structure"""
         try:
-            tables = ["projects", "todo_boards", "todo_stages", "project_versions", "slide_data"]
+            tables = ["py_projects", "py_todo_boards", "py_todo_stages", "py_project_versions", "py_slide_data"]
             existing_tables = []
             missing_tables = []
             
@@ -230,7 +230,7 @@ class DatabaseHealthChecker:
             storage_info = {}
             
             # Get table sizes (SQLite specific)
-            tables = ["projects", "todo_boards", "todo_stages", "project_versions", "slide_data"]
+            tables = ["py_projects", "py_todo_boards", "py_todo_stages", "py_project_versions", "py_slide_data"]
             
             for table in tables:
                 result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))

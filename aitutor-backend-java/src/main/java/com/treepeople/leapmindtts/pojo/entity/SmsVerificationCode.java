@@ -48,6 +48,7 @@ public class SmsVerificationCode {
      * 使用状态（0-未使用 1-已使用）
      * 类型：TINYINT UNSIGNED
      */
+     @Builder.Default
     private Integer isUsed = 0;
 
 }

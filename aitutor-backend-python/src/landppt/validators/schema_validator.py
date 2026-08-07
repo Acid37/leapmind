@@ -281,8 +281,11 @@ class SchemaValidator:
             for idx, item in enumerate(value):
                 self._validate_value(item, items_schema, f"{path}[{idx}]", errors)
 
-    def _check_type(self, value: Any, expected: str) -> bool:
-        """Check if value matches the expected JSON Schema type."""
+    def _check_type(self, value: Any, expected: str | list) -> bool:
+        """Check if value matches the expected JSON Schema type.
+
+        Handles both single types ("string") and union types (["object", "null"]).
+        """
         type_map = {
             "object": dict,
             "array": list,
@@ -292,12 +295,23 @@ class SchemaValidator:
             "boolean": bool,
             "null": type(None),
         }
-        py_type = type_map.get(expected)
-        if py_type is None and expected == "integer":
-            py_type = int
-        if py_type is None:
-            return True  # Unknown type — skip check
-        return isinstance(value, py_type)
+
+        expected_types = expected if isinstance(expected, list) else [expected]
+
+        # If value is None and null is in the allowed types, skip further checks
+        if value is None and "null" in expected_types:
+            return True
+
+        for exp in expected_types:
+            py_type = type_map.get(exp)
+            if py_type is None and exp == "integer":
+                py_type = int
+            if py_type is None:
+                continue  # Unknown type — skip
+            if isinstance(value, py_type):
+                return True
+
+        return False
 
     # ─── Auto-fix logic ───
 

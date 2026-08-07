@@ -28,4 +28,18 @@ public class TeachingContentServiceImpl extends ServiceImpl<TeachingContentMappe
         queryWrapper.orderByDesc("created_at");
         return baseMapper.selectList(queryWrapper);
     }
+
+    @Override
+    public TeachingContent getByPrepId(Long prepId) {
+        log.info("根据 prep_id 查询备课，prepId: {}", prepId);
+        return baseMapper.selectByPrepId(prepId);
+    }
+
+    @Override
+    public boolean removeByPrepId(Long prepId) {
+        log.info("根据 prep_id 删除备课，prepId: {}", prepId);
+        QueryWrapper<TeachingContent> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("prep_id", prepId);
+        return baseMapper.delete(queryWrapper) > 0;
+    }
 }

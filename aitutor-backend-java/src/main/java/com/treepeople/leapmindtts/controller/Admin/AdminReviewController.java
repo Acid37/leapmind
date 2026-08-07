@@ -1,4 +1,4 @@
-package com.treepeople.leapmindtts.controller.admin;
+package com.treepeople.leapmindtts.controller.Admin;
 
 import com.treepeople.leapmindtts.pojo.dto.AdminReviewRequest;
 import com.treepeople.leapmindtts.pojo.dto.BulkSynthesisResponse;

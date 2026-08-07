@@ -11,14 +11,38 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
   flyway:
-    # 开发环境可启用 clean（仅限本地开发！）
     clean-disabled: false
-    # 显示详细迁移日志
     out-of-order: false
-    # SQL迁移文件编码
     encoding: UTF-8
+  # ===================================================================
+  # 缓存配置 (Caffeine & Redis) -> 合并到 spring 根节点下
+  # ===================================================================
+  cache:
+    type: caffeine
+    cache-names:
+      - request-deduplication
+      - high-frequency-qa
+    caffeine:
+      spec: >
+        initialCapacity=100,
+        maximumSize=500,
+        expireAfterWrite=300ms
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      timeout: 10000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 0
 
+# ===================================================================
 # MyBatis-Plus配置 - 开发环境特定配置
+# ===================================================================
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
@@ -28,32 +52,23 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
+# ===================================================================
 # 日志配置 - 开发环境启用详细日志
+# ===================================================================
 logging:
   level:
-    # 应用程序包的详细日志
     com.treepeople.leapmindtts: DEBUG
-    # WebSocket相关日志
     org.java_websocket: DEBUG
-    # 文本润色服务日志
     com.treepeople.leapmindtts.service.TextPolishingService: DEBUG
-    # Spring配置属性日志
     org.springframework.boot.context.properties: DEBUG
 
+# ===================================================================
 # 开发环境下的文本润色配置
-# 开发环境可以使用不同的配置参数来便于调试和测试
+# ===================================================================
 text-polishing:
-  # 开发环境保持功能启用，便于测试
   enabled: true
-
-  # 开发环境设置更长的超时时间，便于调试和网络不稳定情况
-  # 增加到15秒以应对AI API的响应延迟
   timeout: 25
-
-  # 开发环境可以设置更多重试次数，便于测试重试机制
   max-retries: 3
-
-  # 开发环境可以使用不同的提示词进行测试
   prompt: |
     [开发环境] 请将以下文本润色为适合老师讲课的内容，要求：
     1. 保持原意不变，确保信息准确性
@@ -64,17 +79,68 @@ text-polishing:
     6. 【重要】润色后的内容字数不得超过原文字数+200字
     7. 根据页面类型（如目录、标题页等）调整讲解风格和篇幅
     8. 只返回润色后的教学内容，不要包含任何说明、引导语、分隔符或额外的话语
-
     原文：
-
-  # 开发环境的降级配置
   fallback:
     enabled: true
     use-original-on-error: true
-
-  # 开发环境的验证配置 - 可以设置不同的限制用于测试
   validation:
-    # 开发环境可以设置更大的文本长度限制，便于测试长文本
     max-text-length: 1000
-    # 开发环境保持较小的最小长度，便于测试边界情况
     min-text-length: 1
+
+# ===================================================================
+# Actuator & Prometheus 监控配置 -> 提至根节点 (取消缩进)
+# ===================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name:leapmind-tts}
+
+# ===================================================================
+# Resilience4j 服务治理配置 -> 提至根节点 (取消缩进)
+# ===================================================================
+resilience4j:
+  ratelimiter:
+    instances:
+      userQuestionLimiter:
+        limitForPeriod: 10
+        limitRefreshPeriod: 1m
+        # 修改了此处的中文注释，避免语法检查报错
+        timeoutDuration: 0          # 获取令牌超时时长（0 表示未获取到令牌，直接快速拒绝）
+  circuitbreaker:
+    instances:
+      contextCompress:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      aiService:
+        slidingWindowSize: 20
+        failureRateThreshold: 30
+        waitDurationInOpenState: 20s
+  timelimiter:
+    instances:
+      contextCompress:
+        timeoutDuration: 10s
+        cancelRunningFuture: true
+      aiService:
+        timeoutDuration: 15s
+
+# ===================================================================
+# Python API and Context Compression -> 提至根节点 (取消缩进)
+# ===================================================================
+python:
+  api:
+    compress-context-uri: "http://127.0.0.1:8000/api/internal/ai/compress-context"
+
+context:
+  compress:
+    token-threshold: 200
+    max-compressed-tokens: 100

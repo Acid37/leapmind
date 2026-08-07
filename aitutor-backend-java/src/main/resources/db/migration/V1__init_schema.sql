@@ -19,7 +19,7 @@ CREATE TABLE users (
     status       TINYINT      DEFAULT 1 COMMENT '账号状态 1-正常 0-禁用',
     created_at   DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at   DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    identify     VARCHAR(5)   DEFAULT NULL COMMENT '身份（student/admin）',
+    identify     VARCHAR(10)   DEFAULT NULL COMMENT '身份（student/admin）',
     PRIMARY KEY (id),
     UNIQUE KEY uk_username (username),
     KEY idx_username (username),

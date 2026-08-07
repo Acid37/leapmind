@@ -66,13 +66,16 @@ def _recalculate_for_user(
     """为单个用户执行全流程计算并落库"""
     user_answers = db.fetch_user_answers(user_id)
     conversation_msgs = db.fetch_conversation_messages(user_id)
+    wrong_book = db.fetch_wrong_question_book(user_id)
+    user_profile = db.fetch_user_profile(user_id)
 
     if not user_answers:
         return
 
     # 1. 计算薄弱度（与 API 接口使用相同的数据源，保证结果一致）
     weak_points = calc_weakness(
-        user_answers, conversation_msgs, knowledge_points
+        user_answers, conversation_msgs, knowledge_points,
+        wrong_question_book=wrong_book, user_profile=user_profile,
     )
 
     # 2. 趋势分析
@@ -143,13 +146,16 @@ def run_incremental_update(
         # 拉取用户全量数据（公式需要完整数据作为计算上下文）
         user_answers = db.fetch_user_answers(user_id)
         conversation_msgs = db.fetch_conversation_messages(user_id)
+        wrong_book = db.fetch_wrong_question_book(user_id)
+        user_profile = db.fetch_user_profile(user_id)
 
         if not user_answers:
             return {"status": "skipped", "reason": "用户无答题记录"}
 
-        # 1. 全量计算薄弱度
+        # 1. 全量计算薄弱度（多源融合）
         weak_points = calc_weakness(
-            user_answers, conversation_msgs, knowledge_points
+            user_answers, conversation_msgs, knowledge_points,
+            wrong_question_book=wrong_book, user_profile=user_profile,
         )
 
         # 2. 趋势分析
