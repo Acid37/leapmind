@@ -1,10 +1,12 @@
 package com.treepeople.leapmindtts.service.lesson.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.treepeople.leapmindtts.exception.M4LectureException;
 import com.treepeople.leapmindtts.mapper.LectureMapper;
 import com.treepeople.leapmindtts.pojo.dto.LectureCreateRequest;
 import com.treepeople.leapmindtts.pojo.entity.Lecture;
 import com.treepeople.leapmindtts.pojo.enums.LectureStatus;
+import com.treepeople.leapmindtts.pojo.vo.LecturePageVO;
 import com.treepeople.leapmindtts.pojo.vo.LectureVO;
 import com.treepeople.leapmindtts.service.lesson.LectureService;
 import lombok.RequiredArgsConstructor;
@@ -46,23 +48,29 @@ public class LectureServiceImpl implements LectureService {
     public LectureVO getByCourseId(String courseId) {
         Lecture entity = lectureMapper.selectByCourseId(courseId);
         if (entity == null) {
-            throw new RuntimeException("讲课内容不存在: courseId=" + courseId);
+            throw M4LectureException.notFound(courseId);
         }
         return convertToVO(entity);
     }
 
     @Override
-    public List<LectureVO> listAll(int page, int pageSize) {
+    public LecturePageVO listAll(int page, int pageSize) {
         Page<Lecture> pageParam = new Page<>(page, pageSize);
         Page<Lecture> result = lectureMapper.selectPage(pageParam, null);
-        return result.getRecords().stream().map(this::convertToVO).collect(Collectors.toList());
+        List<LectureVO> items = result.getRecords().stream()
+                .map(this::convertToVO)
+                .collect(Collectors.toList());
+        return LecturePageVO.builder()
+                .total(result.getTotal())
+                .items(items)
+                .build();
     }
 
     @Override
     public void deleteByCourseId(String courseId) {
         Lecture entity = lectureMapper.selectByCourseId(courseId);
         if (entity == null) {
-            throw new RuntimeException("讲课内容不存在: courseId=" + courseId);
+            throw M4LectureException.notFound(courseId);
         }
         lectureMapper.deleteById(entity.getId());
         log.info("删除讲课内容成功: courseId={}", courseId);
@@ -74,7 +82,7 @@ public class LectureServiceImpl implements LectureService {
         int rows = lectureMapper.updateGeneratedContent(courseId, pptJsonPath, generatedContent,
                 totalPages, totalDurationMs);
         if (rows == 0) {
-            throw new RuntimeException("讲课内容不存在，无法更新生成内容: courseId=" + courseId);
+            throw M4LectureException.notFound(courseId);
         }
         log.info("更新生成内容: courseId={}, totalPages={}, totalDurationMs={}",
                 courseId, totalPages, totalDurationMs);

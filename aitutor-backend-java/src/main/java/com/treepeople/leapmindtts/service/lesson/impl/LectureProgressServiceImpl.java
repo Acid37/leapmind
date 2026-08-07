@@ -1,5 +1,6 @@
 package com.treepeople.leapmindtts.service.lesson.impl;
 
+import com.treepeople.leapmindtts.exception.M4LectureException;
 import com.treepeople.leapmindtts.mapper.LectureMapper;
 import com.treepeople.leapmindtts.pojo.dto.LectureProgressDTO;
 import com.treepeople.leapmindtts.pojo.entity.Lecture;
@@ -28,7 +29,7 @@ public class LectureProgressServiceImpl implements LectureProgressService {
                 progressDTO.getProgressMs(),
                 progressDTO.getStatus());
         if (rows == 0) {
-            throw new RuntimeException("讲课内容不存在，无法保存进度: courseId=" + progressDTO.getCourseId());
+            throw M4LectureException.notFound(progressDTO.getCourseId());
         }
         log.info("保存讲课进度: courseId={}, page={}, progressMs={}, status={}",
                 progressDTO.getCourseId(), progressDTO.getCurrentPage(),
@@ -39,7 +40,7 @@ public class LectureProgressServiceImpl implements LectureProgressService {
     public LectureProgressDTO getProgress(String courseId) {
         Lecture entity = lectureMapper.selectByCourseId(courseId);
         if (entity == null) {
-            throw new RuntimeException("讲课内容不存在: courseId=" + courseId);
+            throw M4LectureException.notFound(courseId);
         }
         LectureProgressDTO dto = new LectureProgressDTO();
         dto.setCourseId(entity.getCourseId());
@@ -53,7 +54,7 @@ public class LectureProgressServiceImpl implements LectureProgressService {
     public void savePlaybackSnapshot(String courseId, String snapshotJson) {
         int rows = lectureMapper.updatePlaybackSnapshot(courseId, snapshotJson);
         if (rows == 0) {
-            throw new RuntimeException("讲课内容不存在，无法保存回放快照: courseId=" + courseId);
+            throw M4LectureException.notFound(courseId);
         }
         log.info("保存回放快照: courseId={}, snapshotSize={} chars",
                 courseId, snapshotJson != null ? snapshotJson.length() : 0);
@@ -63,7 +64,7 @@ public class LectureProgressServiceImpl implements LectureProgressService {
     public String getPlaybackSnapshot(String courseId) {
         Lecture entity = lectureMapper.selectByCourseId(courseId);
         if (entity == null) {
-            throw new RuntimeException("讲课内容不存在: courseId=" + courseId);
+            throw M4LectureException.notFound(courseId);
         }
         return entity.getPlaybackSnapshot();
     }

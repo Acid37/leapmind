@@ -4,6 +4,7 @@ import com.treepeople.leapmindtts.pojo.dto.FileUploadResponse;
 import com.treepeople.leapmindtts.pojo.dto.LectureCreateRequest;
 import com.treepeople.leapmindtts.pojo.dto.LectureProgressDTO;
 import com.treepeople.leapmindtts.pojo.result.ApiResponse;
+import com.treepeople.leapmindtts.pojo.vo.LecturePageVO;
 import com.treepeople.leapmindtts.pojo.vo.LectureVO;
 import com.treepeople.leapmindtts.service.lesson.AISseService;
 import com.treepeople.leapmindtts.service.lesson.FileStorageService;
@@ -85,10 +86,10 @@ public class TeachingController {
      * 查询所有讲课内容
      */
     @GetMapping("/list")
-    public ApiResponse<java.util.List<LectureVO>> listLectures(
+    public ApiResponse<LecturePageVO> listLectures(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize) {
-        java.util.List<LectureVO> result = lectureService.listAll(page, pageSize);
+        LecturePageVO result = lectureService.listAll(page, pageSize);
         return ApiResponse.success(result, "查询成功");
     }
 
