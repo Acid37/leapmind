@@ -1,47 +1,30 @@
 package com.treepeople.leapmindtts.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.treepeople.leapmindtts.client.M8TtsClient;
 import com.treepeople.leapmindtts.mapper.TeachingContentMapper;
 import com.treepeople.leapmindtts.pojo.dto.PptStructureDTO;
 import com.treepeople.leapmindtts.pojo.entity.TeachingContent;
-import com.treepeople.leapmindtts.service.lesson.TextToSpeechService;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TtsBatchServiceImpl {
 
-    private final TextToSpeechService ttsService;
-    private final MinioClient minioClient;
+    private final M8TtsClient m8Client;
     private final SsePushServiceImpl sseService;
     private final ObjectMapper objectMapper;
     private final TeachingContentMapper contentMapper;
-
-    @Value("${minio.bucket-name:leapmind}")
-    private String bucketName;
-
-    @Value("${minio.endpoint:http://127.0.0.1:9000}")
-    private String endpoint;
-
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy/MM/dd");
-    private static final String AUDIO_PREFIX = "tts-narrations/";
-    private static final int SINGLE_TIMEOUT_MS = 60000;
-    private static final int MAX_RETRY_COUNT = 3;
-
+    
+ /** 3 并发 + CallerRunsPolicy（队列积压时由提交线程兜底执行，避免丢任务）。 */
     private final ExecutorService pool = new ThreadPoolExecutor(
             3, 3, 60L, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>(),
@@ -50,8 +33,12 @@ public class TtsBatchServiceImpl {
     );
 
     private final Map<String, TaskStatus> taskMap = new ConcurrentHashMap<>();
+    
+    // ================================================================
+    //  异步入口（SSE 进度推送 + 前端"语音就绪"通知）
+    // ================================================================
 
-    public String generateNarrationsAsync(TeachingContent content, String connectionId) {
+    public String generateNarrationsAsync(TeachingContent content, String connectionId, String userJwt) {
         log.info("异步生成旁白, prepId={}", content.getId());
         String taskId = "tts-" + UUID.randomUUID().toString().substring(0, 8);
 
@@ -59,6 +46,7 @@ public class TtsBatchServiceImpl {
         status.setTaskId(taskId);
         status.setStatus("PENDING");
         status.setStartTime(System.currentTimeMillis());
+        status.setUserJwt(userJwt);
         taskMap.put(taskId, status);
 
         CompletableFuture.runAsync(() -> {
@@ -82,33 +70,39 @@ public class TtsBatchServiceImpl {
 
         return taskId;
     }
-
-    public String generateNarrationsAsync(Long prepId, String json, String connectionId) {
+    
+    public String generateNarrationsAsync(Long prepId, String json, String connectionId, String userJwt) {
         TeachingContent c = new TeachingContent();
         c.setId(prepId);
         c.setPptStructure(json);
-        return generateNarrationsAsync(c, connectionId);
+        return generateNarrationsAsync(c, connectionId, userJwt);
     }
-
-    public String generateSingleNarration(int pageIndex, String narration, Long prepId) {
+    
+ public String generateSingleNarration(int pageIndex, String narration, Long prepId, String userJwt) {
         if (narration == null || narration.trim().isEmpty()) return null;
         try {
-            byte[] audio = synthesizeWithRetry(narration);
-            if (audio == null || audio.length == 0) return null;
-            String url = uploadAudio(audio, prepId, pageIndex);
-            log.info("旁白生成成功, page={}, url={}", pageIndex, url);
+            List<String> urls = m8Client.synthesizeChunkedUrls(
+                    narration, prepId != null ? String.valueOf(prepId) : null, null, null, userJwt);
+            if (urls == null || urls.isEmpty()) return null;
+            String url = (urls.size() == 1) ? urls.get(0) : String.join("|||", urls);
+            log.info("旁白生成成功, page={}, audioUrl={}", pageIndex, url);
             return url;
         } catch (Exception e) {
             log.error("生成旁白失败, page={}", pageIndex, e);
             return null;
         }
     }
+    
+    // ================================================================
+    //  核心公共流程：3 并发调 M8 → 收 URL
+    // ================================================================
 
-    public Map<Integer, String> generateAndUploadNarrations(List<NarrationTask> tasks, Long prepId,
-                                                              java.util.function.Consumer<ProgressInfo> onProgress) {
+    public Map<Integer, String> generateAndUploadNarrations(
+            List<NarrationTask> tasks, Long prepId, String userJwt, Consumer<ProgressInfo> onProgress) {
         log.info("批量生成旁白, count={}", tasks.size());
         Map<Integer, String> result = new ConcurrentHashMap<>();
         AtomicInteger done = new AtomicInteger(0);
+        String prepIdStr = prepId != null ? String.valueOf(prepId) : null;
 
         List<CompletableFuture<Void>> futures = tasks.stream()
                 .map(task -> CompletableFuture.runAsync(() -> {
@@ -116,15 +110,16 @@ public class TtsBatchServiceImpl {
                     String url = null;
                     String err = null;
                     try {
-                        byte[] audio = synthesizeWithRetry(task.getNarration());
-                        if (audio != null && audio.length > 0) {
-                            url = uploadAudio(audio, prepId, task.getPageIndex());
+                        List<String> urls = m8Client.synthesizeChunkedUrls(
+                                task.getNarration(), prepIdStr, null, null, userJwt);
+                        if (urls != null && !urls.isEmpty()) {
+                            url = (urls.size() == 1) ? urls.get(0) : String.join("|||", urls);
                             result.put(task.getPageIndex(), url);
                         } else {
-                            err = "音频生成失败";
+                            err = "M8 返回空 audioUrl 列表";
                         }
                     } catch (Exception e) {
-                        err = e.getMessage();
+                        err = "M8 调用失败: " + e.getMessage();
                         log.error("处理旁白失败, page={}", task.getPageIndex(), e);
                     }
                     if (onProgress != null) {
@@ -138,14 +133,73 @@ public class TtsBatchServiceImpl {
                 .toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        log.info("批量生成完成, success={}", result.size());
+        log.info("批量生成完成, success={}/{}", result.size(), tasks.size());
         return result;
     }
 
-    public TaskStatus getTaskStatus(String taskId) {
-        return taskMap.get(taskId);
+   /**
+     * 提炼公共"一键 TTS"：收集 narration → 3 并发调 M8 → 回填 [AUDIO_URL:] → 回写 DB。
+     * BulkSpeechServiceImpl / PptGenerationServiceImpl 都调这一处，消除重复代码。
+     *
+     * @return 成功生成音频的页数
+     */
+    public int generateAndBackfill(PptStructureDTO structure, Long prepId, String userJwt, Consumer<ProgressInfo> onProgress) {
+        if (structure == null || structure.getSlides() == null || structure.getSlides().isEmpty()) return 0;
+
+        List<NarrationTask> tasks = new ArrayList<>();
+        for (int i = 0; i < structure.getSlides().size(); i++) {
+            String notes = structure.getSlides().get(i).getNotes();
+            // 幂等：空 notes / 已带 [AUDIO_URL:] 前缀（已生成）都跳过
+            if (notes != null && !notes.trim().isEmpty() && !notes.startsWith("[AUDIO_URL:")) {
+                tasks.add(new NarrationTask(i, notes, structure.getSlides().get(i).getTitle()));
+            }
+        }
+        if (tasks.isEmpty()) {
+            log.info("无新增需要生成旁白的页面 (slides={})", structure.getSlides().size());
+            return 0;
+        }
+
+        Map<Integer, String> audioUrls = generateAndUploadNarrations(tasks, prepId, userJwt, onProgress);
+        applyAudioUrlsToStructure(structure, audioUrls);
+
+        if (prepId != null) {
+            try {
+                TeachingContent c = contentMapper.selectByPrepId(prepId);
+                if (c != null) {
+                    c.setPptStructure(objectMapper.writeValueAsString(structure));
+                    contentMapper.updateById(c);
+                }
+            } catch (Exception e) {
+                log.error("TTS 回填回写 DB 失败, prepId={}", prepId, e);
+            }
+        }
+        return audioUrls.size();
     }
 
+    /** 将 {pageIndex→audioUrl} 回填为 slide.notes = "[AUDIO_URL:url]\n原文"。 */
+    public static void applyAudioUrlsToStructure(PptStructureDTO structure, Map<Integer, String> audioUrls) {
+        if (structure.getSlides() == null || audioUrls == null || audioUrls.isEmpty()) return;
+        for (Map.Entry<Integer, String> e : audioUrls.entrySet()) {
+            int idx = e.getKey();
+            String url = e.getValue();
+            if (idx >= 0 && idx < structure.getSlides().size() && url != null) {
+                PptStructureDTO.SlideDTO slide = structure.getSlides().get(idx);
+                String notes = slide.getNotes() == null ? "" : slide.getNotes();
+                // 去掉旧前缀，只保留原文
+                String raw = notes.startsWith("[AUDIO_URL:")
+                        ? notes.substring(notes.indexOf("]") + 1).trim()
+                        : notes;
+                slide.setNotes("[AUDIO_URL:" + url + "]\n" + raw);
+            }
+        }
+    }
+
+    // ================================================================
+    //  任务状态查询 / 取消
+    // ================================================================
+
+    public TaskStatus getTaskStatus(String taskId) { return taskMap.get(taskId); }
+    
     public boolean cancelTask(String taskId) {
         TaskStatus s = taskMap.get(taskId);
         if (s != null && "PROCESSING".equals(s.getStatus())) {
@@ -155,180 +209,61 @@ public class TtsBatchServiceImpl {
         }
         return false;
     }
-
+    
     private void doGenerate(TeachingContent content, String taskId, String connectionId) throws Exception {
         String json = content.getPptStructure();
         if (json == null || json.isEmpty()) throw new IllegalArgumentException("PPT结构数据为空");
-
-        PptStructureDTO structure = objectMapper.readValue(json, PptStructureDTO.class);
-        List<PptStructureDTO.SlideDTO> slides = structure.getSlides();
-        if (slides == null || slides.isEmpty()) {
-            log.info("无需生成旁白的页面");
-            return;
-        }
-
-        List<NarrationTask> tasks = new ArrayList<>();
-        for (int i = 0; i < slides.size(); i++) {
-            String notes = slides.get(i).getNotes();
-            if (notes != null && !notes.trim().isEmpty()) {
-                tasks.add(new NarrationTask(i, notes, slides.get(i).getTitle()));
-            }
-        }
-
-        if (tasks.isEmpty()) {
-            log.info("没有需要生成旁白的页面");
-            return;
-        }
+        PptStructureDTO structure = PptStructureDTO.parse(objectMapper, json);
 
         TaskStatus status = taskMap.get(taskId);
-        if (status != null) status.setTotalCount(tasks.size());
+        String userJwt = (status != null) ? status.getUserJwt() : null;
 
-        sseService.sendProgress(connectionId, 0, "STARTED", "开始生成 " + tasks.size() + " 个页面的旁白");
+        int total = (structure.getSlides() == null) ? 0 : structure.getSlides().size();
+        sseService.sendProgress(connectionId, 0, "STARTED", "开始生成 " + total + " 个页面的旁白");
 
-        Map<Integer, String> audioUrls = new ConcurrentHashMap<>();
-        AtomicInteger done = new AtomicInteger(0);
-        AtomicInteger failed = new AtomicInteger(0);
-        int total = tasks.size();
+        int ok = generateAndBackfill(structure, content.getId(), userJwt, p -> {
+            TaskStatus ts = taskMap.get(taskId);
+            if (ts != null) {
+                ts.setCompletedCount(p.getCurrentIndex());
+                ts.setTotalCount(p.getTotalCount());
+                if ("FAILED".equals(p.getStatus())) ts.setFailedCount(ts.getFailedCount() + 1);
+            }
+            sseService.sendProgress(connectionId, p.getProgress(), p.getStatus(),
+                    "已完成 " + p.getCurrentIndex() + "/" + p.getTotalCount());
+        });
 
-        List<CompletableFuture<Void>> futures = tasks.stream()
-                .map(task -> CompletableFuture.runAsync(() -> {
-                    int cur = done.incrementAndGet();
-                    try {
-                        byte[] audio = synthesizeWithTimeout(() -> synthesizeWithRetry(task.getNarration()), SINGLE_TIMEOUT_MS);
-                        if (audio != null && audio.length > 0) {
-                            String url = uploadAudio(audio, content.getId(), task.getPageIndex());
-                            audioUrls.put(task.getPageIndex(), url);
-                        } else {
-                            failed.incrementAndGet();
-                        }
-                    } catch (Exception e) {
-                        failed.incrementAndGet();
-                        log.error("处理旁白失败, page={}", task.getPageIndex(), e);
-                    }
-
-                    TaskStatus ts = taskMap.get(taskId);
-                    if (ts != null) {
-                        ts.setCompletedCount(cur);
-                        ts.setFailedCount(failed.get());
-                    }
-
-                    int progress = (int) ((cur * 100.0) / total);
-                    sseService.sendProgress(connectionId, progress, "PROCESSING",
-                            "已完成 " + cur + "/" + total + " 个页面");
-                }, pool))
-                .toList();
-
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-        updateNotesWithAudio(structure, audioUrls);
-
-        if (content.getId() != null) {
-            updateDatabase(content.getId(), structure);
-        }
-
+        int failed = (status != null) ? status.getFailedCount() : 0;
         sseService.sendProgress(connectionId, 100, "COMPLETED",
-                "旁白生成完成, 成功: " + audioUrls.size() + ", 失败: " + failed.get());
+                "旁白生成完成, 成功: " + ok + ", 失败: " + failed);
     }
 
-    private byte[] synthesizeWithRetry(String text) {
-        for (int i = 1; i <= MAX_RETRY_COUNT; i++) {
-            try {
-                byte[] audio = ttsService.synthesizeSpeech(text).block();
-                if (audio != null && audio.length > 0) return audio;
-                log.warn("TTS返回空数据, attempt={}", i);
-            } catch (Exception e) {
-                log.warn("TTS生成失败, attempt={}, err={}", i, e.getMessage());
-                if (i < MAX_RETRY_COUNT) {
-                    try { Thread.sleep(1000L * i); } catch (InterruptedException ignored) {}
-                }
-            }
+    // ================================================================
+    //  工具类
+    // ================================================================
+
+    /** 从请求头 Authorization: Bearer <token> 中取出纯 token。 */
+    public static String extractBearer(String authHeader) {
+        if (authHeader == null) return null;
+        String s = authHeader.trim();
+        if (s.isEmpty()) return null;
+        if (s.length() > 7 && s.substring(0, 7).equalsIgnoreCase("bearer ")) {
+            return s.substring(7).trim();
         }
-        return null;
+        return s;
     }
 
-    private <T> T synthesizeWithTimeout(Callable<T> callable, long timeoutMs) throws Exception {
-        Future<T> future = pool.submit(callable);
-        try {
-            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            future.cancel(true);
-            throw new TimeoutException("音频生成超时");
-        }
-    }
-
-    private String uploadAudio(byte[] audio, Long prepId, int pageIndex) {
-        String datePath = LocalDateTime.now().format(DATE_FMT);
-        String objName = String.format("%s%s/prep-%d/page-%d-%s.wav",
-                AUDIO_PREFIX, datePath, prepId, pageIndex,
-                UUID.randomUUID().toString().substring(0, 8));
-        try (InputStream is = new ByteArrayInputStream(audio)) {
-            minioClient.putObject(
-                    PutObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(objName)
-                            .stream(is, -1, 10485760)
-                            .contentType("audio/wav")
-                            .build()
-            );
-            String url = String.format("%s/%s/%s", endpoint, bucketName, objName);
-            log.info("音频上传成功, url={}", url);
-            return url;
-        } catch (Exception e) {
-            log.error("音频上传失败, objName={}", objName, e);
-            throw new RuntimeException("音频上传失败: " + e.getMessage(), e);
-        }
-    }
-
-    private void updateNotesWithAudio(PptStructureDTO structure, Map<Integer, String> audioUrls) {
-        if (structure.getSlides() == null || audioUrls.isEmpty()) return;
-        for (Map.Entry<Integer, String> entry : audioUrls.entrySet()) {
-            int idx = entry.getKey();
-            String url = entry.getValue();
-            if (idx >= 0 && idx < structure.getSlides().size()) {
-                PptStructureDTO.SlideDTO slide = structure.getSlides().get(idx);
-                String notes = slide.getNotes();
-                if (notes != null && !notes.startsWith("[AUDIO_URL:")) {
-                    slide.setNotes("[AUDIO_URL:" + url + "]\n" + notes);
-                } else {
-                    slide.setNotes("[AUDIO_URL:" + url + "]");
-                }
-            }
-        }
-    }
-
-    private void updateDatabase(Long prepId, PptStructureDTO structure) {
-        try {
-            TeachingContent c = contentMapper.selectByPrepId(prepId);
-            if (c == null) return;
-            c.setPptStructure(objectMapper.writeValueAsString(structure));
-            contentMapper.updateById(c);
-            log.info("PPT结构已更新, prepId={}", prepId);
-        } catch (Exception e) {
-            log.error("更新数据库失败, prepId={}", prepId, e);
-        }
-    }
-
+    @lombok.Data
     public static class NarrationTask {
         private int pageIndex;
         private String narration;
         private String slideTitle;
-
         public NarrationTask() {}
-
         public NarrationTask(int pageIndex, String narration, String slideTitle) {
-            this.pageIndex = pageIndex;
-            this.narration = narration;
-            this.slideTitle = slideTitle;
+            this.pageIndex = pageIndex; this.narration = narration; this.slideTitle = slideTitle;
         }
-
-        public int getPageIndex() { return pageIndex; }
-        public void setPageIndex(int pageIndex) { this.pageIndex = pageIndex; }
-        public String getNarration() { return narration; }
-        public void setNarration(String narration) { this.narration = narration; }
-        public String getSlideTitle() { return slideTitle; }
-        public void setSlideTitle(String slideTitle) { this.slideTitle = slideTitle; }
     }
 
+    @lombok.Data
     public static class TaskStatus {
         private String taskId;
         private String status;
@@ -338,30 +273,14 @@ public class TtsBatchServiceImpl {
         private String errorMessage;
         private long startTime;
         private long endTime;
-
-        public String getTaskId() { return taskId; }
-        public void setTaskId(String taskId) { this.taskId = taskId; }
-        public String getStatus() { return status; }
-        public void setStatus(String status) { this.status = status; }
-        public int getTotalCount() { return totalCount; }
-        public void setTotalCount(int totalCount) { this.totalCount = totalCount; }
-        public int getCompletedCount() { return completedCount; }
-        public void setCompletedCount(int completedCount) { this.completedCount = completedCount; }
-        public int getFailedCount() { return failedCount; }
-        public void setFailedCount(int failedCount) { this.failedCount = failedCount; }
-        public String getErrorMessage() { return errorMessage; }
-        public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
-        public long getStartTime() { return startTime; }
-        public void setStartTime(long startTime) { this.startTime = startTime; }
-        public long getEndTime() { return endTime; }
-        public void setEndTime(long endTime) { this.endTime = endTime; }
-
+        private String userJwt;
         public int getProgress() {
             if (totalCount == 0) return 0;
             return (int) ((completedCount * 100.0) / totalCount);
         }
     }
 
+    @lombok.Data
     public static class ProgressInfo {
         private int currentIndex;
         private int totalCount;
@@ -369,29 +288,11 @@ public class TtsBatchServiceImpl {
         private String status;
         private String audioUrl;
         private String errorMessage;
-
         public ProgressInfo() {}
-
         public ProgressInfo(int currentIndex, int totalCount, String currentTitle, String status) {
-            this.currentIndex = currentIndex;
-            this.totalCount = totalCount;
-            this.currentTitle = currentTitle;
-            this.status = status;
+            this.currentIndex = currentIndex; this.totalCount = totalCount;
+            this.currentTitle = currentTitle; this.status = status;
         }
-
-        public int getCurrentIndex() { return currentIndex; }
-        public void setCurrentIndex(int currentIndex) { this.currentIndex = currentIndex; }
-        public int getTotalCount() { return totalCount; }
-        public void setTotalCount(int totalCount) { this.totalCount = totalCount; }
-        public String getCurrentTitle() { return currentTitle; }
-        public void setCurrentTitle(String currentTitle) { this.currentTitle = currentTitle; }
-        public String getStatus() { return status; }
-        public void setStatus(String status) { this.status = status; }
-        public String getAudioUrl() { return audioUrl; }
-        public void setAudioUrl(String audioUrl) { this.audioUrl = audioUrl; }
-        public String getErrorMessage() { return errorMessage; }
-        public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
-
         public int getProgress() {
             if (totalCount == 0) return 0;
             return (int) ((currentIndex * 100.0) / totalCount);

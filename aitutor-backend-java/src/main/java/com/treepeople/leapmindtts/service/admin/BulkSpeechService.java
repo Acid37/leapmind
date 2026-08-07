@@ -6,22 +6,14 @@ import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
 
-/**
- * 批量语音合成服务接口
- */
 public interface BulkSpeechService {
 
-    /**
-     * 处理批量语音合成请求
-     *
-     * @param request 批量合成请求
-     * @return 合成结果响应
-     */
-    BulkSynthesisResponse processBulkSynthesis(BulkSynthesisRequest request);
+    /** userJwt: M8 TTS 接口必填，纯 token（不要 Bearer 前缀），由登录鉴权后透传。 */
+    BulkSynthesisResponse processBulkSynthesis(BulkSynthesisRequest request, String userJwt);
 
     /**
      * 获取指定页面的所有音频片段
-     *
+     
      * @param courseId 会话ID
      * @param pageNumber 页码
      * @return 音频片段列表
@@ -58,9 +50,11 @@ public interface BulkSpeechService {
      * 执行批量语音合成（基于已预处理的文本）
      *
      * @param courseId 会话ID
+     * @param userJwt M8 TTS 接口必填的用户登录态 JWT。文档未给出固定内部服务 Token，
+     *                必须由用户登录鉴权后透传。
      * @return 合成结果响应
      */
-    BulkSynthesisResponse executeBulkSynthesis(String courseId);
+    BulkSynthesisResponse executeBulkSynthesis(String courseId, String userJwt);
 
     /**
      * 获取待审核的会话列表

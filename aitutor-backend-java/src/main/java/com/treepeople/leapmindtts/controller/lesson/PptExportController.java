@@ -70,17 +70,22 @@ public class PptExportController {
     @PostMapping("/pipeline/{prepId}")
     public ResponseEntity<ApiResponse<Map<String, String>>> triggerPipeline(
             @PathVariable Long prepId,
-            @RequestParam(required = false) String connectionId) {
+            @RequestParam(required = false) String connectionId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
 
-        log.info("触发 PPT 生成管道，备课 ID: {}, 连接 ID: {}", prepId, connectionId);
+        log.info("触发 PPT 生成管道，备课 ID: {}, 连接 ID: {}, Authorization 存在: {}",
+                prepId, connectionId, authHeader != null && !authHeader.isBlank());
 
         if (connectionId == null || connectionId.isEmpty()) {
             connectionId = "pipeline-" + UUID.randomUUID().toString().substring(0, 8);
         }
 
+        // 【M8 对接新增】从请求头 Authorization: Bearer <token> 取纯 token，透传给 M8 TTS 接口鉴权
+        String userJwt = TtsBatchServiceImpl.extractBearer(authHeader);
+
         try {
             PptGenerationServiceImpl.PipelineResult result =
-                    pptGenerationService.executeAsync(prepId, connectionId);
+                    pptGenerationService.executeAsync(prepId, connectionId, userJwt);
 
             Map<String, String> data = new HashMap<>();
             data.put("connectionId", connectionId);
@@ -98,16 +103,21 @@ public class PptExportController {
     @PostMapping("/generate-narration/{prepId}")
     public ResponseEntity<ApiResponse<Map<String, String>>> generateNarration(
             @PathVariable Long prepId,
-            @RequestParam(required = false) String connectionId) {
+            @RequestParam(required = false) String connectionId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
 
-        log.info("开始生成 PPT 旁白，备课 ID: {}, 连接 ID: {}", prepId, connectionId);
+        log.info("开始生成 PPT 旁白，备课 ID: {}, 连接 ID: {}, Authorization 存在: {}",
+                prepId, connectionId, authHeader != null && !authHeader.isBlank());
 
         if (connectionId == null || connectionId.isEmpty()) {
             connectionId = "tts-" + UUID.randomUUID().toString().substring(0, 8);
         }
 
+        // 【M8 对接新增】从请求头 Authorization: Bearer <token> 取纯 token，透传给 M8 TTS 接口鉴权
+        String userJwt = TtsBatchServiceImpl.extractBearer(authHeader);
+
         try {
-            String taskId = ttsBatchService.generateNarrationsAsync(prepId, null, connectionId);
+            String taskId = ttsBatchService.generateNarrationsAsync(prepId, null, connectionId, userJwt);
 
             Map<String, String> data = new HashMap<>();
             data.put("taskId", taskId);
