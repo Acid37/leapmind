@@ -241,6 +241,8 @@ minio:
   access-key: minioadmin
   secret-key: minioadmin
   bucket-name: leapmind
+  # M4 即时讲课专用桶（与公共 bucket 隔离，见 M4_后端接口文档）
+  teaching-bucket: leapmind-teaching
 
 # M8 虚拟 AI 教师
 virtual-teacher:

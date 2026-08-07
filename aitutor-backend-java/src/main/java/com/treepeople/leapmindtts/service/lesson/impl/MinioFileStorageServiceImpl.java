@@ -36,7 +36,7 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
 
     private final MinioClient minioClient;
 
-    @Value("${minio.bucket-name:leapmind-teaching}")
+    @Value("${minio.teaching-bucket:leapmind-teaching}")
     private String bucketName;
 
     @Override
