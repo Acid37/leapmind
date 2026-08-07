@@ -92,14 +92,14 @@ public class PptGenerationServiceImpl {
             result.setTotalSlides(totalSlides);
 
             sseService.sendProgress(connectionId, 10, "PROCESSING", "正在生成PPTX...");
-            String pptUrl = pptxService.exportFromStructure(structure, content.getTemplateId(), content.getTitle());
-            result.setPptDownloadUrl(pptUrl);
+            //String pptUrl = pptxService.exportFromStructure(structure, content.getTemplateId(), content.getTitle());
+           // result.setPptDownloadUrl(pptUrl);
 
             // 回写下载 URL 到已有列 ppt_download_url（不新增列、不改库）
             try {
-                content.setPptDownloadUrl(pptUrl);
+             //   content.setPptDownloadUrl(pptUrl);
                 mapper.updateById(content);
-                log.info("Pipeline 已更新 teaching_contents.ppt_download_url, prepId={}, url={}", prepId, pptUrl);
+             //   log.info("Pipeline 已更新 teaching_contents.ppt_download_url, prepId={}, url={}", prepId, pptUrl);
             } catch (Exception dbEx) {
                 log.warn("Pipeline 回写 ppt_download_url 失败（不影响最终结果）, prepId={}, err={}", prepId, dbEx.getMessage());
             }
@@ -230,3 +230,4 @@ public class PptGenerationServiceImpl {
         public long getDuration() { return endTime - startTime; }
     }
 }
+ 

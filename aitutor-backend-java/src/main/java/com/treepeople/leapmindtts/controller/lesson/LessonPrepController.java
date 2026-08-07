@@ -64,22 +64,23 @@ public class LessonPrepController {
             generatedContent.put("knowledgePointIds", request.getKnowledgePointIds());
 
             TeachingContent content = TeachingContent.builder()
-                    .prepId((long) pythonResult.getPrepId())
                     .userId((long) request.getUserId())
                     .title(request.getTitle())
                     .status(STATUS_DRAFT)
+                    .type("ppt")
                     .pptStructure(om.writeValueAsString(pythonResult.getSlides()))
                     .generatedContentJson(om.writeValueAsString(generatedContent))
                     .build();
             teachingContentService.save(content);
 
+            // prep_id 是生成列（恒等于 id），返回给前端的 prepId 统一取 content.getId()
             Map<String, Object> data = new HashMap<>();
-            data.put("prepId", pythonResult.getPrepId());
+            data.put("prepId", content.getId());
             data.put("totalPages", pythonResult.getTotalPages());
             data.put("slidesPreview", pythonResult.getSlides());
 
             log.info("[联桥] 备课生成完成, prepId={}, totalPages={}",
-                    pythonResult.getPrepId(), pythonResult.getTotalPages());
+                    content.getId(), pythonResult.getTotalPages());
             return ResponseEntity.ok(ApiResponse.success(data, "备课生成成功"));
 
         } catch (Exception e) {
