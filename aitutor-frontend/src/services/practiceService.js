@@ -450,16 +450,14 @@ export async function submitAnswer(params = {}) {
  */
 export async function getRanking(type = 'daily', limit = 20) {
   try {
-    // 后端 GET /api/practice/leaderboards?track= 按科目全量积分排名（Redis ZSet）
-    // 目前不支持日/周/月时间窗口，三个 Tab 展示同一份榜单
-    const res = await request('/api/practice/leaderboards');
+    const res = await request('/api/practice/leaderboards' + buildQuery({ type }));
     const list = transformRanking(unwrap(res));
     return list.slice(0, limit);
   } catch (err) {
     if (!PRACTICE_MOCK_ENABLED) throw persistentApiError('加载排行榜', err);
     console.warn('[M1] getRanking 后端不可用，使用 Mock:', err.message);
     await _loadMock();
-    return (_mockRanking?.daily || []).slice(0, limit);
+    return (_mockRanking?.[type] || _mockRanking?.daily || []).slice(0, limit);
   }
 }
 
