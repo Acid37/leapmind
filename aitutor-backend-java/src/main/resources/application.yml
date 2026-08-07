@@ -211,6 +211,14 @@ weak-point:
     analyze-endpoint: /api/weak-points/analyze
     timeout: 30
 
+# M6 事件采集服务配置（薄弱点变化事件上报）
+event-collection:
+  enabled: true
+  base-url: http://192.168.1.19:8080
+  collect-endpoint: /api/events/collect
+  timeout: 10
+  max-retries: 1
+
 # Knife4j 美化文档
 knife4j:
   enable: true

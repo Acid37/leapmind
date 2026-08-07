@@ -1,11 +1,14 @@
 package com.treepeople.leapmindtts.service.lesson;
 
 import com.treepeople.leapmindtts.pojo.dto.ExerciseRecordRequest;
+import com.treepeople.leapmindtts.pojo.dto.PracticePlanRequest;
 import com.treepeople.leapmindtts.pojo.result.PageResult;
 import com.treepeople.leapmindtts.pojo.vo.ExerciseVO;
 import com.treepeople.leapmindtts.pojo.vo.KnowledgeGraphVO;
+import com.treepeople.leapmindtts.pojo.vo.PracticePlanVO;
 import com.treepeople.leapmindtts.pojo.vo.RecommendQuestionVO;
 import com.treepeople.leapmindtts.pojo.vo.UserWeakPointVO;
+import com.treepeople.leapmindtts.pojo.vo.WeakPointDetailVO;
 import com.treepeople.leapmindtts.pojo.vo.WeakPointsAnalysisVO;
 
 import java.util.List;
@@ -60,4 +63,20 @@ public interface WeakPointsService {
      * @return 知识图谱（节点+边）
      */
     KnowledgeGraphVO getKnowledgeGraph(Long userId, String subject);
+
+    /**
+     * 获取单个薄弱点详情
+     *
+     * @param id 薄弱点记录ID
+     * @return 薄弱点详情（含基本信息、近期错题、趋势、AI分析）
+     */
+    WeakPointDetailVO getWeakPointDetail(Long id);
+
+    /**
+     * 根据薄弱点生成练习计划
+     *
+     * @param request 用户ID + 目标知识点列表
+     * @return 练习计划（题目序列 + 预计时间）
+     */
+    PracticePlanVO generatePracticePlan(PracticePlanRequest request);
 }

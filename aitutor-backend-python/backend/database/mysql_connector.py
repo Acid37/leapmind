@@ -210,23 +210,25 @@ class Database:
         """写入或更新用户薄弱点记录"""
         sql = """
             INSERT INTO user_weak_points
-                (user_id, kp_id, weakness_score, error_count, total_attempts,
+                (user_id, kp_id, knowledge_point, weakness_score, error_count, total_attempts,
                  error_rate, recent_correct_rate, confusion_count, trend,
                  last_error_at, calculated_at)
             VALUES
-                (%(user_id)s, %(kp_id)s, %(weakness_score)s, %(error_count)s, %(total_attempts)s,
+                (%(user_id)s, %(kp_id)s, %(knowledge_point)s, %(weakness_score)s, %(error_count)s, %(total_attempts)s,
                  %(error_rate)s, %(recent_correct_rate)s, %(confusion_count)s, %(trend)s,
                  %(last_error_at)s, %(calculated_at)s)
             ON DUPLICATE KEY UPDATE
-                weakness_score     = VALUES(weakness_score),
-                error_count        = VALUES(error_count),
-                total_attempts     = VALUES(total_attempts),
-                error_rate         = VALUES(error_rate),
+                kp_id             = VALUES(kp_id),
+                knowledge_point   = VALUES(knowledge_point),
+                weakness_score    = VALUES(weakness_score),
+                error_count       = VALUES(error_count),
+                total_attempts    = VALUES(total_attempts),
+                error_rate        = VALUES(error_rate),
                 recent_correct_rate = VALUES(recent_correct_rate),
-                confusion_count    = VALUES(confusion_count),
-                trend              = VALUES(trend),
-                last_error_at      = VALUES(last_error_at),
-                calculated_at      = VALUES(calculated_at)
+                confusion_count   = VALUES(confusion_count),
+                trend             = VALUES(trend),
+                last_error_at     = VALUES(last_error_at),
+                calculated_at     = VALUES(calculated_at)
         """
         conn = self._get_conn()
         try:

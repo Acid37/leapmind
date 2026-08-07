@@ -5,6 +5,7 @@ import com.treepeople.leapmindtts.mapper.UserExerciseMapper;
 import com.treepeople.leapmindtts.mapper.UserWeakPointMapper;
 import com.treepeople.leapmindtts.pojo.entity.UserExercise;
 import com.treepeople.leapmindtts.pojo.entity.UserWeakPoint;
+import com.treepeople.leapmindtts.service.lesson.EventCollectionClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -32,6 +33,7 @@ public class WeakPointCalculationTask {
 
     private final UserWeakPointMapper userWeakPointMapper;
     private final UserExerciseMapper userExerciseMapper;
+    private final EventCollectionClient eventCollectionClient;
 
     /** 正确率 >= 80% 视为已解决 */
     private static final BigDecimal MASTERED_THRESHOLD = new BigDecimal("80");
@@ -69,7 +71,7 @@ public class WeakPointCalculationTask {
     }
 
     /**
-     * 重算单个薄弱点：统计字段 + 等级 + 状态
+     * 重算单个薄弱点：统计字段 + 等级 + 状态，变化时上报事件
      */
     private void recalculate(UserWeakPoint wp) {
         // 1. 查询该用户该知识点的全部练习记录
@@ -89,10 +91,15 @@ public class WeakPointCalculationTask {
         BigDecimal accuracy = BigDecimal.valueOf(correct * 100.0 / total)
                 .setScale(2, RoundingMode.HALF_UP);
 
-        // 2. 重算统计字段
+        // 捕获旧分数（用于 M6 事件上报）
+        BigDecimal oldScore = calculateWeaknessScore(wp);
+
+        // 2. 重算统计字段（同时同步 Python 引擎字段）
         wp.setTotalCount((int) total);
+        wp.setTotalAttempts((int) total);
         wp.setErrorCount((int) errors);
         wp.setAccuracyRate(accuracy);
+        // error_rate 保持 Python 权威值不变（Java 不覆盖）
 
         // 3. 按正确率更新薄弱等级与状态
         if (accuracy.compareTo(MASTERED_THRESHOLD) >= 0) {
@@ -107,5 +114,44 @@ public class WeakPointCalculationTask {
         }
 
         userWeakPointMapper.updateById(wp);
+
+        // 4. 上报 weak_point_changed 事件（分数有变化时）
+        BigDecimal newScore = calculateWeaknessScore(wp);
+        if (oldScore.compareTo(newScore) != 0) {
+            eventCollectionClient.reportWeakPointChanged(
+                    wp.getUserId(),
+                    wp.getKnowledgePoint(),
+                    oldScore,
+                    newScore,
+                    "RECALCULATED");
+        }
+    }
+
+    /**
+     * 计算薄弱度分数（0-1 范围，供 M6 画像引擎使用）
+     * <p>
+     * 优先使用 Python 引擎计算的权威 {@code weakness_score}；
+     * 若 Python 尚未计算，回退到简易公式或等级估算。
+     */
+    private BigDecimal calculateWeaknessScore(UserWeakPoint wp) {
+        // 优先：Python 引擎计算的权威分数
+        if (wp.getWeaknessScore() != null) {
+            return wp.getWeaknessScore();
+        }
+        // 回退1：用正确率反推
+        if (wp.getAccuracyRate() != null
+                && wp.getTotalCount() != null
+                && wp.getTotalCount() > 0) {
+            return BigDecimal.ONE.subtract(
+                    wp.getAccuracyRate().divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
+        }
+        // 回退2：按薄弱等级估算
+        String level = wp.getWeaknessLevel() != null ? wp.getWeaknessLevel().toUpperCase() : "MEDIUM";
+        switch (level) {
+            case "HIGH":   return BigDecimal.valueOf(0.80);
+            case "MEDIUM": return BigDecimal.valueOf(0.50);
+            case "LOW":    return BigDecimal.valueOf(0.30);
+            default:       return BigDecimal.valueOf(0.50);
+        }
     }
 }

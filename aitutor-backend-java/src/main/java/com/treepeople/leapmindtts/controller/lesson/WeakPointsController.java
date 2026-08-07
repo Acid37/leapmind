@@ -1,12 +1,15 @@
 package com.treepeople.leapmindtts.controller.lesson;
 
 import com.treepeople.leapmindtts.pojo.dto.ExerciseRecordRequest;
+import com.treepeople.leapmindtts.pojo.dto.PracticePlanRequest;
 import com.treepeople.leapmindtts.pojo.result.ApiResponse;
 import com.treepeople.leapmindtts.pojo.result.PageResult;
 import com.treepeople.leapmindtts.pojo.vo.ExerciseVO;
 import com.treepeople.leapmindtts.pojo.vo.KnowledgeGraphVO;
+import com.treepeople.leapmindtts.pojo.vo.PracticePlanVO;
 import com.treepeople.leapmindtts.pojo.vo.RecommendQuestionVO;
 import com.treepeople.leapmindtts.pojo.vo.UserWeakPointVO;
+import com.treepeople.leapmindtts.pojo.vo.WeakPointDetailVO;
 import com.treepeople.leapmindtts.pojo.vo.WeakPointsAnalysisVO;
 import com.treepeople.leapmindtts.service.lesson.WeakPointsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,6 +71,53 @@ public class WeakPointsController {
             return ResponseEntity.ok(ApiResponse.success(result, "查询成功"));
         } catch (Exception e) {
             log.error("查询薄弱点失败: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(400, e.getMessage()));
+        }
+    }
+
+    // ==================== 薄弱点详情 ====================
+
+    /**
+     * 查询单个薄弱点详情
+     *
+     * @param id 薄弱点记录ID
+     * @return 薄弱点详情（含基本信息、近期错题、趋势、AI分析）
+     */
+    @GetMapping("/weak-points/{id}/detail")
+    @Operation(summary = "查询薄弱点详情", description = "返回单个薄弱点的完整信息：基本数据、近期错题列表、趋势分析和AI评估")
+    public ResponseEntity<ApiResponse<WeakPointDetailVO>> getWeakPointDetail(
+            @Parameter(description = "薄弱点记录ID", required = true)
+            @PathVariable Long id) {
+
+        log.info("查询薄弱点详情: id={}", id);
+        try {
+            WeakPointDetailVO result = weakPointsService.getWeakPointDetail(id);
+            return ResponseEntity.ok(ApiResponse.success(result, "查询成功"));
+        } catch (Exception e) {
+            log.error("查询薄弱点详情失败: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(400, e.getMessage()));
+        }
+    }
+
+    /**
+     * 根据薄弱点生成练习计划
+     *
+     * @param request 用户ID + 目标知识点列表
+     * @return 练习计划（题目序列 + 预计时间）
+     */
+    @PostMapping("/weak-points/generate-practice-plan")
+    @Operation(summary = "生成练习计划", description = "根据用户薄弱点列表生成针对性练习计划，按难度排序，含预计完成时间")
+    public ResponseEntity<ApiResponse<PracticePlanVO>> generatePracticePlan(
+            @RequestBody @Valid PracticePlanRequest request) {
+
+        log.info("生成练习计划: userId={}, knowledgePoints={}", request.getUserId(), request.getKnowledgePoints());
+        try {
+            PracticePlanVO result = weakPointsService.generatePracticePlan(request);
+            return ResponseEntity.ok(ApiResponse.success(result, "计划生成成功"));
+        } catch (Exception e) {
+            log.error("生成练习计划失败: {}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(400, e.getMessage()));
         }
