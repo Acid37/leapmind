@@ -10,7 +10,7 @@
  * - 练习结束总结面板
  * - 预留 ChatPanel 嵌入位（TODO: 对接 M7 ChatPanel）
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -27,12 +27,24 @@ import {
   ListChecks,
   Shuffle,
   AlertCircle,
+  CalendarClock,
+  CheckCircle2,
 } from "lucide-react";
 import QuestionCard from "../components/practice/QuestionCard";
 import ProgressBar from "../components/practice/ProgressBar";
 import Timer from "../components/practice/Timer";
 import QuestionNav from "../components/practice/QuestionNav";
-import { generateSession, submitAnswer, dailyCheckin, getCheckinStatus, getFilterOptions } from "../services/practiceService";
+import {
+  generateSession,
+  submitAnswer,
+  dailyCheckin,
+  getCheckinStatus,
+  getFilterOptions,
+  getReviewReminders,
+  completeReviewReminder,
+  getWeakPointRecommendations,
+  reportPracticeCompletion,
+} from "../services/practiceService";
 import { ChatPanel } from "../components/chat";
 import { getUserInfo } from "../utils/tokenManager";
 
@@ -48,6 +60,15 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   const [checkinStatus, setCheckinStatus] = useState(null);
   const [checkinLoading, setCheckinLoading] = useState(false);
 
+  // --- AI 记忆复习提醒 ---
+  const [reviewReminders, setReviewReminders] = useState([]);
+  const [reviewLoading, setReviewLoading] = useState(true);
+  const [reviewError, setReviewError] = useState("");
+  const [completingReminderId, setCompletingReminderId] = useState(null);
+  const [weakRecommendations, setWeakRecommendations] = useState([]);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const completionReportedRef = useRef("");
+
   // --- 会话状态 ---
   const [session, setSession] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -62,6 +83,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   const [setup, setSetup] = useState({
     questionCount: Math.max(1, Math.min(50, Number(initialParams.questionCount) || 10)),
     subject: initialParams.subject || "mixed",
+    knowledgePoint: initialParams.knowledgePoint || "",
   });
 
   // --- 持久化：每次状态变化写入 localStorage ---
@@ -125,6 +147,67 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
       .catch((err) => console.warn("加载科目失败:", err));
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    setRecommendationLoading(true);
+    getWeakPointRecommendations({
+      subject: setup.subject === "mixed" ? undefined : setup.subject,
+      count: 6,
+    })
+      .then((items) => {
+        if (!active) return;
+        setWeakRecommendations(items);
+        setSetup((prev) => items.some((item) => item.knowledgePoint === prev.knowledgePoint)
+          ? prev
+          : { ...prev, knowledgePoint: "" });
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.warn("加载薄弱点推荐失败:", err);
+        setWeakRecommendations([]);
+        setSetup((prev) => ({ ...prev, knowledgePoint: "" }));
+      })
+      .finally(() => {
+        if (active) setRecommendationLoading(false);
+      });
+    return () => { active = false; };
+  }, [setup.subject]);
+
+  useEffect(() => {
+    let active = true;
+    setReviewLoading(true);
+    getReviewReminders()
+      .then((items) => {
+        if (!active) return;
+        setReviewReminders(items);
+        setReviewError("");
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.warn("加载复习提醒失败:", err);
+        setReviewError("复习提醒暂时无法加载");
+      })
+      .finally(() => {
+        if (active) setReviewLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const handleCompleteReminder = async (reminderId) => {
+    if (completingReminderId) return;
+    setCompletingReminderId(reminderId);
+    setReviewError("");
+    try {
+      await completeReviewReminder(reminderId, "已在做题模块完成本次复习");
+      setReviewReminders((items) => items.filter((item) => item.id !== reminderId));
+    } catch (err) {
+      console.error("完成复习提醒失败:", err);
+      setReviewError(err.message || "复习状态保存失败，请重试");
+    } finally {
+      setCompletingReminderId(null);
+    }
+  };
+
   const initSession = async () => {
     const questionCount = Number(setup.questionCount);
     if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50) {
@@ -143,6 +226,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
         sceneType: "free_practice",
         questionCount,
         subject: setup.subject === "mixed" ? undefined : setup.subject,
+        knowledgePoint: setup.knowledgePoint || undefined,
         mode,
         lessonId: lessonId || undefined,
       });
@@ -246,6 +330,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
         answer: currentAnswer.selectedAnswer,
         timeSpent: currentAnswer.timeSpent,
         mode,
+        sessionId: session.sessionId,
       });
       setAnswers((prev) => ({
         ...prev,
@@ -303,6 +388,23 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   const allDone = answerStatuses.every((s) => s !== null);
   const score = session ? Math.round((totalCorrect / session.questions.length) * 100) : 0;
 
+  useEffect(() => {
+    if (!session?.sessionId || !allDone || completionReportedRef.current === session.sessionId) return;
+    completionReportedRef.current = session.sessionId;
+    const durationSeconds = Object.values(answers).reduce(
+      (total, answer) => total + (Number(answer?.timeSpent) || 0),
+      0
+    );
+    reportPracticeCompletion({
+      sessionId: session.sessionId,
+      questionCount: session.questions.length,
+      correctCount: totalCorrect,
+      durationSeconds,
+    }).catch((err) => {
+      console.warn("上报练习完成事件失败:", err);
+    });
+  }, [allDone, answers, session, totalCorrect]);
+
   // --- 加载中 ---
   if (loading) {
     return (
@@ -324,6 +426,13 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
         subjects={availableSubjects}
         error={setupError}
         onStart={initSession}
+        reviewReminders={reviewReminders}
+        reviewLoading={reviewLoading}
+        reviewError={reviewError}
+        completingReminderId={completingReminderId}
+        onCompleteReminder={handleCompleteReminder}
+        weakRecommendations={weakRecommendations}
+        recommendationLoading={recommendationLoading}
       />
     );
   }
@@ -628,7 +737,20 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   );
 }
 
-function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
+function PracticeSetup({
+  setup,
+  setSetup,
+  subjects,
+  error,
+  onStart,
+  reviewReminders,
+  reviewLoading,
+  reviewError,
+  completingReminderId,
+  onCompleteReminder,
+  weakRecommendations,
+  recommendationLoading,
+}) {
   const selectedSubjectLabel = setup.subject === "mixed"
     ? "混合科目"
     : subjects.find((item) => item.value === setup.subject)?.label || setup.subject;
@@ -648,6 +770,93 @@ function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
 
         {error && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        )}
+
+        <section className="mb-7 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CalendarClock size={18} className="text-indigo-500" />
+              <div>
+                <h3 className="font-semibold text-slate-700">AI 复习提醒</h3>
+                <p className="mt-0.5 text-xs text-slate-400">根据学习记忆与遗忘规律生成的到期任务</p>
+              </div>
+            </div>
+            {!reviewLoading && (
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-indigo-500">
+                {reviewReminders.length} 项待复习
+              </span>
+            )}
+          </div>
+
+          {reviewLoading && <div className="py-3 text-sm text-slate-400">正在加载复习提醒...</div>}
+          {!reviewLoading && reviewReminders.length === 0 && !reviewError && (
+            <div className="rounded-xl bg-white/80 px-4 py-3 text-sm text-slate-500">今天暂无到期复习任务，可以开始自由练习。</div>
+          )}
+          {reviewError && (
+            <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">{reviewError}</div>
+          )}
+          {!reviewLoading && reviewReminders.slice(0, 3).map((reminder) => (
+            <div key={reminder.id} className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 shadow-sm">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-slate-700">{reminder.content}</div>
+                <div className="mt-1 text-xs text-slate-400">
+                  {reminder.scheduledDate || "今日到期"}
+                  {reminder.priority >= 2 ? " · 紧急" : reminder.priority === 1 ? " · 重要" : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onCompleteReminder(reminder.id)}
+                disabled={completingReminderId === reminder.id}
+                className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 disabled:opacity-50 cursor-pointer"
+              >
+                <CheckCircle2 size={14} />
+                {completingReminderId === reminder.id ? "保存中" : "完成复习"}
+              </button>
+            </div>
+          ))}
+        </section>
+
+        {(recommendationLoading || weakRecommendations.length > 0) && (
+          <section className="mb-7">
+            <div className="mb-3">
+              <h3 className="font-semibold text-slate-700">薄弱知识点推荐</h3>
+              <p className="mt-0.5 text-xs text-slate-400">来自薄弱点分析模块，可选择一个知识点进行针对练习</p>
+            </div>
+            {recommendationLoading ? (
+              <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-400">正在加载个性化推荐...</div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  aria-pressed={!setup.knowledgePoint}
+                  onClick={() => setSetup((prev) => ({ ...prev, knowledgePoint: "" }))}
+                  className={`rounded-xl border px-3 py-2 text-sm transition-colors cursor-pointer ${
+                    !setup.knowledgePoint
+                      ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+                      : "border-slate-200 text-slate-500 hover:border-indigo-200"
+                  }`}
+                >
+                  不限定
+                </button>
+                {weakRecommendations.map((item) => (
+                  <button
+                    key={item.exerciseId || item.knowledgePoint}
+                    type="button"
+                    aria-pressed={setup.knowledgePoint === item.knowledgePoint}
+                    onClick={() => setSetup((prev) => ({ ...prev, knowledgePoint: item.knowledgePoint }))}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-colors cursor-pointer ${
+                      setup.knowledgePoint === item.knowledgePoint
+                        ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+                        : "border-slate-200 text-slate-500 hover:border-indigo-200"
+                    }`}
+                  >
+                    {item.knowledgePoint}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
         )}
 
         <section className="mb-7">
@@ -698,7 +907,7 @@ function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
             <button
               type="button"
               aria-pressed={setup.subject === "mixed"}
-              onClick={() => setSetup((prev) => ({ ...prev, subject: "mixed" }))}
+              onClick={() => setSetup((prev) => ({ ...prev, subject: "mixed", knowledgePoint: "" }))}
               className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors cursor-pointer ${
                 setup.subject === "mixed"
                   ? "border-indigo-300 bg-indigo-50 text-indigo-600"
@@ -712,7 +921,7 @@ function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
                 key={subject.value}
                 type="button"
                 aria-pressed={setup.subject === subject.value}
-                onClick={() => setSetup((prev) => ({ ...prev, subject: subject.value }))}
+                onClick={() => setSetup((prev) => ({ ...prev, subject: subject.value, knowledgePoint: "" }))}
                 className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors cursor-pointer ${
                   setup.subject === subject.value
                     ? "border-indigo-300 bg-indigo-50 text-indigo-600"
@@ -728,7 +937,10 @@ function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
         <div className="flex flex-col gap-4 rounded-2xl bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-xs text-slate-400">本次练习</div>
-            <div className="mt-1 font-semibold text-slate-700">{selectedSubjectLabel} · {setup.questionCount || 0} 题</div>
+            <div className="mt-1 font-semibold text-slate-700">
+              {selectedSubjectLabel} · {setup.questionCount || 0} 题
+              {setup.knowledgePoint ? ` · ${setup.knowledgePoint}` : ""}
+            </div>
           </div>
           <button
             type="button"
