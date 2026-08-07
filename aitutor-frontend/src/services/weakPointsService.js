@@ -170,17 +170,20 @@ export async function getKnowledgeGraph({ userId, subject } = {}) {
 
 /**
  * 获取薄弱点改善报告（WeakPointsImprovementController）
- * GET /api/weak-points/improvement-report?userId=&...
+ * GET /api/weak-points/improvement-report?userId=&period=
  *
- * @param {Object} params 查询参数（userId 等）
+ * @param {Object} params
+ * @param {number} params.userId   用户 ID（必填）
+ * @param {string} [params.period] 统计周期：week / month，默认 month
  * @returns {Promise<Object>} WeakPointsImprovementVO
+ *   { period, overallImprovement, improvedKps[], worsenedKps[], totalWeakPoints,
+ *     highLevelCount, resolvedCount, suggestion }
  */
-export async function getImprovementReport(params = {}) {
+export async function getImprovementReport({ userId, period = 'month' } = {}) {
   const query = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v != null) query.set(k, v);
-  });
-  const qs = query.toString();
-  const res = unwrap(await get(`/api/weak-points/improvement-report${qs ? `?${qs}` : ''}`));
+  query.set('userId', userId);
+  if (period) query.set('period', period);
+
+  const res = unwrap(await get(`/api/weak-points/improvement-report?${query.toString()}`));
   return res || null;
 }
