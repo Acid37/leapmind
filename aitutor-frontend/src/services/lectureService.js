@@ -81,13 +81,15 @@ function parsePptStructure(pptStructure) {
  * GET /api/weak-points?userId=&subject=&status=
  * 
  * 后端返回 ApiResponse<List<UserWeakPointVO>>
- * UserWeakPointVO: { id, knowledgePoint, subject, weaknessLevel, errorCount, accuracyRate, status }
+ * UserWeakPointVO: { id, knowledgePoint, subject, weaknessLevel, errorCount, totalCount,
+ *                    accuracyRate, lastErrorTime, status, aiAnalysis, aiSuggestion, ... }
  * 
  * 映射为前端 WeakPoint：{ kpId, kpName, weaknessScore }
  * - kpId            ← id（数据库主键，唯一标识该薄弱点记录）
  * - kpName          ← knowledgePoint
- * - weaknessScore   ← 1 - accuracyRate（准确率越低薄弱度越高）
- *                     若 accuracyRate 为空则按 weaknessLevel 估算：HIGH=0.75, MEDIUM=0.5, LOW=0.25
+ * - weaknessScore   ← 优先取 weaknessScore（Python 引擎三维加权，文档 v1.1 权威值）
+ *                     否则 1 - accuracyRate（准确率越低薄弱度越高）
+ *                     再否则按 weaknessLevel 估算：HIGH=0.75, MEDIUM=0.5, LOW=0.25
  */
 export async function getWeakPoints(userId) {
   try {
@@ -97,9 +99,11 @@ export async function getWeakPoints(userId) {
       .map((wp) => ({
         kpId: wp.id,
         kpName: wp.knowledgePoint || '',
-        weaknessScore: wp.accuracyRate != null
-          ? Math.round((1 - parseFloat(wp.accuracyRate)) * 100) / 100
-          : { HIGH: 0.75, MEDIUM: 0.50, LOW: 0.25 }[wp.weaknessLevel] ?? 0.30,
+        weaknessScore: wp.weaknessScore != null
+          ? Math.round(parseFloat(wp.weaknessScore) * 100) / 100
+          : wp.accuracyRate != null
+            ? Math.round((1 - parseFloat(wp.accuracyRate)) * 100) / 100
+            : { HIGH: 0.75, MEDIUM: 0.50, LOW: 0.25 }[wp.weaknessLevel] ?? 0.30,
         subject: wp.subject || '',
       }))
       .sort((a, b) => b.weaknessScore - a.weaknessScore); // 最薄弱排最前
