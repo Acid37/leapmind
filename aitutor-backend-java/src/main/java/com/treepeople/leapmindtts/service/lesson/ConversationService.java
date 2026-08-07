@@ -452,7 +452,10 @@ public class ConversationService {
                 history = allHistory;
             }
             List<Map<String, String>> aiMessages = new ArrayList<>(history.size() + 1);
-            aiMessages.add(Map.of("role", "system", "content", buildScenePrompt(session.getSceneType(), session.getContext())));
+            SceneType effectiveSceneType = req.getSceneType() != null ? req.getSceneType() : session.getSceneType();
+            Map<String, Object> effectiveContext = (req.getContext() != null && !req.getContext().isEmpty())
+                    ? req.getContext() : session.getContext();
+            aiMessages.add(Map.of("role", "system", "content", buildScenePrompt(effectiveSceneType, effectiveContext)));
             aiMessages.addAll(history);
             aiModelService.streamAIResponse(aiMessages, req.getInputType(), req.getAttachmentUrls())
                 .subscribe(subscriber);
