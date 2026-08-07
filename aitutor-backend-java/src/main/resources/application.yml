@@ -57,7 +57,9 @@ asr:
 ai:
   api:
     key: sk-ead3ef8a1ef941bab04b2b530ed24a34
-  prompt: '你是一个聪明且体贴的老师，请简洁的回答以下这个问题，回答完后需要加入"还有其他问题欢迎继续问我呀。”'
+  prompt: '你是一个聪明且体贴的老师，请简洁的回答以下这个问题，回答完后需要加入"还有其他问题欢迎继续问我呀。"'
+  teaching:
+    service-url: http://localhost:8000
 
 # 阿里云TTS配置
 tts:
@@ -239,6 +241,8 @@ minio:
   access-key: minioadmin
   secret-key: minioadmin
   bucket-name: leapmind
+  # M4 即时讲课专用桶（与公共 bucket 隔离，见 M4_后端接口文档）
+  teaching-bucket: leapmind-teaching
 
 # M8 虚拟 AI 教师
 virtual-teacher:
