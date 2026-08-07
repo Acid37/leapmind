@@ -24,6 +24,10 @@ import RankingPage from './pages/RankingPage.jsx';
 import WeakPointListPage from './pages/m3/WeakPointListPage';
 import WeakPointDetailPage from './pages/m3/WeakPointDetailPage';
 import KnowledgeGraphPage from './pages/m3/KnowledgeGraphPage';
+import LessonPrepCreatePage from './pages/m5/LessonPrepCreatePage';
+import LessonPrepEditPage from './pages/m5/LessonPrepEditPage';
+import PptEditorPage from './pages/m5/PptEditorPage';
+import LessonPrepListPage from './pages/m5/LessonPrepListPage';
 import { hasValidToken } from './utils/tokenManager';
 import { checkAuth } from './services/authService';
 
@@ -44,6 +48,8 @@ export default function App() {
     const [m1PracticeParams, setM1PracticeParams] = useState({}); // M1 做题页参数（mode/lessonId 等）
     const [m3Page, setM3Page] = useState(null); // null | 'list' | 'detail'
     const [m3Params, setM3Params] = useState({}); // 传递给 M3 页面的参数
+    const [m5Page, setM5Page] = useState(null); // null | 'create' | 'edit' | 'ppt-editor' | 'list'
+    const [m5Params, setM5Params] = useState({}); // 传递给 M5 页面的参数
 
     useEffect(() => {
         const checkSession = async () => {
@@ -239,6 +245,39 @@ export default function App() {
                 />
             ) : currentCourseId ? (
                       <LecturePage2 courseId={currentCourseId} onBack={() => setCurrentCourseId('')} />
+            ) : m5Page === 'create' ? (
+                <LessonPrepCreatePage
+                  onBack={() => { const from = m5Params.from; setM5Params({}); setM5Page(from === 'list' ? 'list' : null); }}
+                  onPrepCreated={(prepId) => { setM5Params({ prepId, from: 'create' }); setM5Page('edit'); }}
+                />
+            ) : m5Page === 'edit' ? (
+                <LessonPrepEditPage
+                  prepId={m5Params.prepId}
+                  onBack={() => { const from = m5Params.from; setM5Params({}); setM5Page(from === 'edit' ? 'create' : 'list'); }}
+                  onGeneratedPpt={(result) => { setM5Params({ ...m5Params, pptSlides: result.slides, pptId: result.pptId, from: 'edit' }); setM5Page('ppt-editor'); }}
+                />
+            ) : m5Page === 'ppt-editor' ? (
+                <PptEditorPage
+                  pptId={m5Params.pptId}
+                  initialSlides={m5Params.pptSlides}
+                  onBack={() => { const from = m5Params.from; setM5Params({}); setM5Page(from === 'edit' ? 'edit' : 'list'); }}
+                />
+            ) : m5Page === 'list' ? (
+                <LessonPrepListPage
+                  onBack={() => setM5Page(null)}
+                  onCreate={() => { setM5Params({ from: 'list' }); setM5Page('create'); }}
+                  onEdit={(prepId) => { setM5Params({ prepId, from: 'list' }); setM5Page('edit'); }}
+                  onPreviewPpt={(item) => {
+                    // 从 pptStructure 解析 slides 供 PPT 编辑页使用
+                    let slides = []
+                    try {
+                      const parsed = typeof item.pptStructure === 'string' ? JSON.parse(item.pptStructure) : item.pptStructure
+                      slides = parsed?.slides || parsed?.pages || []
+                    } catch (e) { /* ignore */ }
+                    setM5Params({ pptId: item.prepId, pptSlides: slides, from: 'list' });
+                    setM5Page('ppt-editor');
+                  }}
+                />
             ) : learningProfileView === 'detail' ? (
                 <KnowledgePointDetailPage
                     knowledgePointId={selectedKnowledgePointId}
@@ -267,6 +306,8 @@ export default function App() {
                         onM4Lecture={handleLaunchM4}
                         onM3WeakPoints={() => setM3Page('list')}
                         onM3KnowledgeGraph={() => setM3Page('knowledge-graph')}
+                        onM5Create={() => setM5Page('create')}
+                        onM5List={() => setM5Page('list')}
                     />
                 )
             )}
