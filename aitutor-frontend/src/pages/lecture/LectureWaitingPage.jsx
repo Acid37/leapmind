@@ -75,7 +75,12 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
     const run = async () => {
       setStatus('generating');
       try {
-        await generateLecture(params, (event) => {
+        await generateLecture({
+          courseId: params?.courseId,
+          sourceText: params?.textContent || params?.sourceText || '',
+          sourceType: params?.sourceType,
+          userProfile: params?.userProfile,
+        }, (event) => {
           if (cancelled) return;
 
           switch (event.type) {

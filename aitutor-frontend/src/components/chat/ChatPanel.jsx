@@ -45,7 +45,7 @@ const ChatPanel = ({
   title = 'AI 助手',
   className = '',
 }) => {
-  const { messages, isGenerating, sessionId, error, send, abort, retry, clear } = useChatSession({
+  const { messages, phase, isGenerating, sessionId, error, send, abort, retry, clear } = useChatSession({
     sceneType,
     context,
     userId,
@@ -143,7 +143,6 @@ const ChatPanel = ({
   // -------- 图片上传（占位） --------
   const handleImageUpload = () => {
     // TODO-IMAGE: 接入拍照/图片上传 → OCR 识别 → send(recognizedText)
-    // eslint-disable-next-line no-console
     console.log('[ChatPanel] image upload not yet implemented');
   };
 
@@ -227,6 +226,19 @@ const ChatPanel = ({
             error={msg.error}
           />
         ))}
+        {/* thinking 态：Loading 指示器（对齐 M7 对接文档：骨架屏/Loading 动画） */}
+        {phase === 'thinking' && (
+          <div className="flex justify-start px-2 py-1.5">
+            <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500 bg-white rounded-xl shadow-sm">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </span>
+              <span>AI 正在思考...</span>
+            </div>
+          </div>
+        )}
         {/* 错误 + 重试 */}
         {error && (
           (error.code && error.code !== 1003 && error.code !== 2001) ? (

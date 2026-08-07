@@ -11,6 +11,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Paperclip, FileText, Target, X, File, AlertCircle, ArrowLeft, Send, Loader2 } from 'lucide-react';
 import { parseLectureFile, getWeakPoints } from '../../services/lectureService';
+import { getOrCreateCourseId } from '../../features/chat/pptSession';
 
 // ─── 子组件：薄弱点选择器 ───────────────────────────
 const WeakPointSelector = ({ items, selected, onToggle, loading }) => {
@@ -99,7 +100,8 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
     setParseError('');
     setParsing(true);
     try {
-      const result = await parseLectureFile(f, userId);
+      const courseId = getOrCreateCourseId();
+      const result = await parseLectureFile(f, courseId);
       setParseResult(result);
     } catch (err) {
       setParseError(err?.message || '文件解析失败');
@@ -107,7 +109,7 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
     } finally {
       setParsing(false);
     }
-  }, [userId]);
+  }, []);
 
   const handleClearFile = () => {
     setFile(null);
@@ -138,6 +140,7 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
     if (!canGenerate || parsing) return;
     onStartGeneration?.({
       userId,
+      courseId: getOrCreateCourseId(),
       sourceType: file ? 'file' : 'text',
       sourceId: parseResult?.fileId,
       textContent: textContent.trim() || undefined,
