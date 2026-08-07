@@ -30,7 +30,8 @@ import { askStream, interrupt, getSession, ChatError } from '../services/chatSer
  */
 export function useChatSession({ sceneType, context, userId, autoRestore = true }) {
   const [messages, setMessages] = useState([]);
-  const [isGenerating, setIsGenerating] = useState(false);
+  // 对话状态机（对齐 M7 对接文档）：idle / thinking / content / error / interrupted
+  const [phase, setPhase] = useState('idle');
   const [sessionId, setSessionId] = useState(null);
   const [error, setError] = useState(null);
 
@@ -71,34 +72,60 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
     }
   }, [sessionId]);
 
-  // -------- 拦截流 chunk，逐字追加到最后一条 assistant 消息 --------
-  const processChunk = useCallback((chunk) => {
-    if (chunk.type === 'content' && chunk.chunk) {
-      bufferRef.current += chunk.chunk;
-      const captured = bufferRef.current; // ⚠️ 捕获快照，setMessages updater 异步执行时 ref 可能已被改
-      setMessages(prev => {
-        const copy = [...prev];
-        const last = copy[copy.length - 1];
-        if (last && last.isStreaming) {
-          copy[copy.length - 1] = { ...last, content: captured };
-        }
-        return copy;
-      });
-    } else if (chunk.type === 'done') {
-      // 标记流式结束
-      const captured = bufferRef.current; // ⚠️ 必须捕获！下面立即清空 ref
-      isGeneratingRef.current = false;
-      setIsGenerating(false);
-      setMessages(prev => {
-        const copy = [...prev];
-        const last = copy[copy.length - 1];
-        if (last && last.isStreaming) {
-          copy[copy.length - 1] = { role: 'assistant', content: captured };
-        }
-        return copy;
-      });
-      bufferRef.current = '';
+  // -------- 立即切断当前 SSE 流（⚠️ 致命切断点：终端事件必须主动 cancel） --------
+  // fetch 本身不会自动重连，天然安全；此处统一封装，若未来切换 @microsoft/fetch-event-source
+  // 也必须在 done/error/interrupted 终端事件处手动 abort，防止重连打挂后端限流器。
+  const stopStream = useCallback(() => {
+    if (abortRef.current) {
+      try { abortRef.current.abort(); } catch { /* ignore */ }
+      abortRef.current = null;
     }
+  }, []);
+
+  // -------- 结束生成（清同步锁 + 置状态机） --------
+  const finishGenerating = useCallback((nextPhase) => {
+    isGeneratingRef.current = false;
+    setPhase(nextPhase);
+  }, []);
+
+  // -------- 收尾最后一条 isStreaming 消息（保留已生成内容） --------
+  const finalizeMessage = useCallback((captured, { markError = false } = {}) => {
+    setMessages(prev => {
+      const copy = [...prev];
+      const last = copy[copy.length - 1];
+      if (last && last.isStreaming) {
+        copy[copy.length - 1] = markError
+          ? { role: 'assistant', content: captured || '生成失败', error: true }
+          : { role: 'assistant', content: captured };
+      }
+      return copy;
+    });
+  }, []);
+
+  // -------- 移除空占位（内容为空时不用保留） --------
+  const dropEmptyPlaceholder = useCallback(() => {
+    setMessages(prev => {
+      const copy = [...prev];
+      const last = copy[copy.length - 1];
+      if (last && last.isStreaming && !bufferRef.current) {
+        copy.pop();
+      }
+      return copy;
+    });
+  }, []);
+
+  // -------- 拦截流 chunk，逐字追加到最后一条 assistant 消息 --------
+  const applyContent = useCallback((chunk) => {
+    bufferRef.current += chunk.chunk;
+    const captured = bufferRef.current; // ⚠️ 捕获快照，setMessages updater 异步执行时 ref 可能已被改
+    setMessages(prev => {
+      const copy = [...prev];
+      const last = copy[copy.length - 1];
+      if (last && last.isStreaming) {
+        copy[copy.length - 1] = { ...last, content: captured };
+      }
+      return copy;
+    });
   }, []);
 
   // -------- 发送消息 --------
@@ -118,7 +145,7 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
     const assistantMsg = { role: 'assistant', content: '', isStreaming: true };
     setMessages(prev => [...prev, assistantMsg]);
     bufferRef.current = '';
-    setIsGenerating(true);
+    setPhase('thinking'); // 状态机 → thinking
 
     // 启动流
     const stream = askStream({
@@ -129,7 +156,6 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
       context,
     });
 
-    // 保存 sessionId（若后端返回新的）
     // 通过 reader 消费流
     const reader = stream.getReader();
     abortRef.current = {
@@ -139,89 +165,91 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
       },
     };
 
+    // 是否为终端事件（收到后必须立即切断连接，不再继续 read）
+    const isTerminal = (type) => type === 'done' || type === 'error' || type === 'interrupted';
+
     function read() {
       reader.read().then(({ done, value }) => {
         if (done) {
-          isGeneratingRef.current = false;
-          setIsGenerating(false);
+          // 流自然结束（无终端事件，如连接被服务端正常关闭）
+          finishGenerating('idle');
           return;
         }
         if (value && value.type) {
-          // 如果是 done 事件，提取 sessionId
-          if (value.type === 'done' && value.sessionId) {
+          // ✅ SessionID 闭环：任意事件（thinking/content/done/...）都可能携带 sessionId，
+          //    收到即保存，后续追问必须携带该 ID
+          if (value.sessionId) {
             setSessionId(value.sessionId);
           }
-          // 后端推送错误事件
-          if (value.type === 'error') {
+          // ⚠️ 致命切断点：终端事件立即 cancel，防止继续消费多余数据
+          //   （fetch 不自动重连；换 fetch-event-source 后此处更是防重连打挂限流器的关键）
+          if (isTerminal(value.type)) {
+            stopStream();
+          }
+
+          if (value.type === 'thinking') {
+            // thinking 态：骨架屏/Loading（ChatPanel 渲染）
+            setPhase('thinking');
+          } else if (value.type === 'content') {
+            setPhase('content');
+            applyContent(value);
+          } else if (value.type === 'done') {
+            // 生成完毕：收尾消息 + 清空 buffer
+            const captured = bufferRef.current; // ⚠️ 必须捕获！下面立即清空 ref
+            finishGenerating('idle');
+            finalizeMessage(captured);
+            bufferRef.current = '';
+          } else if (value.type === 'error') {
+            // 后端推送错误事件（限流/降级/超时），按 code 差异化处理
+            const captured = bufferRef.current;
+            finishGenerating('error');
+            if (!captured) dropEmptyPlaceholder();
+            else finalizeMessage(captured);
             setError({
               message: value.message || '生成失败',
               code: value.code || undefined,
             });
-            isGeneratingRef.current = false;
-            setIsGenerating(false);
-            const captured = bufferRef.current; // ⚠️ 捕获快照
-            // 移除占位 assistant 消息（内容为空）
-            setMessages(prev => {
-              const copy = [...prev];
-              const last = copy[copy.length - 1];
-              if (last && last.isStreaming && !captured) {
-                copy.pop();
-              } else if (last && last.isStreaming) {
-                copy[copy.length - 1] = { role: 'assistant', content: captured };
-              }
-              return copy;
-            });
             bufferRef.current = '';
-            return;
+          } else if (value.type === 'interrupted') {
+            // interrupted 态：保留半成品文本，恢复输入框
+            const captured = bufferRef.current;
+            finishGenerating('interrupted');
+            finalizeMessage(captured);
+            bufferRef.current = '';
           }
-          processChunk(value);
+          // 终端事件不继续 read()
+          return;
         }
         read();
       }).catch((err) => {
         // reader cancel（用户主动打断）走 abort 路径，不会进这里
         // 这里是网络/解析异常
         const captured = bufferRef.current; // ⚠️ 捕获快照
-        isGeneratingRef.current = false;
-        setIsGenerating(false);
+        finishGenerating('error');
         const isChatError = err instanceof ChatError || err?.code;
         setError({
           message: err?.message || '连接异常，请重试',
           code: isChatError ? (err.code || 1001) : undefined,
         });
         // 保留已生成内容
-        setMessages(prev => {
-          const copy = [...prev];
-          const last = copy[copy.length - 1];
-          if (last && last.isStreaming) {
-            copy[copy.length - 1] = {
-              role: 'assistant',
-              content: captured || '生成失败',
-              error: true,
-            };
-          }
-          return copy;
-        });
+        finalizeMessage(captured, { markError: true });
         bufferRef.current = '';
       });
     }
     read();
-  }, [userId, sessionId, sceneType, context, processChunk]);
+  }, [userId, sessionId, sceneType, context, applyContent, dropEmptyPlaceholder, finalizeMessage, finishGenerating, stopStream]);
 
-  // -------- 打断 --------
+  // -------- 打断（用户点击"停止生成"） --------
   const abort = useCallback(() => {
-    // 取消流 reader
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
-    }
-    // 通知后端
+    // 1. 切断本地 SSE 流
+    stopStream();
+    // 2. 通知后端取消 Flux 订阅
     if (sessionId) {
       interrupt(sessionId).catch(() => { /* ignore */ });
     }
-    // 保留已生成内容，去掉 streaming 标记
+    // 3. 保留已生成内容，状态机 → interrupted
     const captured = bufferRef.current; // ⚠️ 捕获快照
-    isGeneratingRef.current = false;
-    setIsGenerating(false);
+    finishGenerating('interrupted');
     setMessages(prev => {
       const copy = [...prev];
       const last = copy[copy.length - 1];
@@ -234,7 +262,7 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
       return copy;
     });
     bufferRef.current = '';
-  }, [sessionId]);
+  }, [sessionId, stopStream, finishGenerating]);
 
   // -------- 重试 --------
   const retry = useCallback(() => {
@@ -254,21 +282,22 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
   // -------- 清空对话 --------
   const clear = useCallback(() => {
     // 若正在生成，先打断流
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
-    }
+    stopStream();
     isGeneratingRef.current = false;
-    setIsGenerating(false);
+    setPhase('idle');
     setMessages([]);
     setSessionId(null);
     setError(null);
     bufferRef.current = '';
     localStorage.removeItem('chatSessionId');
-  }, []);
+  }, [stopStream]);
+
+  // isGenerating 派生自状态机（thinking/content 视为正在生成），保持对外兼容
+  const isGenerating = phase === 'thinking' || phase === 'content';
 
   return {
     messages,
+    phase,
     isGenerating,
     sessionId,
     error,
