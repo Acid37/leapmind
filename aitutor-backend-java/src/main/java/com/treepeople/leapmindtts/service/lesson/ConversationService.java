@@ -59,6 +59,7 @@ public class ConversationService {
     private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
     private final com.treepeople.leapmindtts.service.common.RequestMergeService requestMergeService;
     private final ContextCompressService contextCompressService;
+    private final EventCollectionService eventCollectionService;
 
     private final ConcurrentHashMap<String, BaseSubscriber<AIModelService.AiChunk>> activeSubscribers = new ConcurrentHashMap<>();
 
@@ -77,7 +78,8 @@ public class ConversationService {
                                MetricsService metricsService,
                                io.micrometer.core.instrument.MeterRegistry meterRegistry,
                                com.treepeople.leapmindtts.service.common.RequestMergeService requestMergeService,
-                               ContextCompressService contextCompressService) {
+                               ContextCompressService contextCompressService,
+                               EventCollectionService eventCollectionService) {
         this.aiModelService = aiModelService;
         this.aiTeacherBaiduAsrService = aiTeacherBaiduAsrService;
         this.webClient = webClientBuilder.build();
@@ -91,6 +93,7 @@ public class ConversationService {
         this.meterRegistry = meterRegistry;
         this.requestMergeService = requestMergeService;
         this.contextCompressService = contextCompressService;
+        this.eventCollectionService = eventCollectionService;
     }
 
     @PostConstruct
@@ -474,18 +477,14 @@ public class ConversationService {
             } else {
                 historyMono = reactor.core.publisher.Mono.just(allHistory);
             }
-            List<Map<String, String>> aiMessages = new ArrayList<>(history.size() + 1);
             SceneType effectiveSceneType = req.getSceneType() != null ? req.getSceneType() : session.getSceneType();
             Map<String, Object> effectiveContext = (req.getContext() != null && !req.getContext().isEmpty())
                     ? req.getContext() : session.getContext();
-            aiMessages.add(Map.of("role", "system", "content", buildScenePrompt(effectiveSceneType, effectiveContext)));
-            aiMessages.addAll(history);
-            aiModelService.streamAIResponse(aiMessages, req.getInputType(), req.getAttachmentUrls())
-                .subscribe(subscriber);
-            activeSubscribers.put(sessionId, subscriber);
-
             historyMono.subscribe(history -> {
-                aiModelService.streamAIResponse(history, req.getInputType(), req.getAttachmentUrls())
+                List<Map<String, String>> aiMessages = new ArrayList<>(history.size() + 1);
+                aiMessages.add(Map.of("role", "system", "content", buildScenePrompt(effectiveSceneType, effectiveContext)));
+                aiMessages.addAll(history);
+                aiModelService.streamAIResponse(aiMessages, req.getInputType(), req.getAttachmentUrls())
                     .subscribe(subscriber);
                 activeSubscribers.put(sessionId, subscriber);
             });
