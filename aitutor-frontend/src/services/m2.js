@@ -1,6 +1,62 @@
 import { post, get, del } from './api'
 
 // ===================================================================
+// M6 事件上报（画像引擎）
+// ===================================================================
+
+/**
+ * 生成幂等 eventId
+ * 格式：evt_m2_{timestamp}_{random}，≤64字符
+ */
+function genEventId() {
+  return `evt_m2_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+/**
+ * 获取当前时间（RFC3339 带时区）
+ */
+function nowIso() {
+  return new Date().toISOString()
+}
+
+/**
+ * 上报 M6 事件
+ * POST /api/user-profile/{userId}/record-event（需 JWT，token用户 == 路径userId == body userId）
+ * 文档：M6-v1-通知-M2组 / M6-v1-回复-M2组
+ * @param {Object} params
+ * @param {number} params.userId      用户ID（Long，必须与JWT一致）
+ * @param {string} params.eventType   request_explanation / explanation_feedback
+ * @param {string} params.sourceModule 必须 "M2"
+ * @param {Object} params.data        事件专属数据（按eventType白名单）
+ * @param {number} [params.kpId]      知识点ID（Long）
+ * @param {string} [params.sessionId] 可选
+ * @param {string} [params.traceId]   可选
+ */
+export async function recordEvent({ userId, eventType, sourceModule = 'M2', data, kpId, sessionId, traceId }) {
+  const payload = {
+    eventId: genEventId(),
+    userId,
+    eventType,
+    sourceModule,
+    occurredAt: nowIso(),
+    schemaVersion: '1.0',
+    data,
+  }
+  if (kpId) payload.kpId = kpId
+  if (sessionId) payload.sessionId = sessionId
+  if (traceId) payload.traceId = traceId
+
+  try {
+    const res = await post(`/api/user-profile/${userId}/record-event`, payload)
+    return res.data
+  } catch (err) {
+    console.error(`[M6事件] ${eventType} 上报失败:`, err.message)
+    // 事件上报失败不阻断主流程，静默处理
+    return null
+  }
+}
+
+// ===================================================================
 // 真实接口封装（对接后端时取消 mock 调用，切到这些函数）
 // ===================================================================
 

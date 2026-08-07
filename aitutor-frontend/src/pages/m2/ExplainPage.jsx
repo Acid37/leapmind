@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   ArrowLeft, Sparkles, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   RefreshCw, Target, BookOpen, ThumbsUp, HelpCircle, Clock, History
@@ -7,7 +7,8 @@ import StepProgress from '../../components/m2/StepProgress'
 import ExplainContent from '../../components/m2/ExplainContent'
 import VoicePlayButton from '../../components/m2/VoicePlayButton'
 import AskMoreButton from '../../components/m2/AskMoreButton'
-import { mockGenerateExplain, mockGetWrongQuestions, mockGetExplainDetail } from '../../services/m2'
+import { mockGenerateExplain, mockGetWrongQuestions, mockGetExplainDetail, recordEvent } from '../../services/m2'
+import { getUserInfo } from '../../utils/tokenManager'
 
 const scrollbarStyles = `
   .explain-scroll::-webkit-scrollbar { width: 4px; }
@@ -119,6 +120,12 @@ export default function ExplainPage({ onBack, replayId, onExplainHistory }) {
   const [toast, setToast] = useState(null)
   const [replayLoading, setReplayLoading] = useState(false)
 
+  // M6 事件上报状态
+  const [explainId, setExplainId] = useState(null)
+  const [repeatCount, setRepeatCount] = useState(0)
+  const currentUser = getUserInfo?.()
+  const explainIdRef = useRef(null)
+
   // 回放模式：加载历史讲题数据
   useEffect(() => {
     if (!replayId) return
@@ -188,6 +195,28 @@ export default function ExplainPage({ onBack, replayId, onExplainHistory }) {
     setSimilar('')
 
     const steps = []
+    // 每次重新讲解：重复次数+1（首次为0，重新讲解从1开始）
+    const isReGenerate = !!explainIdRef.current
+    if (isReGenerate) setRepeatCount(c => c + 1)
+    // 首次生成：初始化 explainId（先临时生成，后端done返回真实值后替换）
+    if (!explainIdRef.current) {
+      const tmpId = `exp_${Date.now()}`
+      explainIdRef.current = tmpId
+      setExplainId(tmpId)
+    }
+
+    // M6 上报：请求讲解
+    const userId = currentUser?.id || currentUser?.userId || 1
+    recordEvent({
+      userId,
+      eventType: 'request_explanation',
+      sourceModule: 'M2',
+      kpId: selectedQuestion?.knowledgePoints?.[0]?.id,
+      data: {
+        explainId: explainIdRef.current,
+        reasonTag: 'WRONG_ANSWER',
+      },
+    })
 
     await mockGenerateExplain(
       {
@@ -210,6 +239,10 @@ export default function ExplainPage({ onBack, replayId, onExplainHistory }) {
         } else if (chunk.type === 'similar') {
           setSimilar(chunk.content)
         } else if (chunk.type === 'done') {
+          if (chunk.explainId) {
+            explainIdRef.current = chunk.explainId
+            setExplainId(chunk.explainId)
+          }
           setDone(true)
           setGenerating(false)
         }
@@ -218,13 +251,31 @@ export default function ExplainPage({ onBack, replayId, onExplainHistory }) {
         setGenerating(false)
       }
     )
-  }, [selectedQuestion])
+  }, [selectedQuestion, currentUser])
 
   useEffect(() => {
     if (selectedQuestion && !generating && explainSteps.length === 0 && !replayId) {
       handleGenerate()
     }
   }, [selectedQuestion])
+
+  // M6 上报：学生反馈讲解理解程度
+  const handleFeedback = useCallback((value) => {
+    setFeedback(value)
+    if (!explainIdRef.current) return
+    const userId = currentUser?.id || currentUser?.userId || 1
+    recordEvent({
+      userId,
+      eventType: 'explanation_feedback',
+      sourceModule: 'M2',
+      kpId: selectedQuestion?.knowledgePoints?.[0]?.id,
+      data: {
+        explainId: explainIdRef.current,
+        feedback: value,
+        repeatCount,
+      },
+    })
+  }, [selectedQuestion, repeatCount, currentUser])
 
   const allSteps = explainSteps.length >= 2 ? explainSteps : null
   const stepLabels = allSteps
@@ -412,7 +463,7 @@ export default function ExplainPage({ onBack, replayId, onExplainHistory }) {
                   <div className="mt-4 space-y-3">
                     <div className="flex gap-3">
                       <button
-                        onClick={() => setFeedback('understood')}
+                        onClick={() => handleFeedback('understood')}
                         className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                           feedback === 'understood'
                             ? 'bg-green-500/30 text-green-300 border border-green-400/30'
@@ -423,9 +474,20 @@ export default function ExplainPage({ onBack, replayId, onExplainHistory }) {
                         懂了
                       </button>
                       <button
-                        onClick={() => setFeedback('confused')}
+                        onClick={() => handleFeedback('partly_understood')}
                         className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                          feedback === 'confused'
+                          feedback === 'partly_understood'
+                            ? 'bg-blue-500/30 text-blue-300 border border-blue-400/30'
+                            : 'bg-white/10 text-white/70 hover:bg-white/20 border border-white/10'
+                        }`}
+                      >
+                        <HelpCircle className="w-4 h-4" />
+                        部分理解
+                      </button>
+                      <button
+                        onClick={() => handleFeedback('still_confused')}
+                        className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                          feedback === 'still_confused'
                             ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-400/30'
                             : 'bg-white/10 text-white/70 hover:bg-white/20 border border-white/10'
                         }`}
