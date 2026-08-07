@@ -289,13 +289,6 @@
             <artifactId>flyway-mysql</artifactId>
         </dependency>
 
-        <!-- MinIO 对象存储（M4 即时讲课文件上传） -->
-        <dependency>
-            <groupId>io.minio</groupId>
-            <artifactId>minio</artifactId>
-            <version>8.5.7</version>
-        </dependency>
-
         <!-- SpringDoc OpenAPI 3 (Swagger) -->
         <dependency>
             <groupId>org.springdoc</groupId>
