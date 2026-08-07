@@ -1,15 +1,15 @@
 /**
  * M4 讲课模块 —— Service 层
  * 
- * 已对接真实后端（2026-08-03）：
- *   - 讲课内容 CRUD（历史列表/详情/删除/发布）→ Java GET/PUT/DELETE /api/lesson-prep/contents
+ * 已对接真实后端（2026-08-07）：
+ *   - 讲课文件上传 → POST /api/teaching/{courseId}/upload（M4 TeachingController）
+ *   - 讲课生成 SSE → POST /api/teaching/{courseId}/stream-generate（M4 TeachingController）
+ *   - 讲课内容 CRUD（历史列表/详情/删除/发布）→ Java GET/PUT/DELETE /api/lesson-prep/contents（M5 备课）
  *   - 薄弱知识点查询 → GET /api/weak-points（M3 曾俊桥 / develop 分支）
- *   - M6 事件上报 → POST /api/events/collect（M6 画像引擎，2026-08-06 新增）
- *   - 讲课文件解析 / 讲课生成 SSE → 等许沣睿的 /api/teaching/*（backend-M4 已迁移就绪）
+ *   - M6 事件上报 → POST /api/events/collect（M6 画像引擎）
  * 
  * 模式说明：
- *   - CRUD + 薄弱点 + M6 事件：默认走真实后端（设置 VITE_LECTURE_MOCK=true 回退 Mock）
- *   - 文件解析 / 讲课生成：仍走 Mock（等前端对接 /api/teaching/* 后切换）
+ *   - 全部默认走真实后端（设置 VITE_LECTURE_MOCK=true 回退 Mock）
  */
 
 import { mockParseResult, mockPPTStructure, mockGenerationEvents, mockHistoryList } from '../data/mockLecture';
@@ -113,25 +113,26 @@ export async function getWeakPoints(userId) {
 
 /**
  * 上传文件并解析内容
- * POST /api/lecture/parse-file (multipart/form-data)
- * 
+ * POST /api/teaching/{courseId}/upload (multipart/form-data)
+ *
+ * 后端：TeachingController.uploadFile → ApiResponse<FileUploadResponse>
+ * FileUploadResponse: { filePath, fileName, fileSize, fileType }
+ *
  * @param {File} file - 上传的文件
- * @param {number} userId
- * @returns {Promise<Object>} { fileId, fileUrl, parsedContent }
+ * @param {string} courseId - 课程 ID（讲课后端路径参数）
+ * @returns {Promise<Object>} { filePath, fileName, fileSize, fileType }
  */
-export async function parseLectureFile(file, userId) {
+export async function parseLectureFile(file, courseId) {
   if (USE_MOCK) {
     // 模拟网络延迟
     await new Promise(r => setTimeout(r, 1500));
     return { ...mockParseResult };
   }
 
-  // TODO-REAL: 真实 multipart 上传
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('userId', String(userId));
 
-  return request('/api/lecture/parse-file', {
+  return request(`/api/teaching/${courseId}/upload`, {
     method: 'POST',
     body: formData,
     headers: {}, // 让浏览器自动设置 Content-Type: multipart/form-data
@@ -142,17 +143,17 @@ export async function parseLectureFile(file, userId) {
 
 /**
  * 生成讲课内容（SSE 流式）
- * POST /api/lecture/generate → SSE
- * 
+ * POST /api/teaching/{courseId}/stream-generate → SSE
+ *
+ * 后端：TeachingController.streamGenerateTeachingContent
+ * 请求体: { course_id, source_text, user_profile }
+ * SSE 事件: outline / slide / done（见 M4_前端对接清单.md §三）
+ *
  * @param {Object} params
- * @param {number} params.userId
- * @param {string} params.sourceType   - file | text | from_weakpoint
- * @param {string} [params.sourceId]   - 文件 ID
- * @param {string} [params.textContent] - 文本内容
- * @param {number[]} [params.weakPointIds]
- * @param {string} [params.style]      - 讲课风格
- * @param {number} [params.duration]   - 期望时长（分钟）
- * @param {string} [params.grade]
+ * @param {string} params.courseId - 课程 ID（讲课后端路径参数）
+ * @param {string} [params.sourceText] - 文本内容
+ * @param {string} [params.sourceType] - file | text | from_weakpoint
+ * @param {Object} [params.userProfile] - 用户画像（可省略）
  * @param {function} onEvent           - 回调: ({ type, ...data }) => void
  * @returns {Promise<Object>} 最终结果 { lectureId, totalPages, slides }
  */
@@ -174,12 +175,20 @@ export async function generateLecture(params, onEvent) {
     };
   }
 
-  // TODO-REAL: 真实 SSE 流式调用
-  const response = await fetch('/api/lecture/generate', {
+  const { courseId, sourceText = '', userProfile } = params || {};
+  const response = await fetch(`/api/teaching/${courseId}/stream-generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      course_id: courseId,
+      source_text: sourceText,
+      user_profile: userProfile || {},
+    }),
   });
+
+  if (!response.ok) {
+    throw new Error(`生成请求失败: HTTP ${response.status}`);
+  }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -204,6 +213,28 @@ export async function generateLecture(params, onEvent) {
   }
 
   return result;
+}
+
+// ─── 2.5 创建讲课内容 ──────────────────────────────
+
+/**
+ * 创建讲课内容
+ * POST /api/teaching/create
+ *
+ * 后端：TeachingController.createLecture → ApiResponse<LectureVO>
+ * LectureVO: { id, courseId, title, status, ... }
+ *
+ * @param {Object} opts
+ * @param {string} opts.courseId - 课程 ID
+ * @param {string} opts.title - 讲课标题
+ * @returns {Promise<Object>} LectureVO
+ */
+export async function createLecture(opts) {
+  const { courseId, title } = opts || {};
+  return request('/api/teaching/create', {
+    method: 'POST',
+    body: JSON.stringify({ courseId, title }),
+  });
 }
 
 // ─── 3. 讲课内容管理 ───────────────────────────────
