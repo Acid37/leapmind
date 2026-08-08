@@ -669,7 +669,6 @@ public class PracticeServiceImpl implements PracticeService {
     static String normalizeLeaderboardTrack(String track) {
         return StringUtils.hasText(track) ? track.trim() : null;
     }
-
     static LocalDateTime leaderboardStart(String type, LocalDate today) {
         return switch (type) {
             case "daily" -> today.atStartOfDay();
