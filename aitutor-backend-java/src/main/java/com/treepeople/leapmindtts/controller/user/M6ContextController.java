@@ -98,7 +98,8 @@ public class M6ContextController {
     }
 
     @GetMapping("/{userId}/knowledge-status")
-    public ResponseEntity<ApiResponse<KnowledgeStatusResponse>> knowledge(@PathVariable Long userId, @RequestParam List<Long> kpId,
+    public ResponseEntity<ApiResponse<KnowledgeStatusResponse>> knowledge(@PathVariable Long userId,
+                                                                           @RequestParam(required = false) List<Long> kpId,
                                                                            HttpServletRequest request) {
         requirePositiveUserId(userId);
         return ok(queries.knowledge(userId, kpId, request), request);

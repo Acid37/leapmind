@@ -57,6 +57,13 @@ public class PythonServiceProperties {
     private String eventProcessPath = "/api/events/process";
 
     /**
+     * M6 画像引擎接口路径
+     * <p>最终请求 URL = baseUrl + buildProfilePath</p>
+     * <p>Python 服务收到请求后基于无状态引擎计算用户画像</p>
+     */
+    private String buildProfilePath = "/api/internal/ai/build-profile";
+
+    /**
      * 连接超时时间（秒）
      * <p>建立 TCP 连接的最大等待时间，默认 30 秒</p>
      */

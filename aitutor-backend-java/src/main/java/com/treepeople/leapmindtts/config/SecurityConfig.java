@@ -50,6 +50,9 @@ public class SecurityConfig {
         http
                 // 禁用CSRF保护，因为我们使用JWT
                 .csrf(AbstractHttpConfigurer::disable)
+                // 禁用默认表单登录和HTTP Basic
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
                 // 启用CORS配置
                 .cors(cors -> cors.configurationSource(corsConfig.corsConfigurationSource()))
                // 配置会话管理为无状态
