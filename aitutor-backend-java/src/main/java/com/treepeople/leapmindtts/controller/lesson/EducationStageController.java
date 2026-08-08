@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 教育阶段控制器
@@ -22,6 +24,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/education")
 @RequiredArgsConstructor
+@Tag(name = "Education - 学段", description = "教育阶段与年级查询")
 public class EducationStageController {
 
     private final EducationStageService educationStageService;
@@ -31,6 +34,7 @@ public class EducationStageController {
      *
      * @return 教育阶段列表
      */
+    @Operation(summary = "获取所有学段", description = "返回全部教育阶段（小学、初中、高中等）")
     @GetMapping("/stages")
     public ResponseEntity<ApiResponse<List<EducationStageVO>>> getAllStages() {
         try {
@@ -49,6 +53,7 @@ public class EducationStageController {
      * @param stageCode 阶段代码
      * @return 年级列表
      */
+    @Operation(summary = "获取学段下的年级", description = "根据学段编码查询该学段下所有年级")
     @GetMapping("/stages/{stageCode}/grades")
     public ResponseEntity<ApiResponse<List<GradeVO>>> getGradesByStage(@PathVariable String stageCode) {
         try {

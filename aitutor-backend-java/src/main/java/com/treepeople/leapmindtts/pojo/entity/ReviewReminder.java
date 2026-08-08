@@ -24,7 +24,7 @@ import java.time.LocalDateTime;
  * </ul>
  *
  * @author wuminxi
- * @date 2026-07-21
+ * @since 2026-07-21
  */
 @Data
 @Builder
@@ -88,6 +88,18 @@ public class ReviewReminder {
      */
     @TableField("reviewed_at")
     private LocalDateTime reviewedAt;
+
+    /**
+     * 复习备注，用户在标记已复习时填写的心得或掌握程度
+     */
+    @TableField("notes")
+    private String notes;
+
+    /**
+     * 知识点ID，关联 knowledge_points 表，用于 M6 mark_reviewed 事件
+     */
+    @TableField("kp_id")
+    private Long kpId;
 
     /**
      * 记录创建时间，由数据库自动填充

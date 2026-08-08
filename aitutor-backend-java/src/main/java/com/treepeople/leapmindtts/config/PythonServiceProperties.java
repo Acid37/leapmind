@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
  * </ul>
  *
  * @author wuminxi
- * @date 2026-07-21
+ * @since 2026-07-21
  */
 @Data
 @Component
@@ -50,11 +50,19 @@ public class PythonServiceProperties {
     private String reviewCalculationPath = "/api/review/calculate-all";
 
     /**
-     * 事件采集处理接口路径
+     * 事件采集处理接口路径（旧链路，基于 event_collections 表）
      * <p>最终请求 URL = baseUrl + eventProcessPath</p>
      * <p>Python 服务收到请求后对 M1/M2/M4/M7 模块事件进行汇总分析</p>
+     * <p>随 M6 画像迁移至 user_events，此路径计划逐步停用</p>
      */
     private String eventProcessPath = "/api/events/process";
+
+    /**
+     * M6 用户画像构建接口路径（新链路）
+     * <p>最终请求 URL = baseUrl + profileBuildPath</p>
+     * <p>Python 服务收到请求后基于 user_events 表中的 M6 事件计算用户画像</p>
+     */
+    private String profileBuildPath = "/api/internal/ai/build-profile";
 
     /**
      * 连接超时时间（秒）

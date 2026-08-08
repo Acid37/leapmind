@@ -63,7 +63,14 @@ public class UserEventServiceImpl implements UserEventService {
         Instant receivedAt = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         validate(event);
         if (!path.equals(event.userId())) throw accessDenied();
-        return persist(event, request, receivedAt);
+        return persist(event, M6RequestIds.resolveOrCreate(request), receivedAt);
+    }
+
+    @Override
+    public EventAck recordInternal(LearningEventRequest event) {
+        Instant receivedAt = clock.instant().truncatedTo(ChronoUnit.MILLIS);
+        validate(event);
+        return persist(event, java.util.UUID.randomUUID().toString(), receivedAt);
     }
 
     @Override
@@ -81,7 +88,7 @@ public class UserEventServiceImpl implements UserEventService {
                 validate(event);
                 safeEventId = event.eventId();
                 if (!path.equals(event.userId())) throw accessDenied();
-                EventAck ack = persist(event, request, receivedAt);
+                EventAck ack = persist(event, requestId, receivedAt);
                 results.add(new EventResult(index, ack.eventId(), ack.eventStatus(), ack.profileUpdateStatus(),
                         ack.receivedAt(), null, requestId));
             } catch (DataAccessException databaseFailure) {
@@ -101,7 +108,7 @@ public class UserEventServiceImpl implements UserEventService {
         LearningEventPolicy.validate(event);
     }
 
-    private EventAck persist(LearningEventRequest event, HttpServletRequest request, Instant receivedAt) {
+    private EventAck persist(LearningEventRequest event, String requestId, Instant receivedAt) {
         NormalizedOccurredAt normalized = normalizeOccurredAt(event.occurredAt());
         String payloadHash = hash(event, normalized.instant());
         Instant occurredAt = normalized.instant();
@@ -117,7 +124,7 @@ public class UserEventServiceImpl implements UserEventService {
                     .occurredAt(occurredAtUtc)
                     .receivedAt(LocalDateTime.ofInstant(receivedAt, ZoneOffset.UTC))
                     .processStatus(processStatus).payloadHash(payloadHash).payloadHashVersion(1).build());
-            return ack(event.eventId(), false, processStatus, receivedAt, request);
+            return ack(event.eventId(), false, processStatus, receivedAt, requestId);
         } catch (DuplicateKeyException duplicate) {
             if (!DuplicateConstraintClassifier.isEventId(duplicate)) throw duplicate;
             UserEvent committed = findCommitted(event.eventId());
@@ -128,7 +135,7 @@ public class UserEventServiceImpl implements UserEventService {
                 throw degraded();
             }
             return ack(event.eventId(), true, committed.getProcessStatus(),
-                    committed.getReceivedAt().toInstant(ZoneOffset.UTC), request);
+                    committed.getReceivedAt().toInstant(ZoneOffset.UTC), requestId);
         }
     }
 
@@ -148,9 +155,9 @@ public class UserEventServiceImpl implements UserEventService {
     }
 
     private EventAck ack(String eventId, boolean duplicate, String processStatus, Instant receivedAt,
-                         HttpServletRequest request) {
+                         String requestId) {
         return new EventAck(true, eventId, duplicate ? "DUPLICATE" : "ACCEPTED", duplicate,
-                processStatus, receivedAt.toString(), M6RequestIds.resolveOrCreate(request));
+                processStatus, receivedAt.toString(), requestId);
     }
 
     private NormalizedOccurredAt normalizeOccurredAt(OffsetDateTime supplied) {
