@@ -4,8 +4,9 @@
 # - 2 个 GET 由前端直接调用（知识雷达图、学习时间线）
 
 import logging
+from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from .db import get_conn, init_tables
 from .profile_engine import build_all_profiles, process_new_events, compute_profile_from_events
@@ -13,12 +14,15 @@ from .review_scheduler import build_all_schedules
 from .schemas import (
     BuildProfileRequest,
     BuildProfileResponse,
-    ProfileData,
-    KnowledgeMasteryItem,
     CalculateAllResponse,
     EventProcessResponse,
+    InsufficientResponse,
+    KnowledgeMastery,
     KnowledgeStatusItem,
     KnowledgeStatusResponse,
+    NoChangeResponse,
+    Profile,
+    ReadyResponse,
     TimelineItem,
     TimelineResponse,
 )
@@ -85,42 +89,66 @@ async def process_events():
 async def build_profile(req: BuildProfileRequest):
     """
     在线画像计算（profile-engine-contract.yaml 内部契约）
-    接收 Java 传来的用户事件列表，返回画像数据和知识点掌握程度
-    不写数据库，Java 端负责持久化
+    三态响应：
+    - 无事件 → NO_CHANGE（target=base，profile/mastery 不得出现）
+    - 有事件但无有效知识点画像 → INSUFFICIENT_DATA（target=base+1，mastery 为空数组）
+    - 有画像 → READY（target=base+1，profile + knowledgeMastery）
+    回显 requestId/userId/baseProfileVersion/eventWatermarkInclusive；不写数据库，Java 端负责持久化。
     """
-    logger.info("M6 build-profile start: user_id=%d, events=%d", req.user_id, len(req.events))
+    logger.info(
+        "M6 build-profile start: userId=%d, requestId=%s, events=%d, base=%s",
+        req.user_id, req.request_id, len(req.events), req.base_profile_version,
+    )
     try:
         profile, mastery_items = compute_profile_from_events(
-            req.user_id, req.events
+            req.user_id, [ev.model_dump(by_alias=True) for ev in req.events]
         )
-        if profile is None:
-            return BuildProfileResponse(
-                success=False,
-                data=None,
-                message="无有效事件数据，无法生成画像",
-            )
-        mastery = [
-            KnowledgeMasteryItem(
-                kp_id=item["kpId"],
-                kp_name=f"kp_{item['kpId']}",
-                mastery_level=item["masteryScore"],
-                review_count=item["evidenceCount"],
-                last_reviewed=item.get("updatedAt"),
-            )
-            for item in mastery_items
-        ]
-        overall = sum(m.mastery_level for m in mastery) / len(mastery) if mastery else 0.0
-        from datetime import datetime, timezone
-        data = ProfileData(
-            user_id=req.user_id,
-            knowledge_mastery=mastery,
-            overall_mastery=round(overall, 4),
-            calculated_at=datetime.now(timezone.utc).isoformat(),
-        )
-        return BuildProfileResponse(success=True, data=data, message=None)
     except Exception as e:
         logger.error("M6 build-profile failed: %s", e)
-        return BuildProfileResponse(success=False, data=None, message=str(e))
+        raise HTTPException(status_code=503, detail="Engine unavailable")
+
+    base = req.base_profile_version
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    if not req.events:
+        logger.info("M6 build-profile NO_CHANGE: userId=%d", req.user_id)
+        return NoChangeResponse(
+            contract_version="1.0",
+            request_id=req.request_id,
+            user_id=req.user_id,
+            base_profile_version=base,
+            target_profile_version=base,
+            event_watermark_inclusive=req.event_watermark_inclusive,
+            algorithm_version="m6-v1",
+            evaluated_at=now_iso,
+        )
+
+    if profile is None:
+        logger.info("M6 build-profile INSUFFICIENT_DATA: userId=%d", req.user_id)
+        return InsufficientResponse(
+            contract_version="1.0",
+            request_id=req.request_id,
+            user_id=req.user_id,
+            base_profile_version=base,
+            target_profile_version=base + 1,
+            event_watermark_inclusive=req.event_watermark_inclusive,
+            algorithm_version="m6-v1",
+            evaluated_at=now_iso,
+        )
+
+    logger.info("M6 build-profile READY: userId=%d, kp=%d", req.user_id, len(mastery_items))
+    return ReadyResponse(
+        contract_version="1.0",
+        request_id=req.request_id,
+        user_id=req.user_id,
+        base_profile_version=base,
+        target_profile_version=base + 1,
+        event_watermark_inclusive=req.event_watermark_inclusive,
+        algorithm_version="m6-v1",
+        evaluated_at=now_iso,
+        profile=Profile.model_validate(profile),
+        knowledge_mastery=[KnowledgeMastery.model_validate(item) for item in mastery_items],
+    )
 
 
 @router.get(

@@ -399,13 +399,39 @@ def process_new_events(conn) -> int:
         return len(processed_ids)
 
 
+_EVENT_CORRECT_RESULTS = {"correct_without_hint", "correct_with_hint"}
+
+
+def _event_is_correct(event_type: str, data: dict) -> bool:
+    """按契约字段判断事件是否属于正确作答（camelCase 主读，旧字段兜底）。"""
+    if data.get("isCorrect") is True:
+        return True
+    if event_type == "finish_practice":
+        accuracy = data.get("accuracy")
+        if accuracy is not None:
+            return accuracy > 0.5
+        return data.get("score", 0) > 0.5
+    if event_type == "mark_reviewed":
+        return data.get("result") in _EVENT_CORRECT_RESULTS
+    return False
+
+
+def _event_duration_seconds(data: dict):
+    """事件作答/复习时长（秒），按契约字段 timeSpentSec 读取，回退旧字段。"""
+    for key in ("timeSpentSec", "durationSec", "durationSeconds", "duration_seconds"):
+        value = data.get(key)
+        if value is not None:
+            return value
+    return None
+
+
 def compute_profile_from_events(
     user_id: int, events: list[dict]
 ) -> tuple:
     """
     按 profile-engine-contract.yaml 契约计算在线画像
-    接收 Java 发送的 ProfileEvent 列表，返回 (ProfileData dict, KnowledgeMastery list)
-    不写数据库，Java 端负责持久化
+    接收 Java 发送的 ProfileEvent 列表，返回 (profile dict|None, KnowledgeMastery list)
+    profile 为 None 时由路由区分 NO_CHANGE / INSUFFICIENT_DATA；不写数据库，Java 端负责持久化
     """
     if not events:
         return None, []
@@ -422,6 +448,8 @@ def compute_profile_from_events(
         data = ev.get("data", {}) or {}
         occurred_at = ev.get("occurredAt", datetime.now(timezone.utc).isoformat())
 
+        is_correct = _event_is_correct(event_type, data)
+
         if kp_id is not None and kp_id > 0:
             if kp_id not in kp_stats:
                 kp_stats[kp_id] = {
@@ -432,16 +460,13 @@ def compute_profile_from_events(
                 }
             kp_stats[kp_id]["evidence_count"] += 1
             kp_stats[kp_id]["last_seen"] = occurred_at
-
-            if data.get("isCorrect") is True:
+            if is_correct:
                 kp_stats[kp_id]["correct_count"] += 1
-                correct_count += 1
-            elif event_type == "answer_question" and data.get("isCorrect") is False:
-                pass
-            elif event_type == "finish_practice":
-                correct_count += 1 if data.get("score", 0) > 0.5 else 0
 
-        duration = data.get("durationSeconds") or data.get("duration_seconds")
+        if is_correct:
+            correct_count += 1
+
+        duration = _event_duration_seconds(data)
         if duration is not None:
             total_time += duration
             time_count += 1
@@ -482,14 +507,19 @@ def compute_profile_from_events(
 
         if evidence < 3:
             status = 'INSUFFICIENT_EVIDENCE'
+            trend = None
         elif mastery_score > 0.8:
             status = 'MASTERED'
+            trend = 'IMPROVING' if error_rate <= 0.3 else 'STABLE'
         elif mastery_score > 0.6:
             status = 'BASIC_MASTERY'
+            trend = 'IMPROVING' if error_rate <= 0.3 else 'STABLE'
         elif mastery_score > 0.3:
             status = 'CONSOLIDATING'
+            trend = 'STABLE' if error_rate <= 0.5 else 'DECLINING'
         else:
             status = 'WEAK'
+            trend = 'DECLINING'
 
         mastery_items.append({
             "kpId": kp_id,
@@ -497,6 +527,7 @@ def compute_profile_from_events(
             "masteryStatus": status,
             "confidence": confidence,
             "evidenceCount": evidence,
+            "trend": trend,
             "algorithmVersion": "m6-v1",
             "windowStart": stats["first_seen"],
             "windowEnd": stats["last_seen"],
@@ -508,12 +539,6 @@ def compute_profile_from_events(
             "weight": round(evidence / total_events, 4) if total_events > 0 else 0,
         })
 
-    s_names = [f"kp_{s['kpId']}" for s in sorted(kp_stats.values(),
-               key=lambda x: x["correct_count"] / x["evidence_count"] if x["evidence_count"] > 0 else 0,
-               reverse=True)[:3]]
-    w_names = [f"kp_{s['kpId']}" for s in sorted(kp_stats.values(),
-               key=lambda x: x["correct_count"] / x["evidence_count"] if x["evidence_count"] > 0 else 1,
-               reverse=False)[:3]]
     summary = (
         f"该学生近期正确率{overall_accuracy:.0%}，"
         f"学习风格偏向{learning_style}。"
