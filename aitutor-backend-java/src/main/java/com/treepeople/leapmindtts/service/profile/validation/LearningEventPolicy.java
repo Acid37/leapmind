@@ -24,7 +24,8 @@ public final class LearningEventPolicy {
     private static final Pattern ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}");
     private static final Set<String> SENSITIVE_KEYS = Set.of("password", "passwd", "pwd", "token", "accesstoken",
             "refreshtoken", "authorization", "idcard", "nationalid", "identitynumber", "privatekey",
-            "secret", "clientsecret", "apikey", "credential", "credentials");
+            "secret", "clientsecret", "apikey", "credential", "credentials",
+            "phone", "mobile", "phonenumber");
     private static final Pattern AUTHORIZATION_CREDENTIAL = Pattern.compile(
             "(?i)\\b(?:bearer|basic)[ \\t]+[A-Za-z0-9._~+/=-]{8,}\\b");
     private static final Pattern JWT = Pattern.compile("\\beyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b");
