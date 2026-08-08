@@ -43,10 +43,19 @@ function toLectureItem(vo = {}) {
     title: vo.title || '',
     status: vo.status || 'draft',
     createdAt: vo.createdAt || '',
+    subject: vo.subject || '',
+    slideCount: vo.slideCount ?? parsePptStructure(vo.pptStructure).length,
+    knowledgePoints: Array.isArray(vo.knowledgePoints) ? vo.knowledgePoints : [],
     // pptStructure 是 JSON 字符串，解析为 slides
     slides: parsePptStructure(vo.pptStructure),
   };
 }
+
+// M3 暂时不可用时，仅用于让创建讲课流程继续进行；默认始终请求真实接口。
+const FALLBACK_WEAK_POINTS = [
+  { kpId: 'fallback-pythagorean', kpName: '勾股定理', weaknessScore: 0.72, subject: 'math' },
+  { kpId: 'fallback-quadratic', kpName: '二次函数', weaknessScore: 0.61, subject: 'math' },
+];
 
 /**
  * 后端 pptStructure（JSON 字符串）→ 前端 slides 数组
@@ -82,8 +91,6 @@ function parsePptStructure(pptStructure) {
  * 
  * 后端返回 ApiResponse<List<UserWeakPointVO>>
  * UserWeakPointVO: { id, knowledgePoint, subject, weaknessLevel, errorCount, totalCount,
- *                    accuracyRate, lastErrorTime, status, aiAnalysis, aiSuggestion, ... }
- * 
  * 映射为前端 WeakPoint：{ kpId, kpName, weaknessScore }
  * - kpId            ← id（数据库主键，唯一标识该薄弱点记录）
  * - kpName          ← knowledgePoint
@@ -108,8 +115,8 @@ export async function getWeakPoints(userId) {
       }))
       .sort((a, b) => b.weaknessScore - a.weaknessScore); // 最薄弱排最前
   } catch (err) {
-    console.warn('获取薄弱知识点失败，返回空列表:', err);
-    return [];
+    console.warn('获取薄弱知识点失败，已降级为本地推荐:', err);
+    return FALLBACK_WEAK_POINTS;
   }
 }
 
@@ -180,14 +187,10 @@ export async function generateLecture(params, onEvent) {
   }
 
   const {
-    userId = 1,
     sourceText = '',
     userProfile,
-    userProfileSummary = '',
-    weakPointIds = [],
     selectedWeakPoints = [],
   } = params || {};
-  const title = sourceText.trim().slice(0, 100) || 'AI 即时讲课';
   const response = await fetch(`/api/teaching/${params.courseId || 'default'}/stream-generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -225,16 +228,18 @@ export async function generateLecture(params, onEvent) {
           const event = { ...data, type: data.type || eventName };
           if (event.type === 'slide') {
             event.slide = data.slide || {
-              pageNum: data.pageNum,
-              type: data.type || 'content',
+              pageNum: data.pageNum ?? data.page_num,
+              type: data.slideType ?? data.slide_type ?? 'content',
               title: data.title || '',
               subtitle: data.subtitle || '',
-              bulletPoints: data.bulletPoints || [],
-              imageSuggestion: data.imageSuggestion,
+              bulletPoints: data.bulletPoints ?? data.bullet_points ?? [],
+              imageSuggestion: data.imageSuggestion ?? data.image_suggestion,
               formula: data.formula,
-              highlightPoints: data.highlightPoints || [],
+              highlightPoints: data.highlightPoints ?? data.highlight_points ?? [],
               interaction: data.interaction || null,
             };
+            event.pageNum = data.pageNum ?? data.page_num ?? event.slide.pageNum;
+            event.totalPages = data.totalPages ?? data.total_pages;
           }
           onEvent(event);
           if (event.type === 'done' || event.type === 'saved') result = { ...result, ...event };
@@ -283,15 +288,30 @@ export async function getLectureList(userId) {
   // 后端 Java：GET /api/lesson-prep/contents?userId= &status=
   // 返回 ApiResponse<List<TeachingContentVO>>
   const res = unwrap(await get(`/api/lesson-prep/contents?userId=${userId}`));
-  const list = Array.isArray(res) ? res : res?.list || [];
+  const list = Array.isArray(res) ? res : res?.items || res?.list || res?.records || [];
   return { total: list.length, items: list.map(toLectureItem) };
+}
+
+/** 查询 M5 中可作为讲课素材的已发布 PPT。 */
+export async function getPublishedPpts(userId) {
+  const res = unwrap(await get(`/api/lesson-prep/contents?userId=${userId}&status=published&type=ppt`));
+  const list = Array.isArray(res) ? res : res?.items || res?.list || res?.records || [];
+  return list.map(toLectureItem);
+}
+
+/** 获取一份 M5 PPT 的完整结构，供 M4 不重新生成、直接开始讲课。 */
+export async function getPublishedPptDetail(prepId, userId) {
+  const vo = unwrap(await get(`/api/lesson-prep/contents/${prepId}?userId=${userId}`));
+  if (!vo) return null;
+  const item = toLectureItem(vo);
+  return { ...item, slides: parsePptStructure(vo.pptStructure) };
 }
 
 /**
  * 获取讲课内容详情（含完整 PPT 结构）
  * 后端 Java：GET /api/lesson-prep/contents/{prepId}
  */
-export async function getLectureDetail(lectureId) {
+export async function getLectureDetail(lectureId, userId) {
   if (USE_MOCK) {
     await new Promise(r => setTimeout(r, 300));
     const item = mockHistoryList.find(l => l.lectureId === lectureId);
@@ -299,7 +319,7 @@ export async function getLectureDetail(lectureId) {
       ? { ...item, pptStructure: mockPPTStructure }
       : null;
   }
-  const vo = unwrap(await get(`/api/lesson-prep/contents/${lectureId}`));
+  const vo = unwrap(await get(`/api/lesson-prep/contents/${lectureId}?userId=${userId}`));
   return vo ? { ...toLectureItem(vo), pptStructure: vo.pptStructure } : null;
 }
 
@@ -307,26 +327,25 @@ export async function getLectureDetail(lectureId) {
  * 删除讲课内容
  * 后端 Java：DELETE /api/lesson-prep/contents/{prepId}
  */
-export async function deleteLecture(lectureId) {
+export async function deleteLecture(lectureId, userId) {
   if (USE_MOCK) {
     await new Promise(r => setTimeout(r, 300));
     const idx = mockHistoryList.findIndex(l => l.lectureId === lectureId);
     if (idx !== -1) mockHistoryList.splice(idx, 1);
     return { success: true };
   }
-  return request(`/api/lesson-prep/contents/${lectureId}`, { method: 'DELETE' });
+  return request(`/api/lesson-prep/contents/${lectureId}?userId=${userId}`, { method: 'DELETE' });
 }
-
 /**
  * 发布讲课内容
  * 后端 Java：PUT /api/lesson-prep/contents/{prepId}（status → published）
  */
-export async function publishLecture(lectureId) {
+export async function publishLecture(lectureId, userId) {
   if (USE_MOCK) {
     await new Promise(r => setTimeout(r, 300));
     return { success: true };
   }
-  return request(`/api/lesson-prep/contents/${lectureId}`, {
+  return request(`/api/lesson-prep/contents/${lectureId}?userId=${userId}`, {
     method: 'PUT',
     body: JSON.stringify({ status: 'published' }),
   });
@@ -335,19 +354,8 @@ export async function publishLecture(lectureId) {
 // ─── 4. M6 画像引擎事件上报 ─────────────────────────
 
 /**
- * 向 M6 画像引擎提交讲课交互事件
- * POST /api/events/collect
- *
- * 对接文档: M6-v1-通知-M4组.md (2026-08-05 张伟涛)
- *
- * @param {Object} params
- * @param {string} params.lectureId  - 课堂ID (必填, 1-64字符, 字母或数字开头)
- * @param {string} params.chapterId  - 章节ID (必填, 格式同 lectureId)
- * @param {'pause'|'resume'|'replay'|'ask'|'complete'} params.action - 交互动作
- * @param {string} [params.sessionId]  - 会话ID (可选, 不传则省略)
- * @param {string} [params.kpId]       - 知识点ID (可选, 不传则省略)
- * @param {string} [params.traceId]    - 链路追踪ID (可选, 不传则省略)
- * @returns {Promise<void>}
+ * 向 M6 画像引擎提交讲课交互事件。
+ * 当前 M4 保持既有事件契约，后续由 M6 统一迁移时再调整。
  */
 export async function submitLectureEvent({
   lectureId,
@@ -357,19 +365,12 @@ export async function submitLectureEvent({
   kpId,
   traceId,
 }) {
-  // 构造符合 M6 规范的事件体
   const body = {
     type: 'lecture_interact',
     sourceModule: 'M4',
-    data: {
-      lectureId,
-      chapterId,
-      action,
-    },
+    data: { lectureId, chapterId, action },
     occurredAt: new Date().toISOString().replace('Z', '+08:00'),
   };
-
-  // 可选字段：为 null/undefined 时省略（M6 不接受显式 null）
   if (sessionId != null) body.sessionId = sessionId;
   if (kpId != null) body.kpId = String(kpId);
   if (traceId != null) body.traceId = traceId;
@@ -380,7 +381,8 @@ export async function submitLectureEvent({
       body: JSON.stringify(body),
     });
   } catch (err) {
-    // M6 事件上报失败不影响主流程，静默处理
     console.warn('[M4][M6] 事件上报失败:', action, err);
   }
 }
+
+

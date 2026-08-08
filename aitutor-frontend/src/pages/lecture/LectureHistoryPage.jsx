@@ -62,7 +62,7 @@ const LectureHistoryPage = ({ userId = 1, onSelectLecture, onBack }) => {
 
   const handleDelete = async (lectureId) => {
     try {
-      await deleteLecture(lectureId);
+      await deleteLecture(lectureId, userId);
       setList(prev => prev.filter(l => l.lectureId !== lectureId));
     } catch {
       // ignore

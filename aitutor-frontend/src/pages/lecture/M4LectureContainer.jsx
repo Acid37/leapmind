@@ -28,6 +28,16 @@ export default function M4LectureContainer({ onExit, onM1Practice, initialText }
   const [result, setResult] = useState(null);
 
   const handleStartGeneration = useCallback((p) => {
+    if (Array.isArray(p?.importedSlides) && p.importedSlides.length > 0) {
+      setResult({
+        lectureId: p.importedPrepId,
+        title: p.importedTitle || '从备课库导入的讲课',
+        slides: p.importedSlides,
+        knowledgePoints: p.selectedWeakPoints || [],
+      });
+      setRoute('present');
+      return;
+    }
     setParams(p);
     setRoute('waiting');
   }, []);
