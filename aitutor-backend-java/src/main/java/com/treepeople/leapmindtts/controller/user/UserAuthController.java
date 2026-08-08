@@ -1,6 +1,9 @@
 package com.treepeople.leapmindtts.controller.user;
 
 import com.aliyun.dysmsapi20170525.models.SendSmsResponse;
+import com.treepeople.leapmindtts.exception.AccountDisabledException;
+import com.treepeople.leapmindtts.exception.InvalidCredentialsException;
+import com.treepeople.leapmindtts.exception.UserNotFoundException;
 import com.treepeople.leapmindtts.pojo.dto.*;
 import com.treepeople.leapmindtts.pojo.entity.User;
 import com.treepeople.leapmindtts.pojo.result.ApiResponse;
@@ -48,7 +51,7 @@ public class UserAuthController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<UserVO>> register(
             @Parameter(description = "注册请求体", required = true) @RequestBody @Valid UserRegisterRequest request) {
-        log.info("用户注册，{}", request);
+        log.info("用户注册，用户名: {}", request.getUsername());
         try {
             UserVO userVO = userService.register(request);
             return ResponseEntity.ok(ApiResponse.success(userVO, "注册成功"));
@@ -68,14 +71,18 @@ public class UserAuthController {
     @Operation(summary = "用户登录", description = "使用用户名和密码登录，返回 JWT Token")
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody @Valid UserLoginRequest request) {
-        log.info("用户登录，{}", request);
+        log.info("用户登录，用户名: {}", request.getUsername());
         try {
             LoginResponse loginResponse = userService.login(request);
             return ResponseEntity.ok(ApiResponse.success(loginResponse, "登录成功"));
+        } catch (UserNotFoundException | AccountDisabledException | InvalidCredentialsException e) {
+            log.warn("用户登录被拒绝，用户名: {}, 原因类型: {}", request.getUsername(), e.getClass().getSimpleName());
+            return ResponseEntity.status(401)
+                    .body(ApiResponse.error(401, "用户名或密码错误"));
         } catch (Exception e) {
-            log.error("用户登录失败: {}", e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(401, e.getMessage()));
+            log.error("登录服务异常，用户名: {}", request.getUsername(), e);
+            return ResponseEntity.status(500)
+                    .body(ApiResponse.error(500, "登录服务暂不可用"));
         }
     }
 
@@ -108,20 +115,17 @@ public class UserAuthController {
                     log.error("短信验证码发送失败，错误码: {}, 错误信息: {}",
                             sendSmsResponse.getBody().getCode(),
                             sendSmsResponse.getBody().getMessage());
-                    // 修改第 103 行（补上 400）：
                     return ResponseEntity.badRequest()
                         .body(ApiResponse.error(400, "验证码发送失败: " + sendSmsResponse.getBody().getMessage()));
                 }
             } else {
                 log.error("短信服务响应为空");
-// 修改第 108 行（补上 500，因为这是第三方服务响应异常）：
                 return ResponseEntity.badRequest()
                     .body(ApiResponse.error(500, "短信服务响应异常"));
             }
 
         } catch (Exception e) {
             log.error("调用阿里云短信服务发送短信验证码接口失败！", e);
-// 修改第 114 行（补上 500）：
             return ResponseEntity.badRequest()
                 .body(ApiResponse.error(500, "验证码发送失败: " + e.getMessage()));
         }
