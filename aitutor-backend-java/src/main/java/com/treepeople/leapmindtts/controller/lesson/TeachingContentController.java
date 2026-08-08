@@ -77,10 +77,14 @@ public class TeachingContentController {
             @RequestParam(required = false) String type) {
         log.info("查询备课列表，用户ID: {}，状态: {}，类型: {}", userId, status, type);
         try {
-            List<TeachingContent> list = teachingContentService.listByUserId(userId, status);
+            List<TeachingContent> list = teachingContentService.listByUserId(userId, status, type);
             List<TeachingContentVO> voList = list.stream()
                     .map(this::convertToVO)
                     .collect(Collectors.toList());
+            // M4 契约：列表不返回 pptStructure（详情接口仍返回）
+            if ("ppt".equals(type)) {
+                voList.forEach(vo -> vo.setPptStructure(null));
+            }
             Map<String, Object> data = new HashMap<>();
             data.put("total", voList.size());
             data.put("items", voList);
@@ -283,39 +287,40 @@ public class TeachingContentController {
 
     /**
      * 将 TeachingContent 实体转换为 TeachingContentVO。
-     * <p>从 generated_content_json 解析 subject/grade/knowledgePointIds，
-     * 从 ppt_structure 计算 slideCount，填充 M5→M4 接口契约字段。</p>
+     * <p>填充 M5→M4 接口契约字段：
+     * type/subject/grade/knowledgePoints 优先取实体列，缺失时从 generated_content_json 兜底解析
+     * （兼容非流式 wrapper {"syllabus":...,"subject":...,"grade":...,"knowledgePointIds":[...]}
+     * 与裸 syllabus 两种格式）；slideCount 从 ppt_structure 计算。
+     * 注：pptStructure 字段在此保留，列表接口按 M4 契约在 listContents 中置空。</p>
      */
     private TeachingContentVO convertToVO(TeachingContent content) {
-        String subject = null;
-        String grade = null;
-        List<Map<String, Object>> knowledgePoints = null;
+        String subject = content.getSubject();
+        String grade = content.getGrade();
+        List<Map<String, Object>> knowledgePoints = parseKnowledgePoints(content.getKnowledgePoints());
 
-        // 从 generated_content_json 解析元数据
+        // 从 generated_content_json 兜底解析（兼容旧数据）
         String genJson = content.getGeneratedContentJson();
         if (genJson != null && !genJson.isBlank()) {
             try {
                 JsonNode gen = om.readTree(genJson);
-                if (gen.has("subject")) {
-                    subject = gen.get("subject").asText();
+                JsonNode syllabus = gen.has("syllabus") && gen.get("syllabus").isObject()
+                        ? gen.get("syllabus") : null;
+                if (subject == null) {
+                    subject = firstText(syllabus, gen, "subject");
                 }
-                if (gen.has("grade")) {
-                    grade = gen.get("grade").asText();
+                if (grade == null) {
+                    grade = firstText(syllabus, gen, "grade");
                 }
-                if (gen.has("knowledgePointIds") && gen.get("knowledgePointIds").isArray()) {
-                    knowledgePoints = new ArrayList<>();
-                    for (JsonNode id : gen.get("knowledgePointIds")) {
-                        Map<String, Object> kp = new HashMap<>();
-                        kp.put("id", id.asInt());
-                        knowledgePoints.add(kp);
-                    }
+                if (knowledgePoints == null) {
+                    knowledgePoints = knowledgePointsFromJson(syllabus, gen);
                 }
             } catch (Exception e) {
-                // 旧格式 generated_content_json 可能是裸 syllabus 对象，忽略解析错误
+                // 解析异常不影响主流程，字段保持 null
+                log.warn("解析 generated_content_json 失败: {}", e.getMessage());
             }
         }
 
-        // 从 ppt_structure 计算 slideCount
+        // 从 ppt_structure 计算 slideCount（兼容顶层数组与 {"slides": [...]} 两种结构）
         Integer slideCount = null;
         String pptJson = content.getPptStructure();
         if (pptJson != null && !pptJson.isBlank()) {
@@ -337,7 +342,12 @@ public class TeachingContentController {
                 .userId(content.getUserId())
                 .title(content.getTitle())
                 .status(content.getStatus())
+<<<<<<< HEAD
                 .type("ppt")
+=======
+                .type(content.getType() != null && !content.getType().isBlank()
+                        ? content.getType() : "ppt")
+>>>>>>> 203d9dace06a792f149fcf4c46d728b4a213f049
                 .subject(subject)
                 .grade(grade)
                 .slideCount(slideCount)
@@ -354,6 +364,104 @@ public class TeachingContentController {
                 .build();
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * 从 knowledge_points 列（JSON 字符串 [{id, name}]）解析知识点列表。
+     * 非法/空输入返回 null（交由 generated_content_json 兜底）。
+     */
+    private List<Map<String, Object>> parseKnowledgePoints(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode arr = om.readTree(json);
+            if (!arr.isArray()) {
+                return null;
+            }
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (JsonNode n : arr) {
+                Map<String, Object> kp = new HashMap<>();
+                if (n.has("id") && !n.get("id").isNull()) {
+                    kp.put("id", n.get("id").isIntegralNumber()
+                            ? n.get("id").asInt() : n.get("id").asText());
+                }
+                if (n.has("name") && n.get("name").isTextual()) {
+                    kp.put("name", n.get("name").asText());
+                }
+                result.add(kp);
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("解析 knowledge_points 失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 从 generated_content_json 解析知识点列表。
+     * 优先取 knowledge_point_names（→ [{"id": null, "name": "xxx"}]），
+     * 其次 knowledgePointIds/knowledge_point_ids（→ [{"id": N, "name": null}]）。
+     */
+    private List<Map<String, Object>> knowledgePointsFromJson(JsonNode syllabus, JsonNode gen) {
+        JsonNode names = firstArray(syllabus, gen, "knowledgePointNames", "knowledge_point_names");
+        if (names != null) {
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (JsonNode n : names) {
+                Map<String, Object> kp = new HashMap<>();
+                kp.put("id", null);
+                kp.put("name", n.isNull() ? null : n.asText());
+                result.add(kp);
+            }
+            return result;
+        }
+        JsonNode ids = firstArray(syllabus, gen, "knowledgePointIds", "knowledge_point_ids");
+        if (ids != null) {
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (JsonNode id : ids) {
+                Map<String, Object> kp = new HashMap<>();
+                kp.put("id", id.isIntegralNumber() ? id.asInt() : null);
+                kp.put("name", null);
+                result.add(kp);
+            }
+            return result;
+        }
+        return null;
+    }
+
+    /** 在 syllabus / gen 中按给定 key 顺序取第一个文本值（均为空时返回 null）。 */
+    private String firstText(JsonNode syllabus, JsonNode gen, String... keys) {
+        for (JsonNode node : new JsonNode[]{syllabus, gen}) {
+            if (node == null) {
+                continue;
+            }
+            for (String key : keys) {
+                JsonNode v = node.get(key);
+                if (v != null && v.isTextual()) {
+                    return v.asText();
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 在 syllabus / gen 中按给定 key 顺序取第一个数组节点（均为空时返回 null）。 */
+    private JsonNode firstArray(JsonNode syllabus, JsonNode gen, String... keys) {
+        for (JsonNode node : new JsonNode[]{syllabus, gen}) {
+            if (node == null) {
+                continue;
+            }
+            for (String key : keys) {
+                JsonNode v = node.get(key);
+                if (v != null && v.isArray()) {
+                    return v;
+                }
+            }
+        }
+        return null;
+    }
+
+>>>>>>> 203d9dace06a792f149fcf4c46d728b4a213f049
     // ======================== [跨端联桥] SSE 流式 ========================
 
     /**
@@ -416,7 +524,7 @@ public class TeachingContentController {
 
                 // 4c. 发送 saved 事件（表示 Java 侧已落盘，前端可以放心跳转编辑页）
                 Map<String, Object> savedEvent = new HashMap<>();
-                savedEvent.put("prepId", saved != null ? saved.getPrepId() : (long) result.getPrepId());
+                savedEvent.put("prepId", saved != null ? saved.getId() : (long) result.getPrepId());
                 savedEvent.put("totalPages", result.getTotalPages());
                 savedEvent.put("slidesPreview", result.getSlides());
                 savedEvent.put("errors", result.getErrors());
@@ -448,27 +556,31 @@ public class TeachingContentController {
     /**
      * 将 Python 流式结果写入 teaching_contents 表。
      * 逻辑与非流式 generateLessonPrep 保持一致：slides → ppt_structure，syllabus → generated_content_json。
-     * 如果 result.prepId == 0（Python 返回占位 0），则让 MyBatis 自增 id，并将 prepId 设置为等同 id 的值写入 DB 返回给前端。
-     * 这里不做修改数据库约束的操作（遵循项目不修改 DB schema 约束）。
+     * prep_id 是生成列（恒等于 id，V10 起），INSERT 不指定、由 DB 自动生成，因此返回给前端的 prepId 统一取 content.getId()。
      */
     private TeachingContent persistStreamResult(PythonApiClient.LessonPrepRequest request,
                                                 PythonApiClient.StreamedLessonPrepResult result) {
         try {
-            long prepId = result.getPrepId() > 0 ? (long) result.getPrepId() : System.currentTimeMillis() / 1000L;
+            // 与非流式 generateLessonPrep 保持一致：syllabus + 元数据包装成 wrapper 存入 generated_content_json，
+            // 供 convertToVO 解析 subject/grade/knowledgePoints 填充 M4 契约字段
+            Map<String, Object> generatedContent = new HashMap<>();
+            generatedContent.put("syllabus", result.getSyllabus() != null
+                    ? result.getSyllabus() : new HashMap<>());
+            generatedContent.put("subject", request.getSubject());
+            generatedContent.put("grade", request.getGrade());
+            generatedContent.put("knowledgePointIds", request.getKnowledgePointIds());
 
             TeachingContent content = TeachingContent.builder()
-                    .prepId(prepId)
                     .userId((long) request.getUserId())
                     .title(request.getTitle())
                     .status(STATUS_DRAFT)
+                    .type("ppt")
                     .pptStructure(om.writeValueAsString(result.getSlides()))
-                    .generatedContentJson(result.getSyllabus() != null
-                            ? om.writeValueAsString(result.getSyllabus())
-                            : null)
+                    .generatedContentJson(om.writeValueAsString(generatedContent))
                     .build();
             teachingContentService.save(content);
 
-            log.info("[联桥-SSE] 备课已保存 prepId={}, slides={}", prepId, result.getSlides().size());
+            log.info("[联桥-SSE] 备课已保存 prepId={}, slides={}", content.getId(), result.getSlides().size());
             return content;
         } catch (Exception e) {
             log.error("[联桥-SSE] 持久化失败 title={}", request.getTitle(), e);
@@ -476,4 +588,26 @@ public class TeachingContentController {
             return null;
         }
     }
+<<<<<<< HEAD
+=======
+
+
+
+
+
+    /**
+ * 临时测试接口：插入一条备课数据，验证 prep_id 回填
+ */
+@PostMapping("/test-insert")
+public ResponseEntity<ApiResponse<Long>> testInsert() {
+    TeachingContent content = new TeachingContent();
+    content.setUserId(1L);
+    content.setTitle("API插入测试");
+    content.setStatus("draft");
+    content.setPptStructure("{\"slides\":[]}");
+    content.setGeneratedContentJson("{}");
+    teachingContentService.save(content);
+    return ResponseEntity.ok(ApiResponse.success(content.getId(), "插入成功，prep_id=" + content.getPrepId()));
+}
+>>>>>>> 203d9dace06a792f149fcf4c46d728b4a213f049
 }
