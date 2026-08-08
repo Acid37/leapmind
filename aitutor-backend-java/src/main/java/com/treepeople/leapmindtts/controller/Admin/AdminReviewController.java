@@ -127,11 +127,17 @@ public class AdminReviewController {
      */
     @PostMapping("/api/sessions/{courseId}/synthesize")
     @ResponseBody
-    public ResponseEntity<BulkSynthesisResponse> executeSynthesis(@PathVariable @NotBlank String courseId) {
-        log.info("管理后台执行批量语音合成，会话ID: {}", courseId);
+    public ResponseEntity<BulkSynthesisResponse> executeSynthesis(
+            @PathVariable @NotBlank String courseId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        log.info("管理后台执行批量语音合成，会话ID: {}, Authorization 存在: {}",
+                courseId, authHeader != null && !authHeader.isBlank());
+
+        // 从 Authorization: Bearer <token> 中提取纯 token，给 M8 TTS 接口鉴权用
+        String userJwt = com.treepeople.leapmindtts.service.impl.TtsBatchServiceImpl.extractBearer(authHeader);
 
         try {
-            BulkSynthesisResponse response = bulkSpeechService.executeBulkSynthesis(courseId);
+             BulkSynthesisResponse response = bulkSpeechService.executeBulkSynthesis(courseId, userJwt);
             log.info("管理后台批量语音合成完成，会话ID: {}, 状态: {}", courseId, response.getStatus());
             return ResponseEntity.ok(response);
         } catch (Exception e) {

@@ -2,8 +2,9 @@
 Quality validators for M5 AI备课 module.
 
 Layers:
-  SchemaValidator    — structural JSON Schema validation
-  NarrationValidator — orality, consistency, duration checks
+  QualityGuard       — [Layer 1] 硬性指标检测（零成本纯 Python 检查）
+  SchemaValidator    — [Layer 2] structural JSON Schema validation
+  NarrationValidator — [Layer 3] orality, consistency, duration checks
   ValidationPipeline — routes by output_type through validators
 """
 from .lesson_plan_schema import LESSON_PLAN_SCHEMA, OUTLINE_SCHEMA, LESSON_DETAIL_SCHEMA
@@ -16,7 +17,9 @@ from .narration_validator import (
     ConsistencyScore,
     ValidationReport,
 )
+from .quality_guard import QualityGuard, QualityReport
 from .validation_pipeline import ValidationPipeline, PipelineResult
+from .llm_judge import LLMJudge, JudgeReport
 
 __all__ = [
     "LESSON_PLAN_SCHEMA",
@@ -32,6 +35,10 @@ __all__ = [
     "DurationScore",
     "ConsistencyScore",
     "ValidationReport",
+    "QualityGuard",
+    "QualityReport",
     "ValidationPipeline",
     "PipelineResult",
+    "LLMJudge",
+    "JudgeReport",
 ]

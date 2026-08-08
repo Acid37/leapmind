@@ -372,6 +372,7 @@ public class PythonApiClient {
         m.put("subject", r.getSubject());
         m.put("grade", r.getGrade());
         m.put("knowledge_point_ids", r.getKnowledgePointIds());
+        m.put("knowledge_point_names", r.getKnowledgePointNames());
         m.put("teaching_goals", r.getTeachingGoals());
         m.put("total_hours", r.getTotalHours());
         m.put("style", r.getStyle());
@@ -470,6 +471,9 @@ public class PythonApiClient {
 
         @JsonProperty("knowledge_point_ids")
         private List<Integer> knowledgePointIds;
+
+        @JsonProperty("knowledge_point_names")
+        private List<String> knowledgePointNames;
 
         @JsonProperty("teaching_goals")
         private List<String> teachingGoals;

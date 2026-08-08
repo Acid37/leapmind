@@ -76,6 +76,25 @@ public class WebClientConfig {
     }
 
     /**
+     * 上下文压缩专用 WebClient（连接 2s，响应 10s）。
+     * 总超时由服务层 .timeout() 控制。
+     */
+    @Bean
+    @Qualifier("contextCompressWebClient")
+    public WebClient contextCompressWebClient() {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000) // 2 seconds
+                .responseTimeout(Duration.ofSeconds(10)) // 10 seconds
+                .doOnConnected(conn ->
+                        conn.addHandlerLast(new ReadTimeoutHandler(10, TimeUnit.SECONDS))
+                                .addHandlerLast(new WriteTimeoutHandler(10, TimeUnit.SECONDS)));
+
+        return WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
+    }
+
+    /**
      * [SSE流式] 备课生成专用 WebClient.Builder。
      * 设计要点：
      *   - 连接超时 30s（跨服务调用可接受）

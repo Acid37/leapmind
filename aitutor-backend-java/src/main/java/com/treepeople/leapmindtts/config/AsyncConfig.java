@@ -57,6 +57,7 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
     
     /**
      * [SSE流式] 备课生成流式透传专用线程池。
