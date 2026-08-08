@@ -24,6 +24,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsConfig corsConfig;
+    private final com.treepeople.leapmindtts.service.profile.security.M6SecurityErrorHandler m6SecurityErrorHandler;
 
     /**
      * 密码编码器Bean
@@ -64,24 +65,34 @@ public class SecurityConfig {
                         // 允许访问 API 文档
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/doc.html", "/webjars/**").permitAll()
                         // 允许访问静态资源
-                        .requestMatchers("/static/**", "/*.html", "/*.js", "/*.css", "/admin/**", "/css/**", "/js/**", "/image/**").permitAll()
+                        .requestMatchers("/static/**", "/docs/**", "/*.html", "/*.js", "/*.css", "/admin/**", "/css/**", "/js/**", "/image/**").permitAll()
                         // 允许访问短信测试接口
                         .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/admin/**").permitAll()
                         // 允许访问管理后台审核接口
                         .requestMatchers("/admin/review/**").permitAll()
-                        // 允许访问备课接口（PPT模板管理、备课内容管理）
+// 允许访问备课接口（PPT模板管理、备课内容管理）
                         .requestMatchers("/api/lesson-prep/**").permitAll()
+                        // 允许访问流式对话和打断接口
+                        .requestMatchers("/api/conversation/**").permitAll()
                         // 语音合成和音频相关接口需要认证
                         .requestMatchers("/api/speech/**").authenticated()
                         // 语音对话接口需要认证
                         .requestMatchers("/api/voice-chat/**").authenticated()
+                        // 本地音频地址允许直接播放，其余虚拟教师接口需要认证
+                        .requestMatchers(HttpMethod.GET, "/api/virtual-teacher/audio/**").permitAll()
+                        .requestMatchers("/api/virtual-teacher/**").authenticated()
                         // 课程相关接口需要认证
                         .requestMatchers("/api/courses/**").authenticated()
                         // 管理员接口需要认证（具体权限由@AdminRequired注解控制）
                         // 其他请求需要认证
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(exceptions -> exceptions
+                        .defaultAuthenticationEntryPointFor(m6SecurityErrorHandler,
+                                new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/api/user-profile/**"))
+                        .defaultAccessDeniedHandlerFor(m6SecurityErrorHandler,
+                                new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/api/user-profile/**")))
                 // 添加JWT认证过滤器
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

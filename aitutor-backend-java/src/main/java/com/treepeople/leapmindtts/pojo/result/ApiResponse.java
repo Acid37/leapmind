@@ -1,94 +1,40 @@
 package com.treepeople.leapmindtts.pojo.result;
 
-import lombok.Data;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+ import lombok.Data;
+ import lombok.AllArgsConstructor;
+ import lombok.Builder;
+ import lombok.NoArgsConstructor;
 
-/**
- * 统一API响应格式
- * 
- * @param <T> 响应数据类型
- */
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApiResponse<T> {
-    
-    /**
-     * 响应状态码
-     */
-    private Integer code;
-    
-    /**
-     * 响应消息
-     */
-    private String message;
-    
-    /**
-     * 响应数据
-     */
-    private T data;
-    
-    /**
-     * 时间戳
-     */
-    private Long timestamp;
-    
-    /**
-     * 成功响应
-     * 
-     * @param data 响应数据
-     * @param message 响应消息
-     * @param <T> 数据类型
-     * @return 成功响应
-     */
+ /**
+  * 统一API响应格式
+  *
+  * @param <T> 响应数据类型
+  */
+ @Data
+ @Builder
+ @AllArgsConstructor
+ @NoArgsConstructor
+ public class ApiResponse<T> {
+     private int code;
+     private String message;
+     private T data;
+     private long timestamp;
+
+     public static <T> ApiResponse<T> success(T data) {
+         return new ApiResponse<>(200, "success", data, System.currentTimeMillis());
+     }
+
+     public static <T> ApiResponse<T> error(int code, String message) {
+         return new ApiResponse<>(code, message, null, System.currentTimeMillis());
+     }
+
     public static <T> ApiResponse<T> success(T data, String message) {
-        return ApiResponse.<T>builder()
-                .code(200)
-                .message(message)
-                .data(data)
-                .timestamp(System.currentTimeMillis())
-                .build();
+        return new ApiResponse<>(200, message, data, System.currentTimeMillis());
     }
-    
-    /**
-     * 成功响应（默认消息）
-     * 
-     * @param data 响应数据
-     * @param <T> 数据类型
-     * @return 成功响应
-     */
-    public static <T> ApiResponse<T> success(T data) {
-        return success(data, "操作成功");
-    }
-    
-    /**
-     * 错误响应
-     * 
-     * @param code 错误码
-     * @param message 错误消息
-     * @param <T> 数据类型
-     * @return 错误响应
-     */
-    public static <T> ApiResponse<T> error(Integer code, String message) {
-        return ApiResponse.<T>builder()
-                .code(code)
-                .message(message)
-                .data(null)
-                .timestamp(System.currentTimeMillis())
-                .build();
-    }
-    
-    /**
-     * 错误响应（默认错误码）
-     * 
-     * @param message 错误消息
-     * @param <T> 数据类型
-     * @return 错误响应
-     */
-    public static <T> ApiResponse<T> error(String message) {
-        return error(500, message);
-    }
-}
+
+     // 打开 ApiResponse.java，追加下面这个方法：
+     public static <T> ApiResponse<T> error(String message) {
+         // 默认给一个 400 的错误状态码
+         return new ApiResponse<>(400, message, null, System.currentTimeMillis());
+     }
+ }

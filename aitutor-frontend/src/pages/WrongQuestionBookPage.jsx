@@ -1,0 +1,407 @@
+/**
+ * 错题本页（M1 · 5.2.3）
+ *
+ * 功能：
+ * - 错题列表 + 错误原因标签 + 状态筛选
+ * - 单题操作：查看解析、重做、删除、标记重点
+ * - 批量操作：批量重做
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Search,
+  RotateCcw,
+  Trash2,
+  Star,
+  BookOpen,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+} from "lucide-react";
+import { getWrongQuestions, toggleFocus, deleteWrongQuestion } from "../services/practiceService";
+
+const SUBJECT_LABELS = {
+  math: "数学",
+  chinese: "语文",
+  english: "英语",
+  physics: "物理",
+  chemistry: "化学",
+  biology: "生物",
+  computer: "计算机",
+  general: "通用",
+};
+
+export default function WrongQuestionBookPage({ onRedo }) {
+  const [questions, setQuestions] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [statusFilter, setStatusFilter] = useState(""); // unresolved / reviewing / resolved
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState("");
+  const [kpFilter, setKpFilter] = useState("");
+  const [timeFilter, setTimeFilter] = useState("all");
+  const [filterSource, setFilterSource] = useState([]);
+  const [expandedIds, setExpandedIds] = useState([]);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const params = {};
+      if (statusFilter && statusFilter !== "favorite") params.status = statusFilter;
+      if (statusFilter === "favorite") params.size = 1000;
+      if (searchKeyword) params.keyword = searchKeyword;
+      if (subjectFilter) params.subject = subjectFilter;
+      if (kpFilter) params.kpName = kpFilter;
+      if (timeFilter !== "all") params.timeRange = timeFilter;
+      const data = await getWrongQuestions(params);
+      const items = statusFilter === "favorite"
+        ? data.items.filter((question) => question.isKeyFocus)
+        : data.items;
+      setQuestions(items);
+      setTotal(statusFilter === "favorite" ? items.length : data.total);
+    } catch (err) {
+      console.error("加载错题失败:", err);
+      setQuestions([]);
+      setTotal(0);
+      setLoadError(err.message || "错题本加载失败，请检查后端服务后重试");
+    } finally {
+      setLoading(false);
+    }
+  }, [kpFilter, searchKeyword, statusFilter, subjectFilter, timeFilter]);
+
+  const loadFilterSource = useCallback(async () => {
+    try {
+      const data = await getWrongQuestions({ size: 1000 });
+      setFilterSource(data.items);
+    } catch (err) {
+      console.error("加载错题筛选项失败:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    loadFilterSource();
+  }, [loadFilterSource]);
+
+  const handleToggleFocus = async (id) => {
+    const question = questions.find((item) => item.id === id);
+    const focused = !question?.isKeyFocus;
+    const result = await toggleFocus(id, focused);
+    if (!result.success) {
+      setLoadError(`重点状态保存失败：${result.reason || "请稍后重试"}`);
+      return;
+    }
+    setLoadError("");
+    setQuestions((prev) => statusFilter === "favorite"
+      ? prev.filter((item) => item.id !== id)
+      : prev.map((item) => (item.id === id ? { ...item, isKeyFocus: focused } : item))
+    );
+    setFilterSource((prev) => prev.map((item) => (
+      item.id === id ? { ...item, isKeyFocus: focused } : item
+    )));
+    if (statusFilter === "favorite") setTotal((prev) => Math.max(0, prev - 1));
+  };
+
+  const toggleExplanation = (id) => {
+    setExpandedIds((prev) => prev.includes(id)
+      ? prev.filter((item) => item !== id)
+      : [...prev, id]
+    );
+  };
+
+  const handleDelete = async (id) => {
+    const result = await deleteWrongQuestion(id);
+    if (!result.success) {
+      setLoadError(`删除失败：${result.reason || "请稍后重试"}`);
+      return;
+    }
+    setLoadError("");
+    setQuestions((prev) => prev.filter((q) => q.id !== id));
+    setFilterSource((prev) => prev.filter((q) => q.id !== id));
+    setTotal((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleBatchRedo = () => {
+    onRedo?.(selectedIds);
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === questions.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(questions.map((q) => q.id));
+    }
+  };
+
+  const statusTabs = [
+    { value: "", label: "全部", count: total },
+    { value: "unresolved", label: "未解决", icon: AlertCircle },
+    { value: "reviewing", label: "复习中", icon: Clock },
+    { value: "resolved", label: "已解决", icon: CheckCircle2 },
+    { value: "favorite", label: "收藏", icon: Star },
+  ];
+
+  const reasonLabels = {
+    concept_unclear: { label: "概念不清", color: "bg-red-50 text-red-600" },
+    careless: { label: "粗心大意", color: "bg-amber-50 text-amber-600" },
+    formula_wrong: { label: "公式记错", color: "bg-orange-50 text-orange-600" },
+    method_wrong: { label: "方法错误", color: "bg-purple-50 text-purple-600" },
+  };
+
+  const subjectOptions = useMemo(() => (
+    [...new Set(filterSource.map((question) => question.subject).filter(Boolean))]
+      .sort((a, b) => (SUBJECT_LABELS[a] || a).localeCompare(SUBJECT_LABELS[b] || b, "zh-CN"))
+      .map((value) => ({ value, label: SUBJECT_LABELS[value] || value }))
+  ), [filterSource]);
+
+  const knowledgePointOptions = useMemo(() => (
+    [...new Set(
+      filterSource
+        .filter((question) => !subjectFilter || question.subject === subjectFilter)
+        .flatMap((question) => question.knowledgePoints || [])
+        .map((point) => point.name?.trim())
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, "zh-CN"))
+  ), [filterSource, subjectFilter]);
+
+  return (
+    <div className="max-w-5xl mx-auto">
+      {/* 标题 & 统计 */}
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <BookOpen size={22} className="text-indigo-500" /> 错题本
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">共 {total} 道{statusFilter === "favorite" ? "收藏" : "错题"}</p>
+        </div>
+
+        {/* 批量操作 */}
+        {selectedIds.length > 0 && (
+          <button
+            onClick={handleBatchRedo}
+            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 text-white rounded-xl text-sm font-medium hover:bg-indigo-600 cursor-pointer"
+          >
+            <RotateCcw size={15} /> 批量重做 ({selectedIds.length})
+          </button>
+        )}
+      </div>
+
+      {/* 状态筛选 Tabs */}
+      <div className="flex items-center gap-1 mb-4 p-1 bg-slate-100 rounded-xl w-fit flex-wrap">
+        {statusTabs.map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setStatusFilter(tab.value)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5
+              ${statusFilter === tab.value ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            {tab.icon && <tab.icon size={15} />}
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 扩展筛选：科目 / 知识点 / 时间 */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <select
+          value={subjectFilter}
+          onChange={(e) => {
+            setSubjectFilter(e.target.value);
+            setKpFilter("");
+          }}
+          disabled={subjectOptions.length === 0}
+          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-600 outline-none focus:border-indigo-300 cursor-pointer"
+        >
+          <option value="">{subjectOptions.length > 0 ? "全部科目" : "暂无科目"}</option>
+          {subjectOptions.map((subject) => (
+            <option key={subject.value} value={subject.value}>{subject.label}</option>
+          ))}
+        </select>
+        <select
+          value={kpFilter}
+          onChange={(e) => setKpFilter(e.target.value)}
+          disabled={knowledgePointOptions.length === 0}
+          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-600 outline-none focus:border-indigo-300 cursor-pointer"
+        >
+          <option value="">{knowledgePointOptions.length > 0 ? "全部知识点" : "暂无知识点"}</option>
+          {knowledgePointOptions.map((knowledgePoint) => (
+            <option key={knowledgePoint} value={knowledgePoint}>{knowledgePoint}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg">
+          {[
+            { value: "all", label: "全部时间" },
+            { value: "week", label: "近一周" },
+            { value: "month", label: "近一月" },
+          ].map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setTimeFilter(t.value)}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer
+                ${timeFilter === t.value ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 搜索框 */}
+      <div className="relative mb-4 max-w-sm">
+        <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          value={searchKeyword}
+          onChange={(e) => setSearchKeyword(e.target.value)}
+          placeholder="搜索错题..."
+          className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-400"
+        />
+      </div>
+
+      {loadError && (
+        <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <span className="flex items-center gap-2"><AlertCircle size={17} />{loadError}</span>
+          <button onClick={loadData} className="cursor-pointer rounded-lg bg-white px-3 py-1.5 font-medium text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100">
+            重新加载
+          </button>
+        </div>
+      )}
+
+      {/* 列表 */}
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-7 h-7 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : questions.length === 0 ? (
+        <div className="text-center py-16 text-slate-400">
+          <BookOpen size={48} className="mx-auto mb-3 opacity-40" />
+          <p className="text-lg font-medium">{statusFilter === "favorite" ? "暂无收藏" : "暂无错题"}</p>
+          <p className="text-sm mt-1">{statusFilter === "favorite" ? "点击题目右侧的星星即可收藏。" : "去练习几道题吧！"}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* 全选 */}
+          <div className="flex items-center gap-2 px-1">
+            <input
+              type="checkbox"
+              checked={selectedIds.length === questions.length}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded border-slate-300 text-indigo-500 focus:ring-indigo-400"
+            />
+            <span className="text-xs text-slate-400">
+              {selectedIds.length > 0 ? `已选 ${selectedIds.length} 题` : "全选"}
+            </span>
+          </div>
+
+          {questions.map((q) => (
+            <div
+              key={q.id}
+              className="bg-white rounded-xl border border-slate-100 p-4 hover:border-indigo-200 hover:shadow-sm transition-all group"
+            >
+              <div className="flex items-start gap-3">
+                {/* 复选框 */}
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(q.id)}
+                  onChange={() => toggleSelect(q.id)}
+                  className="mt-1.5 w-4 h-4 rounded border-slate-300 text-indigo-500 focus:ring-indigo-400"
+                />
+
+                {/* 内容 */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    {/* 错误原因 */}
+                    {q.wrongReasonTag && reasonLabels[q.wrongReasonTag] && (
+                      <span
+                        className={`px-2 py-0.5 rounded-md text-xs font-medium ${reasonLabels[q.wrongReasonTag].color}`}
+                      >
+                        {reasonLabels[q.wrongReasonTag].label}
+                      </span>
+                    )}
+                    {/* 状态 */}
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-xs font-medium
+                        ${q.status === "unresolved" ? "bg-red-50 text-red-500" : ""}
+                        ${q.status === "reviewing" ? "bg-amber-50 text-amber-500" : ""}
+                        ${q.status === "resolved" ? "bg-emerald-50 text-emerald-500" : ""}`}
+                    >
+                      {q.status === "unresolved" ? "未解决" : q.status === "reviewing" ? "复习中" : "已解决"}
+                    </span>
+                    {/* 时间 */}
+                    <span className="text-xs text-slate-400">{q.createdAt?.slice(0, 10)}</span>
+                  </div>
+
+                  <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">
+                    {q.questionContent?.stem}
+                  </p>
+
+                  {/* 知识点 */}
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {q.knowledgePoints?.map((kp) => (
+                      <span
+                        key={kp.id}
+                        className="px-2 py-0.5 rounded-md text-xs bg-indigo-50 text-indigo-500"
+                      >
+                        {kp.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 操作按钮 */}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <button
+                    onClick={() => handleToggleFocus(q.id)}
+                    className={`p-2 rounded-lg cursor-pointer transition-colors
+                      ${q.isKeyFocus ? "text-amber-500 bg-amber-50" : "text-slate-400 hover:text-amber-500 hover:bg-amber-50"}`}
+                    title={q.isKeyFocus ? "取消收藏" : "收藏"}
+                  >
+                    <Star size={16} fill={q.isKeyFocus ? "currentColor" : "none"} />
+                  </button>
+                  <button
+                    onClick={() => onRedo?.([q.id])}
+                    className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg cursor-pointer transition-colors"
+                    title="重做"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                  <button
+                    onClick={() => toggleExplanation(q.id)}
+                    className={`p-2 rounded-lg cursor-pointer transition-colors ${expandedIds.includes(q.id) ? "bg-violet-50 text-violet-500" : "text-slate-400 hover:text-violet-500 hover:bg-violet-50"}`}
+                    title="查看讲解"
+                  >
+                    <BookOpen size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(q.id)}
+                    className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                    title="删除"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              {expandedIds.includes(q.id) && (
+                <div className="ml-7 mt-3 rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-sm">
+                  <div className="font-medium text-violet-700">标准答案：{q.correctAnswer || "暂无"}</div>
+                  <p className="mt-2 leading-6 text-slate-600">{q.explanation || "这道题暂时没有录入解析。"}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

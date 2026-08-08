@@ -342,8 +342,12 @@ public class TeachingContentController {
                 .userId(content.getUserId())
                 .title(content.getTitle())
                 .status(content.getStatus())
+<<<<<<< HEAD
+                .type("ppt")
+=======
                 .type(content.getType() != null && !content.getType().isBlank()
                         ? content.getType() : "ppt")
+>>>>>>> 203d9dace06a792f149fcf4c46d728b4a213f049
                 .subject(subject)
                 .grade(grade)
                 .slideCount(slideCount)
@@ -360,6 +364,8 @@ public class TeachingContentController {
                 .build();
     }
 
+<<<<<<< HEAD
+=======
     /**
      * 从 knowledge_points 列（JSON 字符串 [{id, name}]）解析知识点列表。
      * 非法/空输入返回 null（交由 generated_content_json 兜底）。
@@ -455,6 +461,7 @@ public class TeachingContentController {
         return null;
     }
 
+>>>>>>> 203d9dace06a792f149fcf4c46d728b4a213f049
     // ======================== [跨端联桥] SSE 流式 ========================
 
     /**
@@ -581,6 +588,8 @@ public class TeachingContentController {
             return null;
         }
     }
+<<<<<<< HEAD
+=======
 
 
 
@@ -600,4 +609,5 @@ public ResponseEntity<ApiResponse<Long>> testInsert() {
     teachingContentService.save(content);
     return ResponseEntity.ok(ApiResponse.success(content.getId(), "插入成功，prep_id=" + content.getPrepId()));
 }
+>>>>>>> 203d9dace06a792f149fcf4c46d728b4a213f049
 }

@@ -37,6 +37,7 @@ class LessonPrepInternalRequest(BaseModel):
     subject: str = Field(..., description="科目")
     grade: str = Field(..., description="年级")
     knowledge_point_ids: list[int] = Field(..., description="知识点ID列表")
+    knowledge_point_names: list[str] = Field(default_factory=list, description="知识点名称列表（与ID一一对应）")
     teaching_goals: list[str] = Field(default_factory=list, description="教学目标")
     total_hours: int = Field(default=1, ge=1, le=10, description="课时数")
     style: str = Field(default="standard", description="备课风格")
@@ -63,6 +64,7 @@ async def internal_ai_generate(request: AICallRequest):
             subject=extra.get("subject", ""),
             grade=extra.get("grade", ""),
             knowledge_point_ids=extra.get("knowledge_point_ids", []),
+            knowledge_point_names=extra.get("knowledge_point_names", []),
             teaching_goals=extra.get("teaching_goals", []),
             total_hours=extra.get("total_hours", 1),
             style=extra.get("style", "standard"),
@@ -92,6 +94,7 @@ async def internal_ai_generate_stream(request: AICallRequest):
             subject=extra.get("subject", ""),
             grade=extra.get("grade", ""),
             knowledge_point_ids=extra.get("knowledge_point_ids", []),
+            knowledge_point_names=extra.get("knowledge_point_names", []),
             teaching_goals=extra.get("teaching_goals", []),
             total_hours=extra.get("total_hours", 1),
             style=extra.get("style", "standard"),
@@ -150,6 +153,7 @@ async def _run_lesson_prep(request: LessonPrepInternalRequest) -> dict:
         subject=request.subject,
         grade=request.grade,
         knowledge_point_ids=request.knowledge_point_ids,
+        knowledge_point_names=request.knowledge_point_names,
         teaching_goals=request.teaching_goals,
         total_hours=request.total_hours,
         style=request.style,

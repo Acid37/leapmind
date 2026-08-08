@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
@@ -19,6 +20,11 @@ import java.util.concurrent.TimeUnit;
  */
 @Configuration
 public class WebClientConfig {
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
 
     /**
      * 通用 WebClient.Builder（TTS、普通 HTTP 调用适用，超时中等）。
@@ -51,6 +57,25 @@ public class WebClientConfig {
     @Bean
     public WebClient webClient(WebClient.Builder webClientBuilder) {
         return webClientBuilder.build();
+    }
+
+    /**
+     * 上下文压缩专用 WebClient（连接 2s，响应 10s）。
+     * 总超时由服务层 .timeout() 控制。
+     */
+    @Bean
+    @Qualifier("contextCompressWebClient")
+    public WebClient contextCompressWebClient() {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000) // 2 seconds
+                .responseTimeout(Duration.ofSeconds(10)) // 10 seconds
+                .doOnConnected(conn ->
+                        conn.addHandlerLast(new ReadTimeoutHandler(10, TimeUnit.SECONDS))
+                                .addHandlerLast(new WriteTimeoutHandler(10, TimeUnit.SECONDS)));
+
+        return WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
     }
 
     /**

@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import AsyncGenerator, Optional
 
 from ..ai import get_ai_provider, AIMessage, MessageRole
+from ..core.config import ai_config
 from ..utils.json_extractor import JSONExtractor
 from ..validators import ValidationPipeline
 from ..ab_testing import ABExperiment
@@ -26,9 +27,16 @@ from .prompts.lesson_prep_prompts import (
     build_stage1_messages,
     build_stage2_messages,
     build_stage3_messages,
+    build_goals_messages,
+    build_process_messages,
 )
 
 logger = logging.getLogger(__name__)
+
+# [P0质量] Stage 1 重试次数（共 MAX_STAGE1_RETRIES+1 次尝试）
+MAX_STAGE1_RETRIES = 2
+# [Layer 1 质量] Stage 2 重试次数（共 MAX_STAGE2_RETRIES+1 次尝试，仅触发阻断性问题时重试）
+MAX_STAGE2_RETRIES = 2
 
 
 # ─── Context object (in-memory, passed between stages) ───
@@ -40,6 +48,7 @@ class PrepContext:
     subject: str
     grade: str
     knowledge_point_ids: list[int]
+    knowledge_point_names: list[str] = field(default_factory=list)
     teaching_goals: list[str] = field(default_factory=list)
     total_hours: int = 1
     style: str = "standard"
@@ -129,6 +138,14 @@ class LessonPrepService:
             self._executor = ParallelExecutor(max_concurrency=5)
         return self._executor
 
+    @property
+    def quality_guard(self):
+        """Lazy-init quality guard (Layer 1 hard metrics)."""
+        from ..validators import QualityGuard
+        if getattr(self, "_quality_guard", None) is None:
+            self._quality_guard = QualityGuard()
+        return self._quality_guard
+
     # ════════════════════════════════════════════════════════════
     # [Layer 3] A/B test hooks
     # ════════════════════════════════════════════════════════════
@@ -205,6 +222,7 @@ class LessonPrepService:
         style: str = "standard",
         weak_point_ids: list[int] | None = None,
         user_profile_summary: str | None = None,
+        knowledge_point_names: list[str] | None = None,
     ) -> AsyncGenerator[str, None]:
         """Main entry: generate syllabus and emit structured SSE events.
 
@@ -221,6 +239,7 @@ class LessonPrepService:
             subject=subject,
             grade=grade,
             knowledge_point_ids=knowledge_point_ids,
+            knowledge_point_names=knowledge_point_names or [],
             teaching_goals=teaching_goals,
             total_hours=total_hours,
             style=style,
@@ -259,11 +278,17 @@ class LessonPrepService:
     # ════════════════════════════════════════════════════════════
 
     async def _stage1_syllabus(self, ctx: PrepContext) -> AsyncGenerator[str, None]:
-        """Generate syllabus via streaming AI, yield outline + per-section events."""
+        """Generate syllabus via streaming AI, yield outline + per-section events.
+
+        [P0质量] 重试机制：流式生成或 JSON 解析失败时自动重试，最多 3 次尝试。
+        [P0质量] JSON 模式：启用 response_format=json_object，强制 AI 输出合法 JSON。
+        [P0质量] 低温度：使用 stage1_temperature（默认 0.4），提高结构化输出稳定性。
+        """
         messages = build_stage1_messages(
             subject=ctx.subject,
             grade=ctx.grade,
             knowledge_point_ids=ctx.knowledge_point_ids,
+            knowledge_point_names=ctx.knowledge_point_names,
             teaching_goals=ctx.teaching_goals,
             total_hours=ctx.total_hours,
             style=ctx.style,
@@ -271,25 +296,39 @@ class LessonPrepService:
             user_profile_summary=ctx.user_profile_summary,
         )
 
-        full_content = ""
-        try:
-            async for chunk in self.provider.stream_chat_completion(messages):
-                full_content += chunk
-        except Exception as e:
-            logger.exception("Stage 1 (syllabus) streaming failed")
-            yield _sse_event("error", {"stage": "stage1", "message": f"大纲生成失败: {e}"})
-            return
+        syllabus = None
+        for attempt in range(MAX_STAGE1_RETRIES + 1):
+            full_content = ""
+            try:
+                # [P0质量] 传入 json_mode + stage1_temperature
+                async for chunk in self.provider.stream_chat_completion(
+                    messages,
+                    json_mode=True,
+                    temperature=ai_config.stage1_temperature,
+                ):
+                    full_content += chunk
 
-        # Parse syllabus JSON from the full streaming output
-        try:
-            syllabus = JSONExtractor.extract_dict(full_content)
-        except Exception as e:
-            logger.exception("Failed to parse syllabus JSON")
-            yield _sse_event("error", {
-                "stage": "stage1",
-                "message": f"大纲JSON解析失败: {e}",
-            })
-            return
+                # 尝试解析 JSON
+                syllabus = JSONExtractor.extract_dict(full_content)
+                break  # 解析成功，退出重试循环
+
+            except Exception as e:
+                attempt_num = attempt + 1
+                if attempt < MAX_STAGE1_RETRIES:
+                    logger.warning(
+                        f"Stage 1 attempt {attempt_num}/{MAX_STAGE1_RETRIES+1} failed: {e}, retrying..."
+                    )
+                    yield _sse_event("warn", {
+                        "stage": "stage1",
+                        "message": f"大纲生成重试中({attempt_num + 1}/{MAX_STAGE1_RETRIES + 1})",
+                    })
+                else:
+                    logger.exception(f"Stage 1 failed after {MAX_STAGE1_RETRIES + 1} attempts")
+                    yield _sse_event("error", {
+                        "stage": "stage1",
+                        "message": f"大纲生成失败（已重试{MAX_STAGE1_RETRIES}次）: {e}",
+                    })
+                    return
 
         # ── [Layer 2] Validate syllabus schema (silent auto-fix) ──
         vr = await self.pipeline.validate("syllabus", syllabus)
@@ -342,7 +381,12 @@ class LessonPrepService:
         )
 
         try:
-            response = await self.provider.chat_completion(messages)
+            # [P0质量] 传入 json_mode + stage2_temperature
+            response = await self.provider.chat_completion(
+                messages,
+                json_mode=True,
+                temperature=ai_config.stage2_temperature,
+            )
             raw = response.content
             parsed = JSONExtractor.extract(raw, fallback=[])
         except Exception as e:
@@ -386,45 +430,93 @@ class LessonPrepService:
         return validated
 
     async def _stage2_slides(self, ctx: PrepContext) -> AsyncGenerator[str, None]:
-        """Generate slides: one AI call per syllabus section, yields per-slide events."""
+        """Generate slides: one AI call per syllabus section, yields per-slide events.
+
+        [Layer 1 质量重试] 若质量守卫检测到阻断性问题（页数不足/占位页过多），
+        会自动重试最多 MAX_STAGE2_RETRIES 次，每次重试丢弃旧 slides 重新生成。
+        """
         sections = ctx.syllabus.get("sections", [])
 
-        if self.parallel and len(sections) >= self.PARALLEL_THRESHOLD:
-            # ── Parallel path [Layer 3] ──
-            slide_batches = await self.executor.map(
-                items=sections,
-                fn=lambda section: self._generate_single_slide(section, ctx),
-                progress_callback=None,  # we yield after collection
-            )
-            all_slides: list[dict] = []
-            for batch in slide_batches:
-                if batch is None:
-                    continue
-                for slide in batch:
-                    slide.setdefault("page_num", len(all_slides) + 1)
-                    all_slides.append(slide)
-                    yield _sse_event("slide", {
-                        "page_num": slide["page_num"],
-                        "total_pages": "?",
-                        "slide": slide,
-                    })
-        else:
-            # ── Serial path (original) ──
+        all_slides: list[dict] = []
+        slides_qr = None
+
+        for attempt in range(MAX_STAGE2_RETRIES + 1):
             all_slides = []
-            for section in sections:
-                slides_batch = await self._generate_single_slide(section, ctx)
-                for slide in slides_batch:
-                    slide.setdefault("page_num", len(all_slides) + 1)
-                    all_slides.append(slide)
-                    yield _sse_event("slide", {
-                        "page_num": slide["page_num"],
-                        "total_pages": "?",
-                        "slide": slide,
-                    })
+
+            # ── 生成 slides（重试时重新生成，丢弃旧结果） ──
+            if self.parallel and len(sections) >= self.PARALLEL_THRESHOLD:
+                slide_batches = await self.executor.map(
+                    items=sections,
+                    fn=lambda section: self._generate_single_slide(section, ctx),
+                    progress_callback=None,
+                )
+                for batch in slide_batches:
+                    if batch is None:
+                        continue
+                    for slide in batch:
+                        slide.setdefault("page_num", len(all_slides) + 1)
+                        all_slides.append(slide)
+                        # 重试时不重复发送 slide 事件（只在最后一次成功时发）
+                        if attempt == MAX_STAGE2_RETRIES:
+                            yield _sse_event("slide", {
+                                "page_num": slide["page_num"],
+                                "total_pages": "?",
+                                "slide": slide,
+                            })
+            else:
+                for section in sections:
+                    slides_batch = await self._generate_single_slide(section, ctx)
+                    for slide in slides_batch:
+                        slide.setdefault("page_num", len(all_slides) + 1)
+                        all_slides.append(slide)
+                        if attempt == MAX_STAGE2_RETRIES:
+                            yield _sse_event("slide", {
+                                "page_num": slide["page_num"],
+                                "total_pages": "?",
+                                "slide": slide,
+                            })
+
+            # ── [Layer 1] 质量守卫检测 ──
+            slides_qr = self.quality_guard.check_slides(all_slides)
+
+            if not slides_qr.is_blocking:
+                # 质量合格，跳出重试循环
+                break
+
+            # 阻断性问题，需要重试
+            if attempt < MAX_STAGE2_RETRIES:
+                logger.warning(
+                    f"Stage 2 attempt {attempt + 1}/{MAX_STAGE2_RETRIES + 1} "
+                    f"blocking issues: {slides_qr.blocking_issues}, retrying..."
+                )
+                yield _sse_event("warn", {
+                    "stage": "stage2",
+                    "message": f"PPT 生成质量不足，重试中({attempt + 2}/{MAX_STAGE2_RETRIES + 1})",
+                    "blocking_issues": slides_qr.blocking_issues,
+                })
+            else:
+                logger.error(
+                    f"Stage 2 failed after {MAX_STAGE2_RETRIES + 1} attempts: "
+                    f"{slides_qr.blocking_issues}"
+                )
 
         ctx.slides = all_slides
+
+        # 收集所有警告（包括重试中的警告）
+        if slides_qr and slides_qr.issues:
+            ctx.warnings.append({"stage": "stage2", "quality_issues": slides_qr.issues})
+        if slides_qr and slides_qr.is_blocking:
+            ctx.warnings.append({
+                "stage": "stage2",
+                "blocking_issues": slides_qr.blocking_issues,
+                "note": f"已重试{MAX_STAGE2_RETRIES}次，仍存在阻断性问题",
+            })
+
         yield _sse_event("slides_done", {
             "total_pages": len(all_slides),
+            "quality_score": slides_qr.score if slides_qr else 0,
+            "quality_issues": slides_qr.issues if slides_qr and slides_qr.issues else None,
+            "retries": attempt if attempt > 0 else 0,
         })
 
     # ════════════════════════════════════════════════════════════
@@ -820,21 +912,40 @@ class LessonPrepService:
         """
         try:
             # Stage 1: Syllabus (stream non-SSE)
+            # [P0质量] 传 knowledge_point_names + json_mode + stage1_temperature + 重试
             messages = build_stage1_messages(
                 subject=ctx.subject,
                 grade=ctx.grade,
                 knowledge_point_ids=ctx.knowledge_point_ids,
+                knowledge_point_names=ctx.knowledge_point_names,
                 teaching_goals=ctx.teaching_goals,
                 total_hours=ctx.total_hours,
                 style=ctx.style,
                 weak_point_ids=ctx.weak_point_ids,
                 user_profile_summary=ctx.user_profile_summary,
             )
-            full_content = ""
-            async for chunk in self.provider.stream_chat_completion(messages):
-                full_content += chunk
 
-            syllabus = JSONExtractor.extract_dict(full_content)
+            syllabus = None
+            for attempt in range(MAX_STAGE1_RETRIES + 1):
+                full_content = ""
+                try:
+                    async for chunk in self.provider.stream_chat_completion(
+                        messages,
+                        json_mode=True,
+                        temperature=ai_config.stage1_temperature,
+                    ):
+                        full_content += chunk
+                    syllabus = JSONExtractor.extract_dict(full_content)
+                    break
+                except Exception as e:
+                    if attempt < MAX_STAGE1_RETRIES:
+                        logger.warning(
+                            f"generate_and_return Stage 1 attempt {attempt + 1} failed: {e}, retrying..."
+                        )
+                    else:
+                        logger.exception(f"generate_and_return Stage 1 failed after {MAX_STAGE1_RETRIES + 1} attempts")
+                        return {"error": f"大纲生成失败（已重试{MAX_STAGE1_RETRIES}次）: {e}"}
+
             if not syllabus.get("sections"):
                 return {"error": "生成的大纲中没有课时(sections)数据"}
             ctx.syllabus = syllabus
@@ -845,14 +956,50 @@ class LessonPrepService:
                 ctx.syllabus = self.pipeline.get_fixed_data("syllabus", syllabus)
 
             prep_id = 0
-            # Stage 2: Slides
+            # Stage 2: Slides（含质量重试）
             all_slides: list[dict] = []
-            for section in ctx.syllabus.get("sections", []):
-                slides_batch = await self._generate_single_slide(section, ctx)
-                for slide in slides_batch:
-                    slide.setdefault("page_num", len(all_slides) + 1)
-                    all_slides.append(slide)
+            final_qr = None
+
+            for attempt in range(MAX_STAGE2_RETRIES + 1):
+                all_slides = []
+                for section in ctx.syllabus.get("sections", []):
+                    slides_batch = await self._generate_single_slide(section, ctx)
+                    for slide in slides_batch:
+                        slide.setdefault("page_num", len(all_slides) + 1)
+                        all_slides.append(slide)
+
+                # [Layer 1] 质量守卫：检测 slides 阻断性问题
+                slides_qr = self.quality_guard.check_slides(all_slides)
+
+                if not slides_qr.is_blocking:
+                    break
+
+                if attempt < MAX_STAGE2_RETRIES:
+                    logger.warning(
+                        f"generate_and_return Stage 2 attempt {attempt + 1}/{MAX_STAGE2_RETRIES + 1} "
+                        f"blocking issues: {slides_qr.blocking_issues}, retrying..."
+                    )
+                else:
+                    logger.error(
+                        f"generate_and_return Stage 2 failed after {MAX_STAGE2_RETRIES + 1} attempts: "
+                        f"{slides_qr.blocking_issues}"
+                    )
+
             ctx.slides = all_slides
+
+            # [Layer 1] 质量守卫：检测最终产物的硬性指标
+            final_qr = self.quality_guard.check_final(ctx.syllabus, all_slides)
+            quality_info = {
+                "score": final_qr.score,
+                "is_low_quality": final_qr.is_low_quality,
+                "issues": final_qr.issues if final_qr.issues else None,
+                "blocking_issues": final_qr.blocking_issues if final_qr.is_blocking else None,
+                "retries": attempt if attempt > 0 else 0,
+            }
+            if final_qr.issues:
+                logger.warning(f"[质量守卫] 检测到 {len(final_qr.issues)} 项问题: {final_qr.issues[:3]}")
+            if final_qr.is_blocking:
+                logger.error(f"[质量守卫] 阻断性问题: {final_qr.blocking_issues}")
 
             # Save to database
             if ctx.syllabus:
@@ -863,8 +1010,128 @@ class LessonPrepService:
                 "total_pages": len(all_slides),
                 "syllabus": ctx.syllabus,
                 "slides": all_slides,
+                "quality": quality_info,
             }
 
         except Exception as e:
             logger.exception("generate_and_return failed")
             return {"error": str(e)}
+
+    # ══════════════════════════════════════════════════════════
+    #  Auxiliary: Generate Goals / Process
+    # ══════════════════════════════════════════════════════════
+
+    async def generate_goals(
+        self,
+        subject: str,
+        grade: str,
+        knowledge_point_ids: list[int],
+        knowledge_point_names: Optional[list[str]] = None,
+        goal_direction: Optional[str] = None,
+        weak_point_ids: Optional[list[int]] = None,
+    ) -> dict:
+        """Generate teaching goals (3-5 items) for the given knowledge points.
+
+        Returns:
+            {"goals": ["目标1", "目标2", ...]}
+        """
+        messages = build_goals_messages(
+            subject=subject,
+            grade=grade,
+            knowledge_point_ids=knowledge_point_ids,
+            knowledge_point_names=knowledge_point_names,
+            goal_direction=goal_direction,
+            weak_point_ids=weak_point_ids,
+        )
+
+        for attempt in range(MAX_STAGE1_RETRIES + 1):
+            try:
+                result = await self.provider.chat_completion(
+                    messages,
+                    json_mode=True,
+                    temperature=ai_config.stage1_temperature,
+                )
+                data = JSONExtractor.extract_dict(result)
+                goals = data.get("goals", [])
+
+                if not isinstance(goals, list) or len(goals) < 2:
+                    raise ValueError(f"Generated {len(goals)} goals, expected at least 2")
+
+                # Filter out empty/short goals
+                valid_goals = [g for g in goals if isinstance(g, str) and len(g.strip()) >= 5]
+                if len(valid_goals) < 2:
+                    raise ValueError(f"Only {len(valid_goals)} valid goals after filtering")
+
+                return {"goals": valid_goals[:5]}
+
+            except Exception as e:
+                if attempt < MAX_STAGE1_RETRIES:
+                    logger.warning(f"generate_goals attempt {attempt + 1} failed: {e}, retrying...")
+                else:
+                    logger.exception(f"generate_goals failed after {MAX_STAGE1_RETRIES + 1} attempts")
+                    return {"error": f"教学目标生成失败（已重试{MAX_STAGE1_RETRIES}次）: {e}"}
+
+        return {"error": "教学目标生成失败"}
+
+    async def generate_process(
+        self,
+        subject: str,
+        grade: str,
+        knowledge_point_ids: list[int],
+        teaching_goals: list[str],
+        knowledge_point_names: Optional[list[str]] = None,
+        total_hours: int = 1,
+        section_index: int = 1,
+        section_title: Optional[str] = None,
+    ) -> dict:
+        """Generate teaching process (4-6 steps) for the given goals.
+
+        Returns:
+            {"teaching_process": [{step, duration, teacher_activity, student_activity, design_intent}, ...]}
+        """
+        messages = build_process_messages(
+            subject=subject,
+            grade=grade,
+            knowledge_point_ids=knowledge_point_ids,
+            teaching_goals=teaching_goals,
+            knowledge_point_names=knowledge_point_names,
+            total_hours=total_hours,
+            section_index=section_index,
+            section_title=section_title,
+        )
+
+        for attempt in range(MAX_STAGE1_RETRIES + 1):
+            try:
+                result = await self.provider.chat_completion(
+                    messages,
+                    json_mode=True,
+                    temperature=ai_config.stage1_temperature,
+                )
+                data = JSONExtractor.extract_dict(result)
+                process = data.get("teaching_process", [])
+
+                if not isinstance(process, list) or len(process) < 3:
+                    raise ValueError(f"Generated {len(process)} steps, expected at least 3")
+
+                # Validate each step has required fields
+                valid_steps = []
+                for step in process:
+                    if not isinstance(step, dict):
+                        continue
+                    required = ["step", "duration", "teacher_activity", "student_activity", "design_intent"]
+                    if all(k in step and step[k] for k in required):
+                        valid_steps.append(step)
+
+                if len(valid_steps) < 3:
+                    raise ValueError(f"Only {len(valid_steps)} valid steps after filtering")
+
+                return {"teaching_process": valid_steps[:6]}
+
+            except Exception as e:
+                if attempt < MAX_STAGE1_RETRIES:
+                    logger.warning(f"generate_process attempt {attempt + 1} failed: {e}, retrying...")
+                else:
+                    logger.exception(f"generate_process failed after {MAX_STAGE1_RETRIES + 1} attempts")
+                    return {"error": f"教学过程生成失败（已重试{MAX_STAGE1_RETRIES}次）: {e}"}
+
+        return {"error": "教学过程生成失败"}

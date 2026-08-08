@@ -29,6 +29,11 @@ public class TextToSpeechService {
 
     private final WebClient webClient;
     private final AliyunTokenService tokenService;
+    private static final Map<String, String> VOICE_ALIASES = Map.of(
+            "young-female-warm", "zhixiaoxia",
+            "young-female-clear", "zhixiaobai",
+            "young-female-natural", "zhixiaoxia"
+    );
 
     public TextToSpeechService(WebClient.Builder webClientBuilder, AliyunTokenService tokenService) {
         this.webClient = webClientBuilder.build();
@@ -36,6 +41,10 @@ public class TextToSpeechService {
     }
 
     public Mono<byte[]> synthesizeSpeech(String text) {
+        return synthesizeSpeech(text, voiceName, 1.0);
+    }
+
+    public Mono<byte[]> synthesizeSpeech(String text, String requestedVoice, double speed) {
         // 检查输入文本是否为空
         if (text == null || text.trim().isEmpty()) {
             log.warn("文本为空，跳过语音合成");
@@ -44,10 +53,17 @@ public class TextToSpeechService {
 
         // 阿里云TTS短文本合成有300字符的限制，我们需要智能处理长文本
         final String originalText = text;
+        final String selectedVoice = requestedVoice == null
+                || requestedVoice.isBlank()
+                || "default".equalsIgnoreCase(requestedVoice)
+                ? voiceName
+                : requestedVoice;
+        final String voice = VOICE_ALIASES.getOrDefault(selectedVoice, selectedVoice);
+        final double normalizedSpeed = Math.max(0.5, Math.min(2.0, speed));
 
         // 如果文本长度在限制内，直接合成
         if (originalText.length() <= 290) {
-            return synthesizeSingleSegment(originalText);
+            return synthesizeSingleSegment(originalText, voice, normalizedSpeed);
         }
 
 
@@ -57,7 +73,7 @@ public class TextToSpeechService {
                 originalText.length(), processedText.length());
         log.debug("截断后文本: {}", processedText);
 
-        return synthesizeSingleSegment(processedText);
+        return synthesizeSingleSegment(processedText, voice, normalizedSpeed);
     }
 
     /**
@@ -66,8 +82,8 @@ public class TextToSpeechService {
      * @param text 要合成的文本（长度应在限制内）
      * @return 音频数据
      */
-    private Mono<byte[]> synthesizeSingleSegment(String text) {
-        log.info("发送TTS请求: text={}, voice={}, format={}", text, voiceName, "wav");
+    private Mono<byte[]> synthesizeSingleSegment(String text, String voice, double speed) {
+        log.info("发送TTS请求: text={}, voice={}, speed={}, format={}", text, voice, speed, "wav");
 
         // 动态获取Token并发送请求
         return tokenService.getToken()
@@ -78,12 +94,13 @@ public class TextToSpeechService {
 
                     // 必需字段
                     request.put("text", text);
-                    request.put("voice", voiceName);
+                    request.put("voice", voice);
                     request.put("format", "wav");
 
                     // 添加一些可选参数来提高兼容性
                     request.put("sample_rate", 16000);
                     request.put("volume", 50);
+                    request.put("speech_rate", (int) Math.round((speed - 1.0) * 500));
 
                     if (appKey != null && !appKey.trim().isEmpty()) {
                         request.put("appkey", appKey);

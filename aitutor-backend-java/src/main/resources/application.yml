@@ -9,6 +9,12 @@ server:
 spring:
   application:
     name: leapmind-tts
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
   servlet:
     multipart:
       max-file-size: 50MB
@@ -56,6 +62,7 @@ ai:
 # 阿里云TTS配置 【M8 对接后 M5 不再直接调阿里云 TTS】
 # 保留此块是为了兼容老代码中 @Value("${tts.voice}") 等默认值读取（VirtualTeacherTtsService 用到）
 tts:
+  api-url: http://localhost:8080/api/virtual-teacher/tts
   api:
     key: # 这个将通过TokenService动态获取（M5 不再用）
   app:
@@ -231,6 +238,13 @@ springdoc:
     operations-sorter: alpha
   default-flat-param-object: true
 
+# Python AI 薄弱点分析服务配置
+weak-point:
+  python-service:
+    base-url: http://localhost:8000
+    analyze-endpoint: /api/weak-points/analyze
+    timeout: 30
+
 # Knife4j 美化文档
 knife4j:
   enable: true
@@ -247,9 +261,30 @@ python:
     read-timeout: 180000
 
 # MinIO对象存储配置（PPT、音频文件上传使用）
+# MinIO文件存储配置
 minio:
   endpoint: http://127.0.0.1:9000
   access-key: minioadmin
   secret-key: minioadmin
   bucket-name: leapmind
 
+# M8 虚拟 AI 教师
+virtual-teacher:
+  cache-ttl: 24h
+  synthesis-timeout: 125s
+  storage:
+    # local 用于无 MinIO 的本地开发；部署时设为 minio
+    type: ${VIRTUAL_TEACHER_STORAGE_TYPE:local}
+    local-dir: ${VIRTUAL_TEACHER_LOCAL_DIR:${java.io.tmpdir}/leapmind-tts}
+    public-base-url: ${VIRTUAL_TEACHER_PUBLIC_BASE_URL:}
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: ${MINIO_BUCKET:leapmind-tts}
+# Python AI 服务配置（复习计算、事件处理）
+python-service:
+  base-url: http://localhost:8000
+  review-calculation-path: /api/review/calculate-all
+  event-process-path: /api/events/process
+  connect-timeout: 30
+  read-timeout: 300

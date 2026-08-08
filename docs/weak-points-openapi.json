@@ -1,0 +1,344 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "LeapMind - 薄弱点分析 API",
+    "description": "版本 4.1.2+4.1.3: 薄弱点查询、AI综合分析、推荐练习、练习记录、推荐题目、知识图谱。给 M4/M5/M1 模块调用。",
+    "version": "1.0.0",
+    "contact": { "name": "Zeng Junqiao" }
+  },
+  "servers": [
+    { "url": "http://localhost:8080", "description": "Java Backend" },
+    { "url": "http://localhost:8000", "description": "Python AI Service" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/api/weak-points": {
+      "get": {
+        "tags": ["薄弱点查询"],
+        "summary": "查询用户薄弱点列表",
+        "description": "按用户ID查询，可按学科/状态过滤。排序: HIGH > MEDIUM > LOW，同级按错误次数降序。",
+        "operationId": "getWeakPoints",
+        "parameters": [
+          { "name": "userId", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "用户ID", "example": 1 },
+          { "name": "subject", "in": "query", "required": false, "schema": { "type": "string" }, "description": "学科过滤", "example": "数学" },
+          { "name": "status", "in": "query", "required": false, "schema": { "type": "string", "enum": ["ACTIVE", "RESOLVED", "IMPROVING"] }, "description": "状态过滤" }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WeakPointListResponse" } } } }
+        }
+      }
+    },
+    "/api/weak-points/{userId}": {
+      "get": {
+        "tags": ["薄弱点查询"],
+        "summary": "查询单用户薄弱点",
+        "operationId": "getUserWeakPoints",
+        "parameters": [
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "用户ID", "example": 1 }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WeakPointListResponse" } } } }
+        }
+      },
+      "post": {
+        "tags": ["AI分析"],
+        "summary": "触发AI综合分析",
+        "description": "调用Python AI服务。Python不可用时自动降级为本地Markdown分析。",
+        "operationId": "analyzeWeakPoints",
+        "parameters": [
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "用户ID", "example": 1 }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AnalysisResponseWrapper" } } } }
+        }
+      }
+    },
+    "/api/weak-points/recommend-questions": {
+      "get": {
+        "tags": ["薄弱点详情页"],
+        "summary": "推荐题目（薄弱点详情页）",
+        "description": "根据具体知识点的薄弱程度推荐对应难度的练习题。难度匹配: HIGH→基础题(EASY), MEDIUM→中等题, LOW→提高题(HARD)。",
+        "operationId": "recommendQuestions",
+        "parameters": [
+          { "name": "userId", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "用户ID", "example": 1 },
+          { "name": "knowledgePoint", "in": "query", "required": true, "schema": { "type": "string" }, "description": "知识点名称", "example": "fraction" },
+          { "name": "count", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 }, "description": "推荐数量", "example": 3 }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QuestionListResponse" } } } }
+        }
+      }
+    },
+    "/api/weak-points/knowledge-graph": {
+      "get": {
+        "tags": ["知识图谱页"],
+        "summary": "知识图谱",
+        "description": "获取用户知识图谱: 知识点节点(含掌握率、薄弱程度) + 前置依赖边。掌握率>=80%标记MASTERED。",
+        "operationId": "getKnowledgeGraph",
+        "parameters": [
+          { "name": "userId", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "用户ID", "example": 1 },
+          { "name": "subject", "in": "query", "required": false, "schema": { "type": "string" }, "description": "学科过滤(空=全部)", "example": "math" }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GraphResponseWrapper" } } } }
+        }
+      }
+    },
+    "/api/exercises/recommend": {
+      "get": {
+        "tags": ["练习推荐"],
+        "summary": "获取推荐练习",
+        "description": "去重: 排除7天内已做。优先级: RESOLVED(priority=1) > ACTIVE按HIGH>MEDIUM>LOW(priority=2)。",
+        "operationId": "recommendExercises",
+        "parameters": [
+          { "name": "userId", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "用户ID", "example": 1 },
+          { "name": "subject", "in": "query", "required": false, "schema": { "type": "string" }, "description": "学科过滤" },
+          { "name": "knowledgePoint", "in": "query", "required": false, "schema": { "type": "string" }, "description": "知识点过滤" },
+          { "name": "count", "in": "query", "required": false, "schema": { "type": "integer", "default": 5 }, "description": "推荐数量", "example": 3 }
+        ],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExerciseListResponse" } } } }
+        }
+      }
+    },
+    "/api/exercises/record": {
+      "post": {
+        "tags": ["练习推荐"],
+        "summary": "记录练习结果",
+        "description": "记录练习并自动更新薄弱点: 正确率、状态。正确率>=80%自动标记RESOLVED。",
+        "operationId": "recordExercise",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExerciseRecordRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StringResponse" } } } },
+          "400": { "description": "参数校验失败", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/weak-points/analyze": {
+      "post": {
+        "tags": ["Python AI Service"],
+        "summary": "[Python] AI薄弱点综合分析",
+        "description": "Java通过WebClient调用。接收薄弱点+练习记录，调AI(OpenAI/Claude)生成分析+建议。",
+        "operationId": "pythonAnalyzeWeakPoints",
+        "servers": [{ "url": "http://localhost:8000" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PythonAnalysisRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PythonAnalysisResponse" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "schemas": {
+      "UserWeakPointVO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" }, "userId": { "type": "integer" },
+          "knowledgePoint": { "type": "string", "example": "圆的面积" },
+          "subject": { "type": "string", "example": "数学" },
+          "weaknessLevel": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+          "errorCount": { "type": "integer", "example": 9 },
+          "totalCount": { "type": "integer", "example": 15 },
+          "accuracyRate": { "type": "number", "example": 40.0 },
+          "lastErrorTime": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["ACTIVE", "RESOLVED", "IMPROVING"] },
+          "aiAnalysis": { "type": "string", "nullable": true },
+          "aiSuggestion": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "WeakPointListResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "查询成功" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/UserWeakPointVO" } },
+          "timestamp": { "type": "integer" }
+        }
+      },
+      "RecommendQuestionVO": {
+        "type": "object",
+        "description": "推荐题目（薄弱点详情页）",
+        "properties": {
+          "questionId": { "type": "string", "example": "Q_1_fraction_1" },
+          "knowledgePoint": { "type": "string", "example": "fraction" },
+          "subject": { "type": "string", "example": "math" },
+          "difficulty": { "type": "string", "enum": ["EASY", "MEDIUM", "HARD"], "description": "EASY(HIGH薄弱→基础题)/MEDIUM(中等)/HARD(LOW→提高题)" },
+          "questionType": { "type": "string", "enum": ["选择题", "填空题", "解答题"], "example": "选择题" },
+          "questionTitle": { "type": "string", "example": "关于「fraction」的基础练习题" },
+          "reason": { "type": "string", "description": "推荐原因", "example": "该知识点掌握一般，建议进行中等难度练习" }
+        }
+      },
+      "QuestionListResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "推荐成功" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/RecommendQuestionVO" } },
+          "timestamp": { "type": "integer" }
+        }
+      },
+      "GraphNode": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "知识点ID", "example": "fraction" },
+          "name": { "type": "string", "description": "知识点名称", "example": "fraction" },
+          "subject": { "type": "string", "example": "math" },
+          "weaknessLevel": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW", "MASTERED", "UNKNOWN"], "description": "掌握度>=80%→MASTERED" },
+          "masteryRate": { "type": "number", "description": "掌握率(%)", "example": 100.0 },
+          "group": { "type": "string", "description": "分组(学科)", "example": "math" }
+        }
+      },
+      "GraphEdge": {
+        "type": "object",
+        "properties": {
+          "source": { "type": "string", "description": "前置知识点", "example": "fraction" },
+          "target": { "type": "string", "description": "后置知识点", "example": "circle" },
+          "relation": { "type": "string", "enum": ["prerequisite", "related", "extends"], "description": "关系类型" }
+        }
+      },
+      "KnowledgeGraphVO": {
+        "type": "object",
+        "properties": {
+          "nodes": { "type": "array", "items": { "$ref": "#/components/schemas/GraphNode" }, "description": "知识点节点列表" },
+          "edges": { "type": "array", "items": { "$ref": "#/components/schemas/GraphEdge" }, "description": "关联关系边列表" }
+        }
+      },
+      "GraphResponseWrapper": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "查询成功" },
+          "data": { "$ref": "#/components/schemas/KnowledgeGraphVO" },
+          "timestamp": { "type": "integer" }
+        }
+      },
+      "ExerciseVO": {
+        "type": "object",
+        "properties": {
+          "exerciseId": { "type": "string", "example": "ACTIVE_1_圆的面积" },
+          "knowledgePoint": { "type": "string" },
+          "subject": { "type": "string" },
+          "sourceType": { "type": "string", "enum": ["RESOLVED_WEAK_POINT", "ACTIVE_WEAK_POINT"], "description": "RESOLVED(已解决复习,pri=1) / ACTIVE(薄弱点,pri=2)" },
+          "priority": { "type": "integer", "description": "1=最高, 2=普通", "example": 2 }
+        }
+      },
+      "ExerciseListResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "推荐成功" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/ExerciseVO" } },
+          "timestamp": { "type": "integer" }
+        }
+      },
+      "DetailAnalysis": {
+        "type": "object",
+        "properties": {
+          "knowledgePoint": { "type": "string" },
+          "analysis": { "type": "string", "description": "薄弱原因分析" },
+          "suggestion": { "type": "string", "description": "学习建议" }
+        }
+      },
+      "WeakPointsAnalysisVO": {
+        "type": "object",
+        "properties": {
+          "comprehensiveAnalysis": { "type": "string", "description": "综合分析(Text/Markdown)" },
+          "learningSuggestions": { "type": "string", "description": "个性化学习建议" },
+          "detailAnalyses": { "type": "array", "items": { "$ref": "#/components/schemas/DetailAnalysis" } },
+          "recommendedPriority": { "type": "array", "items": { "type": "string" }, "description": "优先攻克知识点" }
+        }
+      },
+      "AnalysisResponseWrapper": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "分析完成" },
+          "data": { "$ref": "#/components/schemas/WeakPointsAnalysisVO" },
+          "timestamp": { "type": "integer" }
+        }
+      },
+      "ExerciseRecordRequest": {
+        "type": "object",
+        "required": ["userId", "exerciseId", "isCorrect"],
+        "properties": {
+          "userId": { "type": "integer", "description": "用户ID", "example": 1 },
+          "exerciseId": { "type": "string", "description": "练习题ID" },
+          "knowledgePoint": { "type": "string", "description": "知识点(可选)" },
+          "subject": { "type": "string", "description": "学科(可选)" },
+          "isCorrect": { "type": "integer", "enum": [0, 1], "description": "1正确/0错误" }
+        }
+      },
+      "StringResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "记录成功" },
+          "data": { "type": "string", "example": "ok" },
+          "timestamp": { "type": "integer" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 400 },
+          "message": { "type": "string", "example": "用户ID不能为空" },
+          "data": { "nullable": true },
+          "timestamp": { "type": "integer" }
+        }
+      },
+      "PythonAnalysisRequest": {
+        "type": "object",
+        "required": ["userId"],
+        "properties": {
+          "userId": { "type": "integer" },
+          "weakPoints": { "type": "array", "items": { "$ref": "#/components/schemas/PythonWeakPointItem" } },
+          "recentExercises": { "type": "array", "items": { "$ref": "#/components/schemas/PythonExerciseItem" } },
+          "language": { "type": "string", "default": "zh" }
+        }
+      },
+      "PythonWeakPointItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "knowledgePoint": { "type": "string" },
+          "subject": { "type": "string" },
+          "weaknessLevel": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+          "errorCount": { "type": "integer" },
+          "totalCount": { "type": "integer" },
+          "accuracyRate": { "type": "number" }
+        }
+      },
+      "PythonExerciseItem": {
+        "type": "object",
+        "properties": {
+          "exerciseId": { "type": "string" },
+          "knowledgePoint": { "type": "string" },
+          "subject": { "type": "string" },
+          "isCorrect": { "type": "integer" },
+          "completedAt": { "type": "string" }
+        }
+      },
+      "PythonAnalysisResponse": {
+        "type": "object",
+        "properties": {
+          "comprehensiveAnalysis": { "type": "string" },
+          "learningSuggestions": { "type": "string" },
+          "detailAnalyses": { "type": "array", "items": { "$ref": "#/components/schemas/DetailAnalysis" } },
+          "recommendedPriority": { "type": "array", "items": { "type": "string" } },
+          "status": { "type": "string", "enum": ["success", "error"] },
+          "error": { "type": "string", "nullable": true }
+        }
+      }
+    }
+  }
+}

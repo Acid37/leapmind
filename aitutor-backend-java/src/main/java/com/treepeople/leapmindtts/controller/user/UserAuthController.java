@@ -99,19 +99,22 @@ public class UserAuthController {
                     log.error("短信验证码发送失败，错误码: {}, 错误信息: {}",
                             sendSmsResponse.getBody().getCode(),
                             sendSmsResponse.getBody().getMessage());
+                    // 修改第 103 行（补上 400）：
                     return ResponseEntity.badRequest()
-                            .body(ApiResponse.error("验证码发送失败: " + sendSmsResponse.getBody().getMessage()));
+                        .body(ApiResponse.error(400, "验证码发送失败: " + sendSmsResponse.getBody().getMessage()));
                 }
             } else {
                 log.error("短信服务响应为空");
+// 修改第 108 行（补上 500，因为这是第三方服务响应异常）：
                 return ResponseEntity.badRequest()
-                        .body(ApiResponse.error("短信服务响应异常"));
+                    .body(ApiResponse.error(500, "短信服务响应异常"));
             }
 
         } catch (Exception e) {
             log.error("调用阿里云短信服务发送短信验证码接口失败！", e);
+// 修改第 114 行（补上 500）：
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("验证码发送失败: " + e.getMessage()));
+                .body(ApiResponse.error(500, "验证码发送失败: " + e.getMessage()));
         }
     }
 

@@ -14,6 +14,6 @@ ALTER TABLE audio_segments
     ADD COLUMN segment_status VARCHAR(20) DEFAULT 'AUDIO_GENERATED' COMMENT '片段状态：TEXT_ONLY/AUDIO_GENERATED';
 
 -- 创建索引以提高查询性能
-CREATE INDEX idx_lesson_sessions_status ON lesson_sessions(processing_status);
-CREATE INDEX idx_audio_segments_status  ON audio_segments(segment_status);
-CREATE INDEX idx_audio_segments_course_status ON audio_segments(course_id, segment_status);
+CREATE INDEX idx_lesson_sessions_status ON lesson_sessions (processing_status);
+CREATE INDEX idx_audio_segments_status ON audio_segments (segment_status);
+CREATE INDEX idx_audio_segments_course_status ON audio_segments (course_id, segment_status);
