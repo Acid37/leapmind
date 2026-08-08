@@ -43,6 +43,7 @@ public class WeakPointsController {
      * 查询用户薄弱点列表（分页）
      *
      * @param userId  用户ID（必填）
+     * @param topN    返回前N条（可选，与 page/size 互斥，取值 1-50）
      * @param subject 学科（可选）
      * @param status  状态过滤（可选）：ACTIVE/RESOLVED/IMPROVING
      * @param page    页码（默认1）
@@ -50,10 +51,12 @@ public class WeakPointsController {
      * @return 薄弱点分页列表
      */
     @GetMapping("/weak-points")
-    @Operation(summary = "查询用户薄弱点列表（分页）", description = "按用户ID查询薄弱点，可按学科和状态过滤，支持分页")
+    @Operation(summary = "查询用户薄弱点列表（分页/TOP-N）", description = "按用户ID查询薄弱点，可按学科和状态过滤，支持分页或 TopN")
     public ResponseEntity<ApiResponse<PageResult<UserWeakPointVO>>> getWeakPoints(
             @Parameter(description = "用户ID", required = true)
             @RequestParam Long userId,
+            @Parameter(description = "返回前N条（与分页互斥，取值1-50）")
+            @RequestParam(required = false) Integer topN,
             @Parameter(description = "学科（可选）")
             @RequestParam(required = false) String subject,
             @Parameter(description = "状态（可选）：ACTIVE/RESOLVED/IMPROVING")
@@ -63,9 +66,16 @@ public class WeakPointsController {
             @Parameter(description = "每页数量（默认20）")
             @RequestParam(defaultValue = "20") Integer size) {
 
-        log.info("查询薄弱点: userId={}, subject={}, status={}, page={}, size={}",
-                userId, subject, status, page, size);
+        log.info("查询薄弱点: userId={}, topN={}, subject={}, status={}, page={}, size={}",
+                userId, topN, subject, status, page, size);
         try {
+            // topN 模式：前端需要"Top5 薄弱点"时，直接限制条数
+            if (topN != null && topN > 0) {
+                int n = Math.min(topN, 50); // 最大 50
+                PageResult<UserWeakPointVO> result = weakPointsService
+                        .getUserWeakPoints(userId, subject, status, 1, n);
+                return ResponseEntity.ok(ApiResponse.success(result, "查询成功"));
+            }
             PageResult<UserWeakPointVO> result = weakPointsService
                     .getUserWeakPoints(userId, subject, status, page, size);
             return ResponseEntity.ok(ApiResponse.success(result, "查询成功"));
@@ -212,20 +222,20 @@ public class WeakPointsController {
     // ==================== 推荐题目（薄弱点详情页） ====================
 
     /**
-     * 根据知识点推荐具体题目（薄弱点详情页）
+     * 根据知识点名称推荐具体题目（薄弱点详情页，内部调用 Python M3 引擎）
      * 根据知识点的薄弱程度调整推荐难度：HIGH→基础题, MEDIUM→中等题, LOW→提高题
      *
      * @param userId         用户ID（必填）
-     * @param knowledgePoint 知识点（必填）
+     * @param knowledgePoint 知识点名称（必填）
      * @param count          推荐数量，默认5
      * @return 推荐题目列表
      */
     @GetMapping("/weak-points/recommend-questions")
-    @Operation(summary = "推荐题目(薄弱点详情页)", description = "根据具体知识点的薄弱程度推荐对应难度的练习题")
+    @Operation(summary = "推荐题目(薄弱点详情页)", description = "根据具体知识点的薄弱程度推荐对应难度的练习题，内部调用Python M3引擎")
     public ResponseEntity<ApiResponse<List<RecommendQuestionVO>>> recommendQuestions(
             @Parameter(description = "用户ID", required = true)
             @RequestParam Long userId,
-            @Parameter(description = "知识点", required = true)
+            @Parameter(description = "知识点名称", required = true)
             @RequestParam String knowledgePoint,
             @Parameter(description = "推荐数量，默认5")
             @RequestParam(defaultValue = "5") Integer count) {

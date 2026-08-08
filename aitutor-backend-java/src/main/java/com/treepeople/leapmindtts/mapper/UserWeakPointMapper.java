@@ -47,6 +47,12 @@ public interface UserWeakPointMapper extends BaseMapper<UserWeakPoint> {
     UserWeakPoint selectByUserIdAndKnowledgePoint(@Param("userId") Long userId, @Param("knowledgePoint") String knowledgePoint);
 
     /**
+     * 根据用户ID和知识点ID精确查询单条薄弱点记录（Python 引擎使用 kp_id 作为唯一标识）
+     */
+    @Select("SELECT * FROM user_weak_points WHERE user_id = #{userId} AND kp_id = #{kpId} LIMIT 1")
+    UserWeakPoint selectByUserIdAndKpId(@Param("userId") Long userId, @Param("kpId") Long kpId);
+
+    /**
      * 查询用户所有活跃的薄弱点
      */
     @Select("SELECT * FROM user_weak_points WHERE user_id = #{userId} AND status = 'ACTIVE' ORDER BY FIELD(weakness_level, 'HIGH', 'MEDIUM', 'LOW'), error_count DESC")

@@ -1,6 +1,7 @@
 package com.treepeople.leapmindtts.service.lesson.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.treepeople.leapmindtts.mapper.KnowledgePointMapper;
 import com.treepeople.leapmindtts.mapper.UserExerciseMapper;
 import com.treepeople.leapmindtts.mapper.UserWeakPointMapper;
 import com.treepeople.leapmindtts.pojo.dto.AiAnalysisRequest;
@@ -46,6 +47,7 @@ public class WeakPointsServiceImpl implements WeakPointsService {
 
     private final UserWeakPointMapper userWeakPointMapper;
     private final UserExerciseMapper userExerciseMapper;
+    private final KnowledgePointMapper knowledgePointMapper;
     private final WebClient webClient;
     private final EventCollectionClient eventCollectionClient;
 
@@ -57,6 +59,21 @@ public class WeakPointsServiceImpl implements WeakPointsService {
 
     @Value("${weak-point.python-service.timeout:30}")
     private int timeoutSeconds;
+
+    @Value("${weak-point.m3-engine.base-url:http://localhost:8001}")
+    private String m3EngineBaseUrl;
+
+    @Value("${weak-point.m3-engine.incremental-update-endpoint:/api/weak-points/incremental-update}")
+    private String incrementalUpdateEndpoint;
+
+    @Value("${weak-point.m3-engine.timeout:30}")
+    private int m3TimeoutSeconds;
+
+    @Value("${weak-point.m3-engine.recommend-endpoint:/api/weak-points/recommend-questions}")
+    private String recommendEndpoint;
+
+    @Value("${weak-point.m3-engine.knowledge-graph-endpoint:/api/weak-points/knowledge-graph}")
+    private String knowledgeGraphEndpoint;
 
     @Override
     public PageResult<UserWeakPointVO> getUserWeakPoints(Long userId, String subject, String status,
@@ -292,6 +309,9 @@ public class WeakPointsServiceImpl implements WeakPointsService {
                     reason);
         }
 
+        // 4. 调用 Python M3 引擎增量更新（异步，不阻塞主流程）
+        triggerM3IncrementalUpdate(request.getUserId(), weakPoint.getKpId());
+
         log.info("练习记录已保存: userId={}, exerciseId={}, isCorrect={}, knowledgePoint={}",
                 request.getUserId(), request.getExerciseId(), request.getIsCorrect(), request.getKnowledgePoint());
     }
@@ -310,14 +330,25 @@ public class WeakPointsServiceImpl implements WeakPointsService {
             UserWeakPoint existing = userWeakPointMapper.selectByUserIdAndKnowledgePoint(
                     request.getUserId(), request.getKnowledgePoint());
             if (existing != null) {
+                // 兼容旧数据：如果 kpId 为空，回填之（旧版本创建记录时没有设置 kpId）
+                if (existing.getKpId() == null) {
+                    Long kpId = knowledgePointMapper.selectIdByName(existing.getKnowledgePoint());
+                    if (kpId != null) {
+                        existing.setKpId(kpId);
+                        userWeakPointMapper.updateById(existing);
+                    }
+                }
                 return existing;
             }
         }
 
-        // 创建新记录
+        // 创建新记录 — 补上 kpId，确保首次练习也能触发增量更新
+        String kpName = request.getKnowledgePoint() != null ? request.getKnowledgePoint() : "未知知识点";
+        Long kpId = knowledgePointMapper.selectIdByName(kpName);
         return UserWeakPoint.builder()
                 .userId(request.getUserId())
-                .knowledgePoint(request.getKnowledgePoint() != null ? request.getKnowledgePoint() : "未知知识点")
+                .kpId(kpId)
+                .knowledgePoint(kpName)
                 .subject(request.getSubject())
                 .weaknessLevel("MEDIUM")
                 .errorCount(0)
@@ -511,6 +542,40 @@ public class WeakPointsServiceImpl implements WeakPointsService {
         return level;
     }
 
+    /**
+     * 异步触发 Python M3 引擎增量更新
+     * <p>
+     * 用户每次提交练习后，通知 Python 引擎对该知识点进行三维加权重算。
+     * 采用 fire-and-forget 模式：调用失败仅记录日志，不影响主流程响应。
+     *
+     * @param userId 用户ID
+     * @param kpId   知识点ID（可为 null，为 null 时跳过）
+     */
+    private void triggerM3IncrementalUpdate(Long userId, Long kpId) {
+        if (kpId == null) {
+            return;
+        }
+        try {
+            java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("userId", userId);
+            body.put("kpIds", java.util.Collections.singletonList(kpId));
+
+            webClient.post()
+                    .uri(m3EngineBaseUrl + incrementalUpdateEndpoint)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .subscribe(
+                            result -> log.debug("M3 增量更新成功: userId={}, kpId={}", userId, kpId),
+                            error -> log.warn("M3 增量更新失败(非阻塞): userId={}, kpId={}, error={}",
+                                    userId, kpId, error.getMessage())
+                    );
+        } catch (Exception e) {
+            log.warn("M3 增量更新调用异常(非阻塞): userId={}, kpId={}, error={}",
+                    userId, kpId, e.getMessage());
+        }
+    }
+
     // ==================== 推荐题目 + 知识图谱 ====================
 
     @Override
@@ -519,131 +584,151 @@ public class WeakPointsServiceImpl implements WeakPointsService {
             count = 5;
         }
 
-        // 精确查询该知识点的薄弱点记录（SQL 级别，O(1) 替代全表扫描 O(n)）
-        UserWeakPoint target = userWeakPointMapper.selectByUserIdAndKnowledgePoint(userId, knowledgePoint);
+        // 1. 名称 → kpId 翻译（对外用名称，内部 Python 用数字 ID）
+        Long kpId = knowledgePointMapper.selectIdByName(knowledgePoint);
+        if (kpId == null) {
+            log.warn("知识点名称不存在，无法推荐: knowledgePoint={}", knowledgePoint);
+            return Collections.emptyList();
+        }
 
-        // 确定题目难度：薄弱程度高→基础题，中→中等题，低→提高题
-        String difficulty;
-        String reason;
-        if (target != null) {
-            switch (target.getWeaknessLevel() != null ? target.getWeaknessLevel().toUpperCase() : "MEDIUM") {
-                case "HIGH":
-                    difficulty = "EASY";
-                    reason = "该知识点错误率较高，建议从基础题开始巩固";
-                    break;
-                case "MEDIUM":
-                    difficulty = "MEDIUM";
-                    reason = "该知识点掌握一般，建议进行中等难度练习";
-                    break;
-                default:
-                    difficulty = "HARD";
-                    reason = "该知识点掌握较好，建议挑战提高题";
+        // 2. 调用 Python M3 引擎推荐真实题目（基于题库 questions 表，排除已做，按难度排序）
+        try {
+            String uri = m3EngineBaseUrl + recommendEndpoint
+                    + "?user_id=" + userId + "&kp_id=" + kpId + "&count=" + count;
+
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> response = webClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .bodyToMono(java.util.Map.class)
+                    .block(Duration.ofSeconds(m3TimeoutSeconds));
+
+            if (response != null && response.containsKey("questions")) {
+                String kpName = (String) response.getOrDefault("kpName", knowledgePoint);
+                @SuppressWarnings("unchecked")
+                java.util.List<java.util.Map<String, Object>> questions =
+                        (java.util.List<java.util.Map<String, Object>>) response.get("questions");
+
+                if (questions != null) {
+                    List<RecommendQuestionVO> result = new ArrayList<>();
+                    for (java.util.Map<String, Object> q : questions) {
+                        result.add(RecommendQuestionVO.builder()
+                                .questionId(String.valueOf(q.get("id")))
+                                .knowledgePoint(kpName)
+                                .subject(null)  // Python 响应不含 subject，后续可扩展
+                                .difficulty(mapDifficulty(q.get("difficulty")))
+                                .questionType(null)  // Python 响应不含题型，后续可扩展
+                                .questionTitle(truncateContent((String) q.get("content"), 60))
+                                .reason("基于薄弱点「" + kpName + "」的针对性推荐")
+                                .build());
+                    }
+                    return result;
+                }
             }
-        } else {
-            difficulty = "MEDIUM";
-            reason = "暂无该知识点的练习记录";
+            log.warn("Python M3 推荐题目返回空: userId={}, kpId={}, knowledgePoint={}", userId, kpId, knowledgePoint);
+        } catch (Exception e) {
+            log.error("调用 Python M3 推荐题目失败: userId={}, kpId={}, knowledgePoint={}, error={}",
+                    userId, kpId, knowledgePoint, e.getMessage());
         }
 
-        List<RecommendQuestionVO> questions = new ArrayList<>();
-        String[] questionTypes = {"选择题", "填空题", "解答题"};
-        String[] templates = {
-            "关于「%s」的基础练习题",
-            "「%s」的综合应用题",
-            "「%s」的易错题训练",
-            "「%s」的巩固练习题",
-            "「%s」的能力提升题"
-        };
+        return Collections.emptyList();
+    }
 
-        for (int i = 0; i < count; i++) {
-            questions.add(RecommendQuestionVO.builder()
-                    .questionId("Q_" + userId + "_" + sanitizeKey(knowledgePoint) + "_" + (i + 1))
-                    .knowledgePoint(knowledgePoint)
-                    .subject(target != null ? target.getSubject() : null)
-                    .difficulty(difficulty)
-                    .questionType(questionTypes[i % questionTypes.length])
-                    .questionTitle(String.format(templates[i % templates.length], knowledgePoint))
-                    .reason(reason)
-                    .build());
-        }
+    /** 将 Python 返回的 difficulty 数值映射为难度标签（V5 题库：1-5 整数） */
+    private String mapDifficulty(Object difficulty) {
+        if (difficulty == null) return "MEDIUM";
+        int d = difficulty instanceof Number ? ((Number) difficulty).intValue() : 3;
+        if (d <= 2) return "EASY";
+        if (d <= 3) return "MEDIUM";
+        return "HARD";  // 4-5
+    }
 
-        return questions;
+    /** 截断过长内容用作题目摘要 */
+    private String truncateContent(String content, int maxLen) {
+        if (content == null) return "";
+        return content.length() <= maxLen ? content : content.substring(0, maxLen) + "...";
     }
 
     @Override
     public KnowledgeGraphVO getKnowledgeGraph(Long userId, String subject) {
-        List<UserWeakPoint> weakPoints;
-        if (subject != null && !subject.isEmpty()) {
-            weakPoints = userWeakPointMapper.selectByUserIdAndSubject(userId, subject);
-        } else {
-            weakPoints = userWeakPointMapper.selectByUserId(userId);
-        }
+        // 调用 Python M3 引擎获取知识图谱（基于 knowledge_points 表 parent_id 构建真实依赖树）
+        try {
+            StringBuilder uri = new StringBuilder(m3EngineBaseUrl + knowledgeGraphEndpoint)
+                    .append("?user_id=").append(userId);
+            if (subject != null && !subject.isEmpty()) {
+                uri.append("&subject=").append(subject);
+            }
 
-        // 构建节点
-        List<KnowledgeGraphVO.GraphNode> nodes = new ArrayList<>();
-        if (weakPoints != null) {
-            for (UserWeakPoint wp : weakPoints) {
-                double mastery = wp.getAccuracyRate() != null ? wp.getAccuracyRate().doubleValue() : 0.0;
-                String level = wp.getWeaknessLevel();
-                // 未练习过的标记为 UNKNOWN
-                if (wp.getTotalCount() == null || wp.getTotalCount() == 0) {
-                    level = "UNKNOWN";
-                    mastery = 0.0;
-                } else if (mastery >= 80.0) {
-                    level = "MASTERED";
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> response = webClient.get()
+                    .uri(uri.toString())
+                    .retrieve()
+                    .bodyToMono(java.util.Map.class)
+                    .block(Duration.ofSeconds(m3TimeoutSeconds));
+
+            if (response != null) {
+                @SuppressWarnings("unchecked")
+                java.util.List<java.util.Map<String, Object>> rawNodes =
+                        (java.util.List<java.util.Map<String, Object>>) response.get("nodes");
+                @SuppressWarnings("unchecked")
+                java.util.List<java.util.Map<String, Object>> rawEdges =
+                        (java.util.List<java.util.Map<String, Object>>) response.get("edges");
+
+                List<KnowledgeGraphVO.GraphNode> nodes = new ArrayList<>();
+                if (rawNodes != null) {
+                    for (java.util.Map<String, Object> n : rawNodes) {
+                        nodes.add(KnowledgeGraphVO.GraphNode.builder()
+                                .id(String.valueOf(n.get("id")))
+                                .name((String) n.get("name"))
+                                .subject((String) n.getOrDefault("subject", subject))
+                                .weaknessLevel((String) n.getOrDefault("weaknessLevel", "UNKNOWN"))
+                                .masteryRate(toDouble(n.get("weaknessScore"), 0.0))
+                                .group((String) n.getOrDefault("subject", subject))
+                                .build());
+                    }
                 }
 
-                nodes.add(KnowledgeGraphVO.GraphNode.builder()
-                        .id(wp.getKnowledgePoint())
-                        .name(wp.getKnowledgePoint())
-                        .subject(wp.getSubject())
-                        .weaknessLevel(level)
-                        .masteryRate(mastery)
-                        .group(wp.getSubject() != null ? wp.getSubject() : "其他")
-                        .build());
+                List<KnowledgeGraphVO.GraphEdge> edges = new ArrayList<>();
+                if (rawEdges != null) {
+                    for (java.util.Map<String, Object> e : rawEdges) {
+                        edges.add(KnowledgeGraphVO.GraphEdge.builder()
+                                .source(String.valueOf(e.get("source")))
+                                .target(String.valueOf(e.get("target")))
+                                .relation((String) e.getOrDefault("relation", "parent_child"))
+                                .build());
+                    }
+                }
+
+                return KnowledgeGraphVO.builder()
+                        .nodes(nodes)
+                        .edges(edges)
+                        .build();
             }
-        }
-
-        // 构建边：同科知识点按难度排序后建立前后连接
-        List<KnowledgeGraphVO.GraphEdge> edges = new ArrayList<>();
-
-        // 按学科分组构建知识链路
-        java.util.Map<String, java.util.List<UserWeakPoint>> bySubject = new java.util.LinkedHashMap<>();
-        if (weakPoints != null) {
-            for (UserWeakPoint wp : weakPoints) {
-                String s = wp.getSubject() != null ? wp.getSubject() : "其他";
-                bySubject.computeIfAbsent(s, k -> new ArrayList<>()).add(wp);
-            }
-        }
-
-        for (java.util.List<UserWeakPoint> sameSubject : bySubject.values()) {
-            // 同科知识点按薄弱程度排序：HIGH→MEDIUM→LOW→MASTERED
-            sameSubject.sort((a, b) -> {
-                int la = getWeaknessLevelWeight(a.getWeaknessLevel());
-                int lb = getWeaknessLevelWeight(b.getWeaknessLevel());
-                return Integer.compare(lb, la); // 降序：掌握差的在前
-            });
-
-            // 前后知识点建立 prerequisite 关系
-            for (int i = 0; i < sameSubject.size() - 1; i++) {
-                UserWeakPoint prev = sameSubject.get(i);
-                UserWeakPoint next = sameSubject.get(i + 1);
-                edges.add(KnowledgeGraphVO.GraphEdge.builder()
-                        .source(prev.getKnowledgePoint())
-                        .target(next.getKnowledgePoint())
-                        .relation("prerequisite")
-                        .build());
-            }
+            log.warn("Python M3 知识图谱返回空: userId={}, subject={}", userId, subject);
+        } catch (Exception e) {
+            log.error("调用 Python M3 知识图谱失败: userId={}, subject={}, error={}",
+                    userId, subject, e.getMessage());
         }
 
         return KnowledgeGraphVO.builder()
-                .nodes(nodes)
-                .edges(edges)
+                .nodes(Collections.emptyList())
+                .edges(Collections.emptyList())
                 .build();
     }
 
-    private String sanitizeKey(String s) {
-        if (s == null) return "unknown";
-        return s.replaceAll("[^a-zA-Z0-9_\\u4e00-\\u9fa5]", "_");
+    /** 安全地将 Object 转为 double，null 时返回默认值 */
+    private double toDouble(Object value, double defaultValue) {
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
     }
 
     // ==================== 薄弱点详情 + 练习计划 ====================
@@ -765,15 +850,12 @@ public class WeakPointsServiceImpl implements WeakPointsService {
 
     @Override
     public PracticePlanVO generatePracticePlan(PracticePlanRequest request) {
-        // 1. 查询每个目标知识点的薄弱点状态
+        // 1. 查询每个目标知识点的薄弱点状态（内部翻译名称→kpId 后调用 Python M3 引擎）
         List<RecommendQuestionVO> allQuestions = new ArrayList<>();
-        for (String kp : request.getKnowledgePoints()) {
+        for (String kpName : request.getKnowledgePoints()) {
             List<RecommendQuestionVO> kpQuestions = recommendQuestions(
-                    request.getUserId(), kp, 5);
-            for (int i = 0; i < kpQuestions.size(); i++) {
-                RecommendQuestionVO q = kpQuestions.get(i);
-                allQuestions.add(q);
-            }
+                    request.getUserId(), kpName, 5);
+            allQuestions.addAll(kpQuestions);
         }
 
         // 2. 构建计划题目列表（按难度排序：EASY → MEDIUM → HARD）
@@ -802,9 +884,15 @@ public class WeakPointsServiceImpl implements WeakPointsService {
         int estimatedMinutes = Math.max(1,
                 (int) Math.ceil(allQuestions.size() * 75.0 / 60));
 
+        // 从第一个推荐结果的 kpName 获取目标知识点名称
+        List<String> targetKpNames = allQuestions.stream()
+                .map(RecommendQuestionVO::getKnowledgePoint)
+                .distinct()
+                .collect(Collectors.toList());
+
         return PracticePlanVO.builder()
                 .userId(request.getUserId())
-                .targetKnowledgePoints(request.getKnowledgePoints())
+                .targetKnowledgePoints(targetKpNames)
                 .totalQuestions(items.size())
                 .estimatedMinutes(estimatedMinutes)
                 .questions(items)

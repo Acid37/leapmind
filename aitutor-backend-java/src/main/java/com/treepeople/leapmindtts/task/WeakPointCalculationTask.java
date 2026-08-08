@@ -18,15 +18,21 @@ import java.util.List;
 /**
  * 薄弱点计算定时任务（M3 薄弱点模块）
  * <p>
- * 每天凌晨 02:30 全量重算薄弱点数据：
+ * ⚠️ 已废弃：全量重算已由 Python M3 计算引擎接管（{@code backend/calculator/scheduler.py}）。
+ * Python 引擎使用三维加权公式（错误率 + 近期正确率 + 困惑频率）和多源数据
+ * （user_answers / conversation_messages / wrong_question_book / user_profiles），
+ * 比 Java 仅按正确率分档更准确。Java 侧仅保留"事件驱动实时更新"（
+ * {@code WeakPointsServiceImpl.recordExerciseResult}），未来将改为调用 Python 增量接口。
+ * <p>
+ * 如需恢复此定时任务（如 Python 引擎不可用时作为降级兜底），取消下方两个注解即可。
+ * <p>
+ * 原逻辑：每天凌晨 02:30 全量重算薄弱点数据：
  * <ol>
  *   <li>基于 {@code user_exercises} 练习记录，重算每个薄弱点的答题数/错题数/正确率</li>
  *   <li>按正确率自动更新薄弱等级（weakness_level）与状态（status）</li>
  * </ol>
- * 与 {@code WeakPointsServiceImpl.recordExerciseResult} 的"事件驱动实时更新"互补，
- * 作为每日兜底，纠正因数据异常或漏记导致的偏差。
  */
-@Component
+// @Component  // 已由 Python M3 引擎接管，取消注释可恢复
 @Slf4j
 @RequiredArgsConstructor
 public class WeakPointCalculationTask {
@@ -42,8 +48,9 @@ public class WeakPointCalculationTask {
 
     /**
      * 全量重算：每天 02:30 执行
+     * ⚠️ 已由 Python M3 引擎接管调度，取消注释可恢复
      */
-    @Scheduled(cron = "0 30 2 * * ?")
+    // @Scheduled(cron = "0 30 2 * * ?")  // 已由 Python M3 引擎接管
     public void executeFullWeakPointRecalculation() {
         log.info("========== 薄弱点全量重算定时任务开始 ==========");
         try {

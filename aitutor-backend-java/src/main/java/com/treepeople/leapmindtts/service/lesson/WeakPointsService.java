@@ -46,10 +46,10 @@ public interface WeakPointsService {
     void recordExerciseResult(ExerciseRecordRequest request);
 
     /**
-     * 根据知识点推荐具体题目（薄弱点详情页）
+     * 根据知识点名称推荐具体题目（薄弱点详情页，内部翻译后调用 Python M3 引擎）
      *
      * @param userId         用户ID
-     * @param knowledgePoint 知识点
+     * @param knowledgePoint 知识点名称
      * @param count          推荐数量
      * @return 推荐题目列表
      */

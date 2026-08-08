@@ -3,15 +3,22 @@ FastAPI 入口 — 提供 M3 薄弱点分析 REST API
 
 运行方式：
     cd backend
-    uvicorn main:app --reload
+    uvicorn main:app --reload --port 8001
 
-Swagger 文档：http://127.0.0.1:8000/docs
+    或直接运行：
+    python main.py
+
+Swagger 文档：http://127.0.0.1:8001/docs
 """
 import logging
+import os
+import traceback
 from datetime import datetime
 from contextlib import asynccontextmanager
 
+import pymysql
 from fastapi import FastAPI, Query
+from fastapi.responses import JSONResponse
 
 from calculator.ai_service import generate_assessment
 from calculator.knowledge_graph import (
@@ -26,6 +33,7 @@ from calculator.trend_analysis import analyze_trends
 from calculator.weakness_score import calculate_weakness_scores
 from database.mysql_connector import Database
 from models.schemas import (
+    ErrorResponse,
     GraphEdge,
     GraphNode,
     IncrementalUpdateRequest,
@@ -62,9 +70,54 @@ app = FastAPI(
 )
 
 
-# ──────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════
+# 全局异常处理 — 统一返回 JSON 错误，避免 traceback 泄露
+# ═══════════════════════════════════════════════════════════
+
+@app.exception_handler(pymysql.MySQLError)
+async def handle_mysql_error(request, exc: pymysql.MySQLError):
+    logger.error(f"数据库异常: {exc}")
+    return JSONResponse(
+        status_code=503,
+        content={
+            "status": "error",
+            "message": "数据库服务暂时不可用，请稍后重试",
+            "errorCode": "DB_ERROR",
+            "detail": str(exc).split("\n")[0],
+        },
+    )
+
+
+@app.exception_handler(ValueError)
+async def handle_value_error(request, exc: ValueError):
+    logger.warning(f"参数校验失败: {exc}")
+    return JSONResponse(
+        status_code=400,
+        content={
+            "status": "error",
+            "message": str(exc),
+            "errorCode": "INVALID_PARAMETER",
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_error(request, exc: Exception):
+    logger.error(f"未处理异常: {exc}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": "error",
+            "message": "服务器内部错误，请联系管理员",
+            "errorCode": "INTERNAL_ERROR",
+            "detail": str(exc).split("\n")[0],
+        },
+    )
+
+
+# ═══════════════════════════════════════════════════════════
 # 接口 1：获取薄弱点列表 — 提供给 M4/M5
-# ──────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════
 @app.get(
     "/api/weak-points",
     response_model=WeakPointsResponse,
@@ -125,6 +178,7 @@ def get_weak_points(
         db.upsert_weak_point({
             "user_id": user_id,
             "kp_id": wp["kp_id"],
+            "knowledge_point": wp["kp_name"],
             "weakness_score": wp["weakness_score"],
             "error_count": wp["error_count"],
             "total_attempts": wp["total_attempts"],
@@ -209,14 +263,21 @@ def get_recommend_questions(
 )
 def get_knowledge_graph(
     user_id: int = Query(..., description="用户ID"),
+    subject: str = Query(None, description="学科过滤，可选"),
 ):
     """
     返回知识点关联图谱，包含每个知识点的薄弱度分数，
-    供前端 ECharts 力导向图使用。
+    供前端 ECharts 力导向图使用。支持按学科过滤。
     """
     knowledge_points = db.fetch_knowledge_points()
     if not knowledge_points:
         return KnowledgeGraphResponse(nodes=[], edges=[])
+
+    # 学科过滤
+    if subject:
+        knowledge_points = [kp for kp in knowledge_points if kp.get("subject") == subject]
+        if not knowledge_points:
+            return KnowledgeGraphResponse(nodes=[], edges=[])
 
     # 计算用户薄弱度，用于标注节点颜色/大小
     user_answers = db.fetch_user_answers(user_id)
@@ -236,6 +297,11 @@ def get_knowledge_graph(
     # 构建图谱
     G = build_knowledge_graph(knowledge_points)
     graph_data = get_graph_data(G, weak_points)
+
+    # 如果传了 subject，注入到节点字段中
+    for node in graph_data["nodes"]:
+        if "subject" not in node:
+            node["subject"] = subject
 
     return KnowledgeGraphResponse(
         nodes=[GraphNode(**n) for n in graph_data["nodes"]],
@@ -266,3 +332,13 @@ def incremental_update(body: IncrementalUpdateRequest):
     """
     result = run_incremental_update(body.user_id, body.kp_ids, db=db)
     return IncrementalUpdateResponse(**result)
+
+
+# ──────────────────────────────────────────────
+# 独立运行入口（支持 PORT 环境变量）
+# ──────────────────────────────────────────────
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", "8001"))
+    host = os.getenv("HOST", "0.0.0.0")
+    uvicorn.run("main:app", host=host, port=port, reload=False)

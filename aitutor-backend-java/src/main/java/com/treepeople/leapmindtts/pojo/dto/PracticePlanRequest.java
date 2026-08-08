@@ -22,7 +22,7 @@ public class PracticePlanRequest {
     @NotNull(message = "用户ID不能为空")
     private Long userId;
 
-    /** 需要练习的知识点列表 */
+    /** 需要练习的知识点名称列表 */
     @NotEmpty(message = "知识点列表不能为空")
     private List<String> knowledgePoints;
 }
