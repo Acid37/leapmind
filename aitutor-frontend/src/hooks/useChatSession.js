@@ -79,6 +79,8 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
   const bufferRef = useRef('');
   // 同步锁，防止 send 被快速双击绕过 state 检查
   const isGeneratingRef = useRef(false);
+  // 当前正在生成的问题文本（本地智能去重：连点相同问题直接忽略，不重复调 AI）
+  const pendingQuestionRef = useRef(null);
 
   // -------- 初始化：尝试恢复会话 --------
   useEffect(() => {
@@ -135,6 +137,7 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
   // -------- 结束生成（清同步锁 + 置状态机） --------
   const finishGenerating = useCallback((nextPhase) => {
     isGeneratingRef.current = false;
+    pendingQuestionRef.current = null;
     setPhase(nextPhase);
   }, []);
 
@@ -179,15 +182,27 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
   }, []);
 
   // -------- 发送消息 --------
+  // 返回值：undefined=已正常发送 | 'duplicate'=与进行中问题相同（本地去重，不重复调 AI） | 'busy'=生成中提交了不同问题
   const send = useCallback((text, { isRetry = false } = {}) => {
-    if (!text.trim() || isGeneratingRef.current) return;
+    const trimmed = (text || '').trim();
+    if (!trimmed) return undefined;
+
+    // 生成中：本地智能去重（允许连点，但不重复调 AI，省 token）
+    if (isGeneratingRef.current) {
+      if (pendingQuestionRef.current && pendingQuestionRef.current === trimmed) {
+        return 'duplicate'; // 相同问题连点 → 忽略，等待当前回答
+      }
+      return 'busy'; // 不同问题 → 提示等待，避免并发流打挂限流器
+    }
+
     setError(null);
-    lastQuestionRef.current = text;
+    lastQuestionRef.current = trimmed;
+    pendingQuestionRef.current = trimmed;
     isGeneratingRef.current = true;
 
     // retry 时不重复追加用户消息
     if (!isRetry) {
-      const userMsg = { role: 'user', content: text };
+      const userMsg = { role: 'user', content: trimmed };
       setMessages(prev => [...prev, userMsg]);
     }
 
@@ -201,7 +216,7 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
     const stream = askStream({
       userId,
       sessionId,
-      question: text,
+      question: trimmed,
       sceneType,
       context,
     });
