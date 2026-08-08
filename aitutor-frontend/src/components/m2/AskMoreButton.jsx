@@ -45,6 +45,7 @@ export default function AskMoreButton({ questionContext }) {
     <div>
       {!open ? (
         <button
+          type="button"
           onClick={() => setOpen(true)}
           className="w-full py-2.5 bg-white/10 border border-white/10 rounded-xl text-sm text-white/70 hover:bg-white/20 hover:text-white transition-all flex items-center justify-center gap-2"
         >
@@ -60,9 +61,9 @@ export default function AskMoreButton({ questionContext }) {
             </span>
             <div className="flex items-center gap-2">
               {messages.length > 0 && (
-                <button onClick={clear} className="text-[10px] text-white/30 hover:text-white/60 transition-colors">清空</button>
+                <button type="button" onClick={clear} className="text-[10px] text-white/30 hover:text-white/60 transition-colors">清空</button>
               )}
-              <button onClick={() => setOpen(false)} className="text-white/40 hover:text-white/70 transition-colors">
+              <button type="button" onClick={() => setOpen(false)} className="text-white/40 hover:text-white/70 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -111,6 +112,7 @@ export default function AskMoreButton({ questionContext }) {
               className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/90 placeholder-white/30 focus:outline-none focus:border-purple-400/50"
             />
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={!input.trim() || isGenerating}
               className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 text-white flex items-center justify-center disabled:opacity-40 hover:shadow-lg hover:shadow-purple-500/20 transition-all shrink-0"
