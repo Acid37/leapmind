@@ -188,20 +188,15 @@ export async function generateLecture(params, onEvent) {
     selectedWeakPoints = [],
   } = params || {};
   const title = sourceText.trim().slice(0, 100) || 'AI 即时讲课';
-  const response = await fetch('/api/lesson-prep/contents/generate/stream', {
+  const response = await fetch(`/api/teaching/${params.courseId || 'default'}/stream-generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      userId,
-      title,
-      subject: '通用',
-      grade: userProfile?.summary?.grade || '未指定',
-      knowledgePointIds: [],
-      teachingGoals: selectedWeakPoints.map((wp) => `重点讲解：${wp.name}`),
-      totalHours: 1,
-      style: 'interactive',
-      weakPointIds,
-      userProfileSummary,
+      source_text: sourceText,
+      user_profile: {
+        grade: userProfile?.summary?.grade || '未指定',
+        weakPoints: selectedWeakPoints.map((wp) => wp.name),
+      },
     }),
   });
 
