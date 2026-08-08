@@ -827,6 +827,27 @@ export async function deleteWrongQuestion(wrongQuestionId) {
   }
 }
 
+export async function deleteWrongQuestions(wrongQuestionIds = []) {
+  const ids = [...new Set(
+    (Array.isArray(wrongQuestionIds) ? wrongQuestionIds : [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isSafeInteger(id) && id > 0)
+  )];
+  if (ids.length === 0) {
+    return { success: false, reason: '请选择需要删除的错题' };
+  }
+  try {
+    const res = await request('/api/wrong-questions/batch-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    return { success: true, data: unwrap(res) };
+  } catch (err) {
+    console.warn('[M1] deleteWrongQuestions 失败:', err.message);
+    return { success: false, reason: err.message };
+  }
+}
+
 /**
  * 获取积分明细  ✅ GET /api/practice/dashboard
  */

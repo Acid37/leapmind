@@ -3,6 +3,7 @@
  * 显示题干、选项（单选/多选/填空/简答）
  */
 import { Check, X, Lightbulb, BookOpen } from "lucide-react";
+import MathText from "./MathText";
 
 export default function QuestionCard({
   question,
@@ -73,7 +74,9 @@ export default function QuestionCard({
                 >
                   {isCorrectOption ? <Check size={16} /> : isWrongSelected ? <X size={16} /> : label}
                 </span>
-                <span className="text-base text-slate-700">{opt.replace(/^[A-D]\.\s*/, "")}</span>
+                <span className="text-base text-slate-700">
+                  <MathText>{opt.replace(/^[A-D]\.\s*/, "")}</MathText>
+                </span>
               </button>
             );
           })}
@@ -145,7 +148,7 @@ export default function QuestionCard({
 
       {/* 题干 */}
       <div className="text-lg text-slate-800 leading-relaxed font-medium">
-        {content.stem}
+        <MathText>{content.stem}</MathText>
       </div>
 
       {/* 配图（如有） */}
@@ -174,9 +177,9 @@ export default function QuestionCard({
               {isCorrect ? "回答正确！" : "答案解析"}
             </span>
           </div>
-          <p className="text-slate-600 text-sm leading-relaxed mb-3">
-            {question.explanation}
-          </p>
+          <div className="text-slate-600 text-sm leading-relaxed mb-3">
+            <MathText>{question.explanation}</MathText>
+          </div>
 
           {/* 解题步骤 */}
           {question.answerSteps?.length > 0 && (
@@ -189,7 +192,7 @@ export default function QuestionCard({
                   <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-xs flex items-center justify-center font-bold mt-0.5">
                     {i + 1}
                   </span>
-                  <span>{step}</span>
+                  <span><MathText>{step}</MathText></span>
                 </div>
               ))}
             </div>

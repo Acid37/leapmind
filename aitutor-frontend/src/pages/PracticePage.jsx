@@ -51,7 +51,7 @@ import { getUserInfo } from "../utils/tokenManager";
 const SESSION_KEY = "m1_practice_session";
 const QUICK_COUNTS = [5, 10, 15, 20];
 
-export default function PracticePage({ onBack, onViewStatistics, embedded = false, mode = "FREE_PRACTICE", lessonId = "", initialParams = {} }) {
+export default function PracticePage({ onBack, onViewStatistics, onResetPracticeParams, embedded = false, mode = "FREE_PRACTICE", lessonId = "", initialParams = {} }) {
   // --- ChatPanel 状态 ---
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const userInfo = getUserInfo();
@@ -70,6 +70,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const completionReportedRef = useRef("");
   const autoStartRef = useRef(false);
+  const isMistakeRedoMode = mode === "MISTAKE_REDO";
 
   // --- 会话状态 ---
   const [session, setSession] = useState(null);
@@ -90,6 +91,10 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
 
   // --- 持久化：每次状态变化写入 localStorage ---
   useEffect(() => {
+    if (isMistakeRedoMode) {
+      localStorage.removeItem(SESSION_KEY);
+      return;
+    }
     if (session && Object.keys(answers).length > 0) {
       const completed = session.questions.every((question) => answers[question.questionId]?.submitted);
       if (completed) {
@@ -104,13 +109,13 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
         }));
       } catch { /* quota exceeded, ignore */ }
     }
-  }, [session, currentIndex, answers]);
+  }, [session, currentIndex, answers, isMistakeRedoMode]);
 
   // --- 初始化会话 ---
   useEffect(() => {
     // 检查是否有未完成的会话
     try {
-      const shouldAutoStart = mode === "MISTAKE_REDO"
+      const shouldAutoStart = isMistakeRedoMode
         && initialParams.autoStart
         && Array.isArray(initialParams.questionIds)
         && initialParams.questionIds.length > 0;
@@ -276,17 +281,18 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   };
 
   useEffect(() => {
-    const shouldAutoStart = mode === "MISTAKE_REDO"
+    const shouldAutoStart = isMistakeRedoMode
       && initialParams.autoStart
       && Array.isArray(initialParams.questionIds)
       && initialParams.questionIds.length > 0;
     if (!shouldAutoStart || autoStartRef.current) return;
     autoStartRef.current = true;
     initSession();
-  }, [mode, initialParams.autoStart, initialParams.questionIds]);
+  }, [isMistakeRedoMode, initialParams.autoStart, initialParams.questionIds]);
 
   const openSessionSetup = () => {
     localStorage.removeItem(SESSION_KEY);
+    onResetPracticeParams?.();
     setHasSavedSession(false);
     setSession(null);
     setCurrentIndex(0);

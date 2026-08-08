@@ -94,9 +94,20 @@ export default function App() {
       // M4 讲完跳 M1 时，同时退出 M4 全屏容器，避免路由互斥
       setM4Page(null);
       if (params && typeof params === 'object') {
-        setM1PracticeParams(params);
+        setM1PracticeParams({ ...params, launchId: Date.now() });
+      } else {
+        setM1PracticeParams({});
       }
       setM1Page('practice');
+    };
+
+    const handleM1Nav = (page) => {
+      setM1PracticeParams((params) => {
+        if (page === 'practice') return {};
+        if (params.mode !== 'MISTAKE_REDO') return params;
+        return params.lessonId ? { lessonId: params.lessonId } : {};
+      });
+      setM1Page(page);
     };
 
     return (
@@ -125,7 +136,7 @@ export default function App() {
                                 <button
                                     type="button"
                                     key={page}
-                                    onClick={() => setM1Page(page)}
+                                    onClick={() => handleM1Nav(page)}
                                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${m1Page === page ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
                                 >
                                     {label}
@@ -136,10 +147,12 @@ export default function App() {
                     <main className="flex-1 min-h-0 overflow-auto p-4">
                         {m1Page === 'practice' ? (
                             <PracticePage
+                                key={m1PracticeParams.launchId || 'default-practice'}
                                 embedded
                                 mode={m1PracticeParams.mode}
                                 lessonId={m1PracticeParams.lessonId || ""}
                                 initialParams={m1PracticeParams}
+                                onResetPracticeParams={() => setM1PracticeParams({})}
                                 onViewStatistics={() => setM1Page('statistics')}
                             />
                         ) : m1Page === 'question-bank' ? (
