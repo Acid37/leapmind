@@ -24,7 +24,7 @@ import java.util.List;
  * </ul>
  *
  * @author wuminxi
- * @date 2026-07-21
+ * @since 2026-07-21
  */
 @Mapper
 public interface ReviewReminderMapper extends BaseMapper<ReviewReminder> {
