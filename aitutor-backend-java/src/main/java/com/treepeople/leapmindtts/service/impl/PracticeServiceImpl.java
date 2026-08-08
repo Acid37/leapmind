@@ -629,7 +629,10 @@ public class PracticeServiceImpl implements PracticeService {
     @Override
     public Map<String, Object> getLeaderboards(Long userId, String track, String type) {
         PracticeUserStats self = ensureStats(userId);
-        String effectiveTrack = StringUtils.hasText(track) ? track : self.getPreferredTrack();
+        // 前端排行榜当前没有方向筛选器；未显式传 track 时应统计全部方向。
+        // 如果默认套用 preferredTrack，用户在其他方向获得的积分会被全部过滤掉，
+        // 造成连续天数正常但日/周/月积分始终显示为 0。
+        String effectiveTrack = normalizeLeaderboardTrack(track);
         String effectiveType = normalizeLeaderboardType(type);
         Map<String, Object> result = new HashMap<>();
         result.put("track", effectiveTrack);
@@ -661,6 +664,10 @@ public class PracticeServiceImpl implements PracticeService {
             throw new IllegalArgumentException("type 只支持 daily、weekly、monthly");
         }
         return normalized;
+    }
+
+    static String normalizeLeaderboardTrack(String track) {
+        return StringUtils.hasText(track) ? track.trim() : null;
     }
 
     static LocalDateTime leaderboardStart(String type, LocalDate today) {

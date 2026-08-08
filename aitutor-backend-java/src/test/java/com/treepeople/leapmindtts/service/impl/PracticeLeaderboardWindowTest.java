@@ -27,6 +27,13 @@ class PracticeLeaderboardWindowTest {
     }
 
     @Test
+    void usesAllTracksWhenTrackIsNotExplicitlySelected() {
+        assertNull(PracticeServiceImpl.normalizeLeaderboardTrack(null));
+        assertNull(PracticeServiceImpl.normalizeLeaderboardTrack("  "));
+        assertEquals("计算机二级", PracticeServiceImpl.normalizeLeaderboardTrack("  计算机二级  "));
+    }
+
+    @Test
     void calculatesInclusiveDailyWeeklyAndMonthlyWindows() {
         assertEquals(TODAY.atStartOfDay(),
                 PracticeServiceImpl.leaderboardStart("daily", TODAY));
