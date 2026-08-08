@@ -3,6 +3,7 @@ package com.treepeople.leapmindtts.config;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
+import io.netty.resolver.DefaultAddressResolverGroup;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,6 +37,8 @@ public class WebClientConfig {
         // 针对TTS服务的网络延迟和处理时间，增加超时配置
         // 阿里云TTS服务在网络不稳定时可能需要更长的连接和处理时间
         HttpClient httpClient = HttpClient.create()
+                // Windows 中 Netty 原生 resolver 不读系统 DNS，强行走 JDK resolver（getaddrinfo）
+                .resolver(DefaultAddressResolverGroup.INSTANCE)
                 // 连接超时：从10秒增加到20秒，应对网络握手延迟
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 20000)
                 // 响应超时：从30秒增加到90秒，应对TTS合成处理时间
@@ -67,6 +70,7 @@ public class WebClientConfig {
     @Qualifier("contextCompressWebClient")
     public WebClient contextCompressWebClient() {
         HttpClient httpClient = HttpClient.create()
+                .resolver(DefaultAddressResolverGroup.INSTANCE)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000) // 2 seconds
                 .responseTimeout(Duration.ofSeconds(10)) // 10 seconds
                 .doOnConnected(conn ->
@@ -89,6 +93,7 @@ public class WebClientConfig {
     @Bean("streamingWebClientBuilder")
     public WebClient.Builder streamingWebClientBuilder() {
         HttpClient httpClient = HttpClient.create()
+                .resolver(DefaultAddressResolverGroup.INSTANCE)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30_000)
                 // 不做整体 HTTP 响应超时（SSE 流本身是长连接），由应用层 SseEmitter 超时兜底
                 .keepAlive(true)

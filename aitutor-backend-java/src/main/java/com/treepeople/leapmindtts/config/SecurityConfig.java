@@ -76,6 +76,8 @@ public class SecurityConfig {
                         .requestMatchers("/admin/review/**").permitAll()
 	// 允许访问备课接口（PPT模板管理、备课内容管理）
                         .requestMatchers("/api/lesson-prep/**").permitAll()
+                        // 允许访问即时讲课接口（M4 讲课生成与管理）
+                        .requestMatchers("/api/teaching/**").permitAll()
                         // 允许访问流式对话和打断接口
                         .requestMatchers("/api/conversation/**").permitAll()
                         // M6 事件上报接口：各模块后端直接调用（非前端发起，无用户 JWT）

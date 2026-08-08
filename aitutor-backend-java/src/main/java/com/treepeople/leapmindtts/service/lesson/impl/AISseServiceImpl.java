@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -66,7 +67,12 @@ public class AISseServiceImpl implements AISseService {
                 .bodyValue(requestBody)
                 .accept(MediaType.TEXT_EVENT_STREAM)
                 .retrieve()
-                .bodyToFlux(String.class)
+                .bodyToFlux(ServerSentEvent.class)
+                .map(event -> {
+                    Object data = event.data();
+                    return data != null ? String.valueOf(data) : "";
+                })
+                .filter(s -> !s.isEmpty())
                 .doOnNext(chunk -> log.debug("SSE chunk received: {} chars", chunk.length()))
                 .doOnError(error -> log.error("SSE流式传输出错: courseId={}", courseId, error))
                 .doOnComplete(() -> log.info("SSE流式传输完成: courseId={}", courseId));
