@@ -3,6 +3,8 @@ package com.treepeople.leapmindtts.profile.platform;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.treepeople.leapmindtts.service.profile.engine.*;
+import com.treepeople.leapmindtts.service.profile.impl.EventIngestionCore;
+import com.treepeople.leapmindtts.service.profile.impl.ProfileReadCore;
 import com.treepeople.leapmindtts.service.profile.platform.*;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -10,6 +12,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import java.time.Clock;
+import static org.mockito.Mockito.*;
 
 class PlatformContractsTest {
     private static final Instant NOW = Instant.parse("2026-07-27T00:00:00Z");
@@ -71,6 +75,94 @@ class PlatformContractsTest {
         assertAll(() -> assertEquals(EventPublishOutcome.Status.NOT_CONNECTED, outcomes.get(0).status()),
                 () -> assertEquals(EventPublishOutcome.Status.REJECTED, outcomes.get(1).status()),
                 () -> assertThrows(IllegalArgumentException.class, () -> publisher.publishBatch(context, List.of())));
+    }
+
+    @Test void realPublisherRequiresPolicyAndReadinessBeforeTouchingTheCore() {
+        EventIngestionCore core = mock(EventIngestionCore.class);
+        LearningEventCommand command = payload(new LearningEventPayload.AnswerQuestion(true, 2, 10, 0, null));
+        EventPublishContext access = new EventPublishContext(7L, ActorKind.USER, 7L, null, SourceModule.M1,
+                Purpose.PUBLISH_LEARNING_EVENT, "req-1");
+        PolicyEnforcedLearningEventPublisher denied = new PolicyEnforcedLearningEventPublisher(
+                new DefaultDenyPlatformCapabilityPolicy(), new PlatformIntegrationReadiness(true), core, Clock.systemUTC());
+        PolicyEnforcedLearningEventPublisher unready = new PolicyEnforcedLearningEventPublisher(
+                (a, c, r) -> new PlatformCapabilityPolicy.CapabilityDecision(true, "ALLOWED"),
+                new PlatformIntegrationReadiness(false), core, Clock.systemUTC());
+        assertAll(() -> assertEquals(EventPublishOutcome.Status.NOT_CONFIGURED, denied.publish(access, command).status()),
+                () -> assertEquals(EventPublishOutcome.Status.NOT_CONNECTED, unready.publish(access, command).status()),
+                () -> assertEquals(EventPublishOutcome.Status.REJECTED, unready.publish(new EventPublishContext(7L, ActorKind.USER, 7L,
+                        null, SourceModule.M2, Purpose.PUBLISH_LEARNING_EVENT, "req-1"), command).status()),
+                () -> assertEquals(EventPublishOutcome.Status.REJECTED,
+                        unready.publish(access, new LearningEventCommand("evt-2", 7L, NOW, null,
+                                new KnowledgePointRef.Unresolved("external"), "trace-2", command.payload())).status()),
+                () -> assertEquals("KNOWLEDGE_POINT_REQUIRED", unready.publish(access,
+                        new LearningEventCommand("evt-3", 7L, NOW, null, KnowledgePointRef.none(), "trace-3", command.payload())).reason()),
+                () -> verifyNoInteractions(core));
+    }
+
+    @Test void readyPublisherMapsCoreOutcomesWithoutLeakingDatabaseDetails() {
+        EventIngestionCore core = mock(EventIngestionCore.class);
+        EventPublishContext access = new EventPublishContext(7L, ActorKind.USER, 7L, null, SourceModule.M1,
+                Purpose.PUBLISH_LEARNING_EVENT, "req-1");
+        PolicyEnforcedLearningEventPublisher publisher = new PolicyEnforcedLearningEventPublisher(
+                (a, c, r) -> new PlatformCapabilityPolicy.CapabilityDecision(true, "ALLOWED"),
+                new PlatformIntegrationReadiness(true), core, Clock.fixed(NOW, java.time.ZoneOffset.UTC));
+        LearningEventCommand command = payload(new LearningEventPayload.AnswerQuestion(true, 2, 10, 0, null));
+        when(core.ingest(any(), any())).thenReturn(new EventIngestionCore.IngestionResult("evt-1", false, "PENDING", NOW),
+                new EventIngestionCore.IngestionResult("evt-1", false, "QUARANTINED", NOW),
+                new EventIngestionCore.IngestionResult("evt-1", true, "PENDING", NOW));
+        assertEquals(EventPublishOutcome.Status.ACCEPTED, publisher.publish(access, command).status());
+        assertEquals(EventPublishOutcome.Status.QUARANTINED, publisher.publish(access, command).status());
+        assertEquals(EventPublishOutcome.Status.DUPLICATE, publisher.publish(access, command).status());
+        doThrow(new com.treepeople.leapmindtts.exception.M6ApiException(
+                org.springframework.http.HttpStatus.CONFLICT, "PROFILE_IDEMPOTENCY_CONFLICT", "internal conflict"))
+                .when(core).ingest(any(), any());
+        assertEquals(EventPublishOutcome.Status.CONFLICT, publisher.publish(access, command).status());
+        doThrow(new org.springframework.dao.DataAccessResourceFailureException("database secret"))
+                .when(core).ingest(any(), any());
+        EventPublishOutcome degraded = publisher.publish(access, command);
+        assertAll(() -> assertEquals(EventPublishOutcome.Status.REJECTED, degraded.status()),
+                () -> assertEquals("PROFILE_SERVICE_DEGRADED", degraded.reason()), () -> verify(core, times(5)).ingest(any(), any()));
+    }
+
+    @Test void realContextProviderUsesTheSharedCoreAndClipsEveryScene() {
+        ProfileReadCore core = mock(ProfileReadCore.class);
+        ProfileAccessContext access = new ProfileAccessContext(7L, ActorKind.USER, 7L, null, SourceModule.M8,
+                Purpose.READ_SCENE_CONTEXT, "req-1");
+        PolicyEnforcedProfileContextProvider provider = new PolicyEnforcedProfileContextProvider(
+                (a, c, r) -> new PlatformCapabilityPolicy.CapabilityDecision(true, "ALLOWED"),
+                new PlatformIntegrationReadiness(true), core);
+        var knowledge = new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.KnowledgeContext(9L, null, "AVAILABLE",
+                BigDecimal.valueOf(.4), "WEAK", BigDecimal.valueOf(.5), "DECLINING", 2L);
+        var full = new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.FullProfile(7L, "READY", null, 2L,
+                "grade-7", List.of("text"), "concise", "slow", List.of(new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.RecentFocus(9L, BigDecimal.ONE)),
+                List.of(new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.RecentConfusion(9L, "detail", 1L, BigDecimal.ONE, NOW)),
+                "summary", BigDecimal.ONE, "alg-1", NOW, NOW, List.of(knowledge));
+        when(core.full(7L)).thenReturn(full);
+        when(core.scene(7L, "explaining", 9L)).thenReturn(new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.ExplainingSummary(7L, "explaining", "READY", null, 2L, NOW, "grade-7", knowledge, List.of(), List.of("text"), "concise", "slow"));
+        when(core.scene(7L, "lecturing", null)).thenReturn(new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.LecturingSummary(7L, "lecturing", "READY", null, 2L, NOW, "grade-7", null, List.of(knowledge), List.of(), List.of("text"), "slow"));
+        when(core.scene(7L, "conversation", null)).thenReturn(new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.ConversationSummary(7L, "conversation", "READY", null, 2L, NOW, null, List.of(), List.of("text"), "concise"));
+        assertAll(
+                () -> assertEquals(1, provider.practice(access, new PracticeContextRequest(List.of(new KnowledgePointRef.Resolved(9L)))).knowledgeStatuses().size()),
+                () -> assertEquals("grade-7", provider.lessonPrep(access, new LessonPrepContextRequest(List.of())).grade()),
+                () -> assertEquals("concise", provider.explaining(access, new ExplainingContextRequest(new KnowledgePointRef.Resolved(9L))).preferredExplanationStyle()),
+                () -> assertEquals(1, provider.lecturing(access, new LecturingContextRequest(KnowledgePointRef.none())).weakKnowledgePoints().size()),
+                () -> assertEquals("concise", provider.conversation(access, new ConversationContextRequest(KnowledgePointRef.none())).preferredExplanationStyle()),
+                () -> verify(core, atLeastOnce()).full(7L));
+    }
+
+    @Test void responseByteBudgetDegradesWithoutReturningFacts() {
+        ProfileReadCore core = mock(ProfileReadCore.class);
+        ProfileAccessContext access = new ProfileAccessContext(7L, ActorKind.USER, 7L, null, SourceModule.M8,
+                Purpose.READ_SCENE_CONTEXT, "req-1");
+        PolicyEnforcedProfileContextProvider provider = new PolicyEnforcedProfileContextProvider(
+                (a, c, r) -> new PlatformCapabilityPolicy.CapabilityDecision(true, "ALLOWED"),
+                new PlatformIntegrationReadiness(true), core, 1);
+        when(core.scene(7L, "explaining", 9L)).thenReturn(new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.ExplainingSummary(
+                7L, "explaining", "READY", null, 2L, NOW, "grade-7", null, List.of(), List.of(), "concise", "slow"));
+        ExplainingProfileContext result = provider.explaining(access, new ExplainingContextRequest(new KnowledgePointRef.Resolved(9L)));
+        assertAll(() -> assertEquals(ProfileContextStatus.DEGRADED, result.profileStatus()),
+                () -> assertEquals(ProfileAvailability.UNAVAILABLE, result.availability()),
+                () -> assertNull(result.grade()), () -> assertNull(result.knowledgeContext()));
     }
 
     @Test void engineRejectsUnresolvedAndOutOfWindowEventsAndOmitsNullOptionals() throws Exception {

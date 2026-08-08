@@ -70,10 +70,11 @@ class M6LearningEventPolicyTest {
     }
 
     @Test void rejectsSensitiveKeysAndOnlyStructuredSensitiveValues() throws Exception {
-        assertThrows(M6ApiException.class, () -> LearningEventPolicy.validate(event("answer_question", "M1",
-                "{\"isCorrect\":true,\"difficulty\":3,\"timeSpentSec\":10,\"hintCount\":0,\"access_token\":\"harmless\"}", null)));
-        assertThrows(M6ApiException.class, () -> LearningEventPolicy.validate(event("answer_question", "M1",
-                "{\"isCorrect\":true,\"difficulty\":3,\"timeSpentSec\":10,\"hintCount\":0,\"token\":\"harmless\"}", null)));
+        for (String key : List.of("access_token", "token", "phone", "mobile", "phoneNumber", "phone_number")) {
+            M6ApiException error = assertThrows(M6ApiException.class, () -> LearningEventPolicy.validate(event("answer_question", "M1",
+                    "{\"isCorrect\":true,\"difficulty\":3,\"timeSpentSec\":10,\"hintCount\":0,\"" + key + "\":\"harmless\"}", null)));
+            assertEquals("data", error.getDetails().get(0).field());
+        }
         for (String topic : List.of(
                 "Bearer abcdefghijklmnopqrstuvwxyz0123456789",
                 "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signaturevalue",
