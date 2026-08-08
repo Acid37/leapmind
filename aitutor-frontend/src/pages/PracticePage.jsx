@@ -70,6 +70,7 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const completionReportedRef = useRef("");
   const autoStartRef = useRef(false);
+  const isMistakeRedoMode = mode === "MISTAKE_REDO";
 
   // --- 会话状态 ---
   const [session, setSession] = useState(null);
@@ -90,6 +91,10 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
 
   // --- 持久化：每次状态变化写入 localStorage ---
   useEffect(() => {
+    if (isMistakeRedoMode) {
+      localStorage.removeItem(SESSION_KEY);
+      return;
+    }
     if (session && Object.keys(answers).length > 0) {
       const completed = session.questions.every((question) => answers[question.questionId]?.submitted);
       if (completed) {
@@ -104,13 +109,13 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
         }));
       } catch { /* quota exceeded, ignore */ }
     }
-  }, [session, currentIndex, answers]);
+  }, [session, currentIndex, answers, isMistakeRedoMode]);
 
   // --- 初始化会话 ---
   useEffect(() => {
     // 检查是否有未完成的会话
     try {
-      const shouldAutoStart = mode === "MISTAKE_REDO"
+      const shouldAutoStart = isMistakeRedoMode
         && initialParams.autoStart
         && Array.isArray(initialParams.questionIds)
         && initialParams.questionIds.length > 0;
@@ -276,14 +281,14 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
   };
 
   useEffect(() => {
-    const shouldAutoStart = mode === "MISTAKE_REDO"
+    const shouldAutoStart = isMistakeRedoMode
       && initialParams.autoStart
       && Array.isArray(initialParams.questionIds)
       && initialParams.questionIds.length > 0;
     if (!shouldAutoStart || autoStartRef.current) return;
     autoStartRef.current = true;
     initSession();
-  }, [mode, initialParams.autoStart, initialParams.questionIds]);
+  }, [isMistakeRedoMode, initialParams.autoStart, initialParams.questionIds]);
 
   const openSessionSetup = () => {
     localStorage.removeItem(SESSION_KEY);
