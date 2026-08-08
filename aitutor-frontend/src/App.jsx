@@ -21,6 +21,9 @@ import QuestionBankPage from './pages/QuestionBankPage.jsx';
 import WrongQuestionBookPage from './pages/WrongQuestionBookPage.jsx';
 import StatisticsPage from './pages/StatisticsPage.jsx';
 import RankingPage from './pages/RankingPage.jsx';
+import WeakPointListPage from './pages/m3/WeakPointListPage';
+import WeakPointDetailPage from './pages/m3/WeakPointDetailPage';
+import KnowledgeGraphPage from './pages/m3/KnowledgeGraphPage';
 import { hasValidToken } from './utils/tokenManager';
 import { checkAuth } from './services/authService';
 
@@ -39,6 +42,8 @@ export default function App() {
     const [m4InitialText, setM4InitialText] = useState(''); // M4 搜索栏带入的初始内容
     const [m1Page, setM1Page] = useState(null); // null | practice | question-bank | mistakes | statistics | ranking
     const [m1PracticeParams, setM1PracticeParams] = useState({}); // M1 做题页参数（mode/lessonId 等）
+    const [m3Page, setM3Page] = useState(null); // null | 'list' | 'detail'
+    const [m3Params, setM3Params] = useState({}); // 传递给 M3 页面的参数
 
     useEffect(() => {
         const checkSession = async () => {
@@ -196,6 +201,42 @@ export default function App() {
                 <ExplainPage onBack={() => { const from = m2Params.from; setM2Params(from === 'explain-history' ? { from: 'explain' } : {}); setM2Page(from === 'explain-history' ? 'explain-history' : null); }} wrongQuestionId={m2Params.wrongQuestionId} replayId={m2Params.replayId} onExplainHistory={() => { setM2Params({ from: 'explain' }); setM2Page('explain-history'); }} />
             ) : m2Page === 'explain-history' ? (
                 <ExplainHistoryPage onBack={m2Params.from === 'explain' ? () => { setM2Params({}); setM2Page('explain'); } : () => setM2Page(null)} onReplay={(id) => { setM2Params({ replayId: id, from: 'explain-history' }); setM2Page('explain'); }} />
+            ) : m3Page === 'list' ? (
+                <WeakPointListPage
+                    onBack={() => setM3Page(null)}
+                    onDetail={(item) => { setM3Params({ item }); setM3Page('detail'); }}
+                    onPractice={(item) => { setM3Page(null); handleLaunchM1({ mode: 'WEAK_POINT_PRACTICE', kpId: item.id }); }}
+                />
+            ) : m3Page === 'detail' ? (
+                <WeakPointDetailPage
+                    item={m3Params.item}
+                    onBack={() => setM3Page('list')}
+                    onPractice={(it) => { setM3Page(null); handleLaunchM1({ mode: 'WEAK_POINT_PRACTICE', kpId: it.id }); }}
+                    onExplain={(err) => { setM3Page(null); setM2Params({}); setM2Page('explain'); }}
+                />
+            ) : m3Page === 'knowledge-graph' ? (
+                <KnowledgeGraphPage
+                    onBack={() => setM3Page(null)}
+                    onViewDetail={(node) => {
+                        // 图谱节点 → 详情页（节点只有 name/masteryRate/weaknessLevel/group，组装为薄弱点对象）
+                        const kp = {
+                            id: node.id ?? node.name,
+                            knowledgePoint: node.name,
+                            subject: node.group || node.subject || '',
+                            weaknessLevel: node.weaknessLevel,
+                            accuracyRate: node.masteryRate ?? 0,
+                            totalCount: 0,
+                            errorCount: 0,
+                        }
+                        setM3Params({ item: kp });
+                        setM3Page('detail');
+                    }}
+                    onPractice={(node) => {
+                        // 双击节点 → 跳 M1 做题
+                        setM3Page(null);
+                        handleLaunchM1({ mode: 'WEAK_POINT_PRACTICE', knowledgePoint: node.name });
+                    }}
+                />
             ) : currentCourseId ? (
                       <LecturePage2 courseId={currentCourseId} onBack={() => setCurrentCourseId('')} />
             ) : learningProfileView === 'detail' ? (
@@ -224,6 +265,8 @@ export default function App() {
                         onOpenLearningProfile={handleOpenLearningProfile}
                         onM1Practice={handleLaunchM1}
                         onM4Lecture={handleLaunchM4}
+                        onM3WeakPoints={() => setM3Page('list')}
+                        onM3KnowledgeGraph={() => setM3Page('knowledge-graph')}
                     />
                 )
             )}
