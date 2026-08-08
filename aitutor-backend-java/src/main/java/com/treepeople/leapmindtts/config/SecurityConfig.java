@@ -74,10 +74,14 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").permitAll()
                         // 允许访问管理后台审核接口
                         .requestMatchers("/admin/review/**").permitAll()
-// 允许访问备课接口（PPT模板管理、备课内容管理）
+	// 允许访问备课接口（PPT模板管理、备课内容管理）
                         .requestMatchers("/api/lesson-prep/**").permitAll()
                         // 允许访问流式对话和打断接口
                         .requestMatchers("/api/conversation/**").permitAll()
+                        // M6 事件上报接口：各模块后端直接调用（非前端发起，无用户 JWT）
+                        // M1/M2/M3/M4/M7 后端服务通过此接口向画像引擎提交学习事件
+                        .requestMatchers(HttpMethod.POST, "/api/user-profile/*/record-event").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/user-profile/*/batch-events").permitAll()
                         // Actuator 监控端点（本地/内网监控验证；生产建议收紧或加独立管理端口鉴权）
                         .requestMatchers("/actuator/**").permitAll()
                         // 语音合成和音频相关接口需要认证
