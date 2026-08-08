@@ -212,12 +212,29 @@ springdoc:
     operations-sorter: alpha
   default-flat-param-object: true
 
-# Python AI 薄弱点分析服务配置
+# Python AI 薄弱点分析服务配置（LandPPT 服务，提供 AI 综合分析能力）
 weak-point:
   python-service:
     base-url: http://localhost:8000
     analyze-endpoint: /api/weak-points/analyze
     timeout: 30
+  # M3 薄弱点计算引擎（独立微服务，提供薄弱度计算/推荐/知识图谱/增量更新）
+  # ⚠️ 部署注意：localhost 适用于 Java 本地运行 + docker 端口映射场景。
+  #   如果 Java 也容器化（同 compose 网络），改为 http://m3-engine:8001
+  m3-engine:
+    base-url: http://localhost:8001
+    recommend-endpoint: /api/weak-points/recommend-questions
+    knowledge-graph-endpoint: /api/weak-points/knowledge-graph
+    incremental-update-endpoint: /api/weak-points/incremental-update
+    timeout: 30
+
+# M6 事件采集服务配置（薄弱点变化事件上报）
+event-collection:
+  enabled: true
+  base-url: http://192.168.1.19:8080
+  collect-endpoint: /api/events/collect
+  timeout: 10
+  max-retries: 1
 
 # Knife4j 美化文档
 knife4j:

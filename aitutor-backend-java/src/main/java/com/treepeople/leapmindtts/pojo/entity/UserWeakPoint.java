@@ -24,6 +24,9 @@ public class UserWeakPoint {
     @TableField("user_id")
     private Long userId;
 
+    @TableField("kp_id")
+    private Long kpId;
+
     @TableField("knowledge_point")
     private String knowledgePoint;
 
@@ -33,17 +36,38 @@ public class UserWeakPoint {
     @TableField("weakness_level")
     private String weaknessLevel;
 
+    @TableField("weakness_score")
+    private java.math.BigDecimal weaknessScore;
+
     @TableField("error_count")
     private Integer errorCount;
 
     @TableField("total_count")
     private Integer totalCount;
 
+    @TableField("total_attempts")
+    private Integer totalAttempts;
+
     @TableField("accuracy_rate")
     private java.math.BigDecimal accuracyRate;
 
+    @TableField("error_rate")
+    private java.math.BigDecimal errorRate;
+
+    @TableField("recent_correct_rate")
+    private java.math.BigDecimal recentCorrectRate;
+
+    @TableField("confusion_count")
+    private Integer confusionCount;
+
+    @TableField("trend")
+    private String trend;
+
     @TableField("last_error_time")
     private LocalDateTime lastErrorTime;
+
+    @TableField("last_error_at")
+    private LocalDateTime lastErrorAt;
 
     @TableField("status")
     private String status;
@@ -56,6 +80,9 @@ public class UserWeakPoint {
 
     @TableField("analyzed_at")
     private LocalDateTime analyzedAt;
+
+    @TableField("calculated_at")
+    private LocalDateTime calculatedAt;
 
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
