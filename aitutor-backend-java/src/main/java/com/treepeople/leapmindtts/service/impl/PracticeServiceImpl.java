@@ -422,6 +422,26 @@ public class PracticeServiceImpl implements PracticeService {
     }
 
     @Override
+    @Transactional
+    public Map<String, Object> deleteMistakes(Long userId, List<Long> mistakeIds) {
+        List<Long> ids = mistakeIds == null ? List.of() : mistakeIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (ids.isEmpty()) {
+            throw new IllegalArgumentException("mistake ids must not be empty");
+        }
+        int deleted = mistakeMapper.delete(new QueryWrapper<PracticeMistake>()
+                .eq("user_id", userId)
+                .in("id", ids));
+        Map<String, Object> result = new HashMap<>();
+        result.put("requested", ids.size());
+        result.put("deleted", deleted);
+        result.put("missing", Math.max(0, ids.size() - deleted));
+        return result;
+    }
+
+    @Override
     public Map<String, Object> createMistakeRedoSession(Long userId, List<Long> mistakeIds) {
         QueryWrapper<PracticeMistake> wrapper = new QueryWrapper<PracticeMistake>()
                 .eq("user_id", userId)

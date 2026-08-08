@@ -8,14 +8,19 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
+import org.apache.poi.util.Units;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PracticeQuestionImportParserTest {
 
@@ -89,6 +94,70 @@ class PracticeQuestionImportParserTest {
 
         assertEquals(1, questions.size());
         assertEquals("若 f(x)=x²，求 f'(3)。", questions.get(0).getContent());
+    }
+
+    @Test
+    void importsNaturalExamDocxWithoutTemplateHeaders() throws Exception {
+        byte[] bytes;
+        try (XWPFDocument document = new XWPFDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            document.createParagraph().createRun().setText("八升九数学综合能力测试卷");
+            document.createParagraph().createRun().setText("一、选择题（本大题共2小题）");
+            document.createParagraph().createRun().setText("1. 下列二次根式中，与 sqrt(12) 是同类二次根式的是（　　）");
+            document.createParagraph().createRun().setText("A. sqrt(3)　　B. sqrt(5)　　C. sqrt(7)　　D. sqrt(11)");
+            document.createParagraph().createRun().setText("2. 下列条件中，能判定一个四边形是平行四边形的是（　　）");
+            document.createParagraph().createRun().setText("A. 一组对边相等　　B. 一组对边平行　　C. 两条对角线互相平分　　D. 两条对角线相等");
+            document.createParagraph().createRun().setText("二、填空题（本大题共1小题）");
+            document.createParagraph().createRun().setText("3. 计算：2 + 3 = ________。");
+            document.write(output);
+            bytes = output.toByteArray();
+        }
+
+        List<PracticeQuestion> questions = parser.parse(new MockMultipartFile("file", "exam.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes));
+
+        assertEquals(3, questions.size());
+        assertEquals("SINGLE_CHOICE", questions.get(0).getQuestionType());
+        assertEquals("FILL_BLANK", questions.get(2).getQuestionType());
+        assertEquals("DISABLED", questions.get(0).getStatus());
+    }
+
+    @Test
+    void importsDocxMathLettersAndPicturePlaceholders() throws Exception {
+        byte[] bytes;
+        try (XWPFDocument document = new XWPFDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            document.createParagraph().createRun().setText("1. 如图，已知 ");
+            document.getParagraphs().get(0).getCTP().set(CTP.Factory.parse("""
+                    <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                         xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+                      <w:r><w:t>1. 如图，已知 </w:t></w:r>
+                      <m:oMath>
+                        <m:sSup>
+                          <m:e><m:r><m:t>x</m:t></m:r></m:e>
+                          <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+                        </m:sSup>
+                      </m:oMath>
+                      <w:r><w:t> + AB = 0，求 AB。</w:t></w:r>
+                    </w:p>
+                    """));
+            byte[] png = Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=");
+            document.createParagraph().createRun().addPicture(
+                    new ByteArrayInputStream(png),
+                    org.apache.poi.xwpf.usermodel.Document.PICTURE_TYPE_PNG,
+                    "figure.png",
+                    Units.toEMU(16),
+                    Units.toEMU(16));
+            document.write(output);
+            bytes = output.toByteArray();
+        }
+
+        List<PracticeQuestion> questions = parser.parse(new MockMultipartFile("file", "rich.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes));
+
+        assertEquals(1, questions.size());
+        String content = questions.get(0).getContent();
+        assertTrue(content.contains("$x^2$"), content);
+        assertTrue(content.contains("AB"), content);
+        assertTrue(content.contains("[image1]"), content);
     }
 
     @Test
