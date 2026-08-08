@@ -501,7 +501,7 @@ export default function SlideRenderer({
 
       {/* 主体幻灯片 */}
       <div
-        className="flex-1 min-h-0 flex items-center justify-center p-2 overflow-hidden relative"
+        className="flex-1 min-h-0 flex items-center justify-center p-3 sm:p-4 overflow-hidden relative"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -510,7 +510,7 @@ export default function SlideRenderer({
           className="relative bg-white shadow-2xl rounded-lg overflow-hidden"
           style={{
             aspectRatio: '16 / 9',
-            width: 'min(100%, calc((100vh - 8rem) * 16 / 9))',
+            width: 'min(100%, calc((100dvh - 9rem) * 16 / 9))',
             transition: transition !== 'none' ? 'transform 0.3s ease, opacity 0.3s ease' : 'none',
             ...animStyle,
           }}

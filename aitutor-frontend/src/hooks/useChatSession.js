@@ -1,6 +1,39 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { askStream, interrupt, getSession, ChatError } from '../services/chatService';
 
+const LEGACY_STORAGE_KEY = 'chatSessionId';
+
+/**
+ * 每个学习场景拥有独立会话：同一题/同一堂课可在刷新后恢复，
+ * 但做题、讲题、讲课、备课之间绝不能互相复用上下文。
+ */
+function getSessionResourceId(sceneType, context = {}) {
+  return {
+    doing_exercise: context.questionId,
+    explaining: context.wrongQuestionId,
+    teaching: context.lectureId,
+    lesson_prep: context.prepId,
+  }[sceneType] ?? null;
+}
+
+function getSessionStorageKey(userId, sceneType, resourceId) {
+  return `chatSessionId:${userId ?? 'anonymous'}:${sceneType || 'general_qa'}:${resourceId ?? 'default'}`;
+}
+
+function isMatchingSession(session, userId, sceneType, resourceId) {
+  if (!session || String(session.userId) !== String(userId) || session.sceneType !== sceneType) return false;
+
+  const keyByScene = {
+    doing_exercise: 'questionId',
+    explaining: 'wrongQuestionId',
+    teaching: 'lectureId',
+    lesson_prep: 'prepId',
+  };
+  const resourceKey = keyByScene[sceneType];
+
+  return !resourceKey || String(session.context?.[resourceKey] ?? '') === String(resourceId ?? '');
+}
+
 /**
  * ChatPanel 对话状态管理 Hook
  *
@@ -33,7 +66,10 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
   // 对话状态机（对齐 M7 对接文档）：idle / thinking / content / error / interrupted
   const [phase, setPhase] = useState('idle');
   const [sessionId, setSessionId] = useState(null);
+  const [sessionStorageKey, setSessionStorageKey] = useState(null);
   const [error, setError] = useState(null);
+  const resourceId = getSessionResourceId(sceneType, context);
+  const storageKey = getSessionStorageKey(userId, sceneType, resourceId);
 
   // 保存最后一次请求参数，用于 retry
   const lastQuestionRef = useRef(null);
@@ -46,12 +82,25 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
 
   // -------- 初始化：尝试恢复会话 --------
   useEffect(() => {
-    if (!autoRestore) return;
-    const savedSessionId = localStorage.getItem('chatSessionId');
+    let cancelled = false;
+    setMessages([]);
+    setSessionId(null);
+    setSessionStorageKey(null);
+    setError(null);
+
+    if (!autoRestore) return () => { cancelled = true; };
+
+    const savedSessionId = localStorage.getItem(storageKey);
     if (savedSessionId) {
       getSession(savedSessionId)
         .then(session => {
+          if (cancelled) return;
+          if (!isMatchingSession(session, userId, sceneType, resourceId)) {
+            localStorage.removeItem(storageKey);
+            return;
+          }
           setSessionId(session.sessionId);
+          setSessionStorageKey(storageKey);
           const restored = (session.messages || []).map(msg => ({
             role: msg.role,
             content: msg.content,
@@ -60,17 +109,18 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
         })
         .catch(() => {
           // 恢复失败，清除旧 session
-          localStorage.removeItem('chatSessionId');
+          localStorage.removeItem(storageKey);
         });
     }
-  }, [autoRestore]);
+    return () => { cancelled = true; };
+  }, [autoRestore, storageKey, userId, sceneType, resourceId]);
 
   // -------- 持久化 sessionId --------
   useEffect(() => {
-    if (sessionId) {
-      localStorage.setItem('chatSessionId', sessionId);
+    if (sessionId && sessionStorageKey === storageKey) {
+      localStorage.setItem(storageKey, sessionId);
     }
-  }, [sessionId]);
+  }, [sessionId, sessionStorageKey, storageKey]);
 
   // -------- 立即切断当前 SSE 流（⚠️ 致命切断点：终端事件必须主动 cancel） --------
   // fetch 本身不会自动重连，天然安全；此处统一封装，若未来切换 @microsoft/fetch-event-source
@@ -177,6 +227,7 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
           //    收到即保存，后续追问必须携带该 ID
           if (value.sessionId) {
             setSessionId(value.sessionId);
+            setSessionStorageKey(storageKey);
           }
 
           if (value.type === 'thinking') {
@@ -234,7 +285,7 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
       });
     }
     read();
-  }, [userId, sessionId, sceneType, context, applyContent, dropEmptyPlaceholder, finalizeMessage, finishGenerating, stopStream]);
+  }, [userId, sessionId, sceneType, context, storageKey, applyContent, dropEmptyPlaceholder, finalizeMessage, finishGenerating, stopStream]);
 
   // -------- 打断（用户点击"停止生成"） --------
   const abort = useCallback(() => {
@@ -284,10 +335,13 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
     setPhase('idle');
     setMessages([]);
     setSessionId(null);
+    setSessionStorageKey(null);
     setError(null);
     bufferRef.current = '';
-    localStorage.removeItem('chatSessionId');
-  }, [stopStream]);
+    localStorage.removeItem(storageKey);
+    // 旧版全局键可能指向任意模块的历史；绝不迁移，直接丢弃。
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+  }, [storageKey, stopStream]);
 
   // isGenerating 派生自状态机（thinking/content 视为正在生成），保持对外兼容
   const isGenerating = phase === 'thinking' || phase === 'content';

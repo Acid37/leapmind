@@ -13,7 +13,8 @@ export default function AskMoreButton({ questionContext }) {
   const content = questionContext?.questionContent
   const context = questionContext
     ? {
-        questionId: questionContext.questionId || questionContext.id,
+        // explaining 场景按错题/讲解记录隔离会话，不能退化成全局 default。
+        wrongQuestionId: questionContext.questionId || questionContext.id,
         stem: content?.stem,
         options: content?.options,
         relatedKpId: questionContext.knowledgePoints?.[0]?.id,
