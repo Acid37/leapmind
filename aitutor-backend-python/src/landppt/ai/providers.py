@@ -31,23 +31,28 @@ class OpenAIProvider(AIProvider):
         """Generate chat completion using OpenAI"""
         if not self.client:
             raise RuntimeError("OpenAI client not available")
-        
+
         config = self._merge_config(**kwargs)
-        
+
         # Convert messages to OpenAI format
         openai_messages = [
             {"role": msg.role.value, "content": msg.content}
             for msg in messages
         ]
-        
+
+        # [P0质量] 构建 API 参数
+        api_params = {
+            "model": config.get("model", self.model),
+            "messages": openai_messages,
+            "temperature": config.get("temperature", 0.4),
+            "top_p": config.get("top_p", 1.0),
+        }
+        # [P0质量] JSON 模式：强制 AI 输出合法 JSON（消除 markdown 代码块包裹等问题）
+        if config.get("json_mode"):
+            api_params["response_format"] = {"type": "json_object"}
+
         try:
-            response = await self.client.chat.completions.create(
-                model=config.get("model", self.model),
-                messages=openai_messages,
-                # max_tokens=config.get("max_tokens", 2000),
-                temperature=config.get("temperature", 0.7),
-                top_p=config.get("top_p", 1.0)
-            )
+            response = await self.client.chat.completions.create(**api_params)
             
             choice = response.choices[0]
             
@@ -94,15 +99,20 @@ class OpenAIProvider(AIProvider):
             for msg in messages
         ]
 
+        # [P0质量] 构建 API 参数
+        api_params = {
+            "model": config.get("model", self.model),
+            "messages": openai_messages,
+            "temperature": config.get("temperature", 0.4),
+            "top_p": config.get("top_p", 1.0),
+            "stream": True,
+        }
+        # [P0质量] JSON 模式：强制 AI 输出合法 JSON
+        if config.get("json_mode"):
+            api_params["response_format"] = {"type": "json_object"}
+
         try:
-            stream = await self.client.chat.completions.create(
-                model=config.get("model", self.model),
-                messages=openai_messages,
-                # max_tokens=config.get("max_tokens", 2000),
-                temperature=config.get("temperature", 0.7),
-                top_p=config.get("top_p", 1.0),
-                stream=True
-            )
+            stream = await self.client.chat.completions.create(**api_params)
 
             async for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
@@ -156,7 +166,7 @@ class AnthropicProvider(AIProvider):
             response = await self.client.messages.create(
                 model=config.get("model", self.model),
                 # max_tokens=config.get("max_tokens", 2000),
-                temperature=config.get("temperature", 0.7),
+                temperature=config.get("temperature", 0.4),
                 system=system_message,
                 messages=claude_messages
             )
@@ -226,7 +236,7 @@ class GoogleProvider(AIProvider):
             # 确保max_tokens不会太小，至少1000个token用于生成内容
             max_tokens = max(config.get("max_tokens", 16384), 1000)
             generation_config = {
-                "temperature": config.get("temperature", 0.7),
+                "temperature": config.get("temperature", 0.4),
                 "top_p": config.get("top_p", 1.0),
                 # "max_output_tokens": max_tokens,
             }
@@ -369,7 +379,7 @@ class OllamaProvider(AIProvider):
                 model=config.get("model", self.model),
                 messages=ollama_messages,
                 options={
-                    "temperature": config.get("temperature", 0.7),
+                    "temperature": config.get("temperature", 0.4),
                     "top_p": config.get("top_p", 1.0),
                     # "num_predict": config.get("max_tokens", 2000)
                 }

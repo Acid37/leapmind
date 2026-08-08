@@ -4,6 +4,10 @@ Validation pipeline — routes validation calls by output_type.
 Each output type (syllabus, slide, narration) has a list of validators
 that run sequentially. The pipeline collects results and can optionally
 auto-fix where supported.
+
+[Layer 1] QualityGuard: 硬性指标检测（零成本纯 Python 检查）
+[Layer 2] SchemaValidator: JSON Schema 结构校验 + auto-fix
+[Layer 3] NarrationValidator: 讲稿口语化/时长/一致性检测
 """
 import logging
 from dataclasses import dataclass, field
@@ -11,6 +15,7 @@ from typing import Any, Optional
 
 from .schema_validator import SchemaValidator, ValidationConfig, ValidationResult
 from .narration_validator import NarrationValidator, ValidationReport
+from .quality_guard import QualityGuard, QualityReport
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +29,18 @@ class PipelineResult:
     overall_score: float = 1.0
     warnings: list[str] = field(default_factory=list)
     fixes_applied: list[str] = field(default_factory=list)
+    quality_report: Optional[QualityReport] = None  # [Layer 1] 硬性指标报告
 
     def merge(self, other: "PipelineResult") -> "PipelineResult":
         """Merge two pipeline results (for final combined check)."""
+        merged_quality = None
+        if self.quality_report and other.quality_report:
+            merged_quality = self.quality_report.merge(other.quality_report)
+        elif self.quality_report:
+            merged_quality = self.quality_report
+        else:
+            merged_quality = other.quality_report
+
         return PipelineResult(
             passed=self.passed and other.passed,
             output_type=f"{self.output_type}+{other.output_type}",
@@ -34,6 +48,7 @@ class PipelineResult:
             overall_score=(self.overall_score + other.overall_score) / 2,
             warnings=self.warnings + other.warnings,
             fixes_applied=self.fixes_applied + other.fixes_applied,
+            quality_report=merged_quality,
         )
 
 
@@ -54,6 +69,7 @@ class ValidationPipeline:
             config=ValidationConfig(auto_fix=auto_fix)
         )
         self.narration_validator = NarrationValidator()
+        self.quality_guard = QualityGuard()  # [Layer 1] 硬性指标检测
 
     async def validate(
         self,
@@ -74,8 +90,17 @@ class ValidationPipeline:
         results: list = []
         fixes: list[str] = []
         warnings: list[str] = []
+        quality_report: Optional[QualityReport] = None  # [Layer 1] 硬性指标报告
 
         if output_type == "syllabus":
+            # [Layer 1] 硬性指标检测
+            quality_report = self.quality_guard.check_syllabus(data)
+            if quality_report.issues:
+                warnings.extend(quality_report.issues)
+            if quality_report.is_blocking:
+                warnings.extend(quality_report.blocking_issues)
+
+            # [Layer 2] Schema 校验
             result = self.schema_validator.validate(data, "lesson_plan")
             results.append(result)
             if result.fixes_applied:
@@ -94,6 +119,7 @@ class ValidationPipeline:
                 )
 
         elif output_type == "slide":
+            # [Layer 2] Schema 校验（单页 slide 不做硬性指标，整体 ppt_structure 才做）
             result = self.schema_validator.validate(data, "slide")
             results.append(result)
             if result.fixes_applied:
@@ -104,6 +130,17 @@ class ValidationPipeline:
                 )
 
         elif output_type == "ppt_structure":
+            # [Layer 1] 硬性指标检测（支持裸数组或 {slides: [...]} 格式）
+            slides_to_check = data
+            if isinstance(data, dict) and "slides" in data:
+                slides_to_check = data["slides"]
+            quality_report = self.quality_guard.check_slides(slides_to_check)
+            if quality_report.issues:
+                warnings.extend(quality_report.issues)
+            if quality_report.is_blocking:
+                warnings.extend(quality_report.blocking_issues)
+
+            # [Layer 2] Schema 校验
             result = self.schema_validator.validate(data, "ppt_structure")
             results.append(result)
             if not result.passed:
@@ -136,15 +173,25 @@ class ValidationPipeline:
 
         elif output_type == "final":
             # Final combined check across all stages
-            syll_result = self.schema_validator.validate(data.get("syllabus", {}), "lesson_plan")
-            ppt_result = self.schema_validator.validate(data.get("slides", []), "ppt_structure")
+            syllabus_data = data.get("syllabus", {})
+            slides_data = data.get("slides", []) or []
 
-            # Count fallback slides
-            slides = data.get("slides", []) or []
+            # [Layer 1] 联合硬性指标检测
+            quality_report = self.quality_guard.check_final(syllabus_data, slides_data)
+            if quality_report.issues:
+                warnings.extend(quality_report.issues)
+            if quality_report.is_blocking:
+                warnings.extend(quality_report.blocking_issues)
+
+            # [Layer 2] Schema 校验
+            syll_result = self.schema_validator.validate(syllabus_data, "lesson_plan")
+            ppt_result = self.schema_validator.validate(slides_data, "ppt_structure")
+
+            # Count fallback slides（保留原有逻辑，QualityGuard 也会检测）
             fallback_count = sum(
-                1 for s in slides if isinstance(s, dict) and s.get("is_fallback")
+                1 for s in slides_data if isinstance(s, dict) and s.get("is_fallback")
             )
-            if fallback_count > 0:
+            if fallback_count > 0 and f"{fallback_count} 页为占位内容（生成失败）" not in warnings:
                 warnings.append(f"{fallback_count} 页为占位内容（生成失败）")
 
             # Count narration errors
@@ -183,6 +230,7 @@ class ValidationPipeline:
             overall_score=overall_score,
             warnings=warnings,
             fixes_applied=fixes,
+            quality_report=quality_report,
         )
 
     def get_fixed_data(self, output_type: str, data: Any, **context) -> Any:
