@@ -19,6 +19,7 @@ from .narration_validator import (
 )
 from .quality_guard import QualityGuard, QualityReport
 from .validation_pipeline import ValidationPipeline, PipelineResult
+from .llm_judge import LLMJudge, JudgeReport
 
 __all__ = [
     "LESSON_PLAN_SCHEMA",
@@ -38,4 +39,6 @@ __all__ = [
     "QualityReport",
     "ValidationPipeline",
     "PipelineResult",
+    "LLMJudge",
+    "JudgeReport",
 ]
