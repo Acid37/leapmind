@@ -6,9 +6,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
 import uvicorn
 import asyncio
 import logging
@@ -49,6 +51,15 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    """契约校验失败统一返回 400（profile-engine-contract.yaml 失败码）。"""
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Contract validation failed", "errors": jsonable_encoder(exc.errors())},
+    )
 
 
 @app.on_event("startup")

@@ -7,6 +7,9 @@ import com.treepeople.leapmindtts.pojo.result.ApiResponse;
 import com.treepeople.leapmindtts.pojo.vo.UserVO;
 import com.treepeople.leapmindtts.service.user.SmsVerificationCodeService;
 import com.treepeople.leapmindtts.service.user.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,7 @@ import java.io.IOException;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Tag(name = "Auth - 认证", description = "用户注册、登录、验证码、个人信息管理")
 public class UserAuthController {
 
     private final UserService userService;
@@ -40,8 +44,10 @@ public class UserAuthController {
      * @param request 注册请求
      * @return 注册结果
      */
+    @Operation(summary = "用户注册", description = "创建新用户账号，需提供用户名、密码、手机号等信息")
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserVO>> register(@RequestBody @Valid UserRegisterRequest request) {
+    public ResponseEntity<ApiResponse<UserVO>> register(
+            @Parameter(description = "注册请求体", required = true) @RequestBody @Valid UserRegisterRequest request) {
         log.info("用户注册，{}", request);
         try {
             UserVO userVO = userService.register(request);
@@ -59,6 +65,7 @@ public class UserAuthController {
      * @param request 登录请求 (用户名、密码)
      * @return 登录结果
      */
+    @Operation(summary = "用户登录", description = "使用用户名和密码登录，返回 JWT Token")
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody @Valid UserLoginRequest request) {
         log.info("用户登录，{}", request);
@@ -78,8 +85,10 @@ public class UserAuthController {
      * @param phoneNumber
      * @return
      */
+    @Operation(summary = "发送验证码", description = "向指定手机号发送短信验证码，用于验证码登录")
     @GetMapping("/login/sendCode")
-    public ResponseEntity<ApiResponse<String>> sendCode(@RequestParam String phoneNumber) {
+    public ResponseEntity<ApiResponse<String>> sendCode(
+            @Parameter(description = "手机号", required = true) @RequestParam String phoneNumber) {
         log.info("短信服务发送短信验证码成功：{}", phoneNumber);
         // 查询手机号是否存在
         User user = userService.existsByPhoneNumber(phoneNumber);
@@ -124,6 +133,7 @@ public class UserAuthController {
      * @param verifyCodeDTO
      * @return
      */
+    @Operation(summary = "验证码登录", description = "使用手机号和验证码进行免密登录")
     @PostMapping("/login/verifyCode")
     public ResponseEntity<ApiResponse<UserVO>> verifyCode(@RequestBody @Valid VerifyCodeDTO verifyCodeDTO) {
         Boolean result = smsVerificationCodeService.verifyCode(verifyCodeDTO);
@@ -149,6 +159,7 @@ public class UserAuthController {
      * @param request HTTP请求对象
      * @return 用户信息
      */
+    @Operation(summary = "获取个人信息", description = "获取当前登录用户的个人信息，需携带 JWT Token")
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<UserVO>> getProfile(HttpServletRequest request) {
         try {
@@ -174,6 +185,7 @@ public class UserAuthController {
      * @param updateRequest 更新请求
      * @return 更新结果
      */
+    @Operation(summary = "更新个人信息", description = "更新当前登录用户的姓名、学段、手机号等信息")
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<UserVO>> updateProfile(HttpServletRequest request,
                                                              @RequestBody @Valid UserUpdateRequest updateRequest) {

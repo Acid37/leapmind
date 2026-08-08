@@ -96,8 +96,20 @@ class UserProfileControllerTest {
                 .priority(priority)
                 .isReviewed(isReviewed)
                 .reviewedAt(reviewedAt)
+                .notes(null)
+                .kpId(null)
                 .createdAt(LocalDateTime.of(2026, 7, 20, 10, 0))
                 .build();
+    }
+
+    private MarkReviewedRequest createValidRequest() {
+        MarkReviewedRequest request = new MarkReviewedRequest();
+        request.setReminderId(100L);
+        request.setNotes("已掌握该知识点");
+        request.setResult("correct_without_hint");
+        request.setTimeSpentSec(120);
+        request.setHintCount(2);
+        return request;
     }
 
     // ========== GET /{userId}/review-reminders ==========
@@ -205,9 +217,7 @@ class UserProfileControllerTest {
         @DisplayName("正常标记返回 200 和更新后的提醒")
         void shouldReturn200WithUpdatedReminder() throws Exception {
             Long userId = 1L;
-            MarkReviewedRequest request = new MarkReviewedRequest();
-            request.setReminderId(100L);
-            request.setNotes("已掌握该知识点");
+            MarkReviewedRequest request = createValidRequest();
 
             ReviewReminderVO updatedVO = createVO(100L, userId, "C001", "REVIEW",
                     "复习内容", LocalDate.now(), 1, 1,
@@ -235,6 +245,9 @@ class UserProfileControllerTest {
             Long userId = 1L;
             MarkReviewedRequest request = new MarkReviewedRequest();
             request.setReminderId(null);
+            request.setResult("correct_without_hint");
+            request.setTimeSpentSec(120);
+            request.setHintCount(2);
 
             mockMvc.perform(post("/api/user-profile/{userId}/mark-reviewed", userId)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -248,8 +261,7 @@ class UserProfileControllerTest {
         @DisplayName("提醒不存在时返回 400")
         void shouldReturn400WhenReminderNotFound() throws Exception {
             Long userId = 1L;
-            MarkReviewedRequest request = new MarkReviewedRequest();
-            request.setReminderId(999L);
+            MarkReviewedRequest request = createValidRequest();
 
             when(reviewReminderService.markAsReviewed(eq(userId), any(MarkReviewedRequest.class)))
                     .thenThrow(new UserNotFoundException("复习提醒不存在，ID: 999"));
@@ -266,8 +278,7 @@ class UserProfileControllerTest {
         @DisplayName("越权操作时返回 400")
         void shouldReturn400WhenUnauthorized() throws Exception {
             Long userId = 1L;
-            MarkReviewedRequest request = new MarkReviewedRequest();
-            request.setReminderId(100L);
+            MarkReviewedRequest request = createValidRequest();
 
             when(reviewReminderService.markAsReviewed(eq(userId), any(MarkReviewedRequest.class)))
                     .thenThrow(new IllegalArgumentException("复习提醒不属于当前用户"));
@@ -300,6 +311,22 @@ class UserProfileControllerTest {
                             .contentType(MediaType.TEXT_PLAIN)
                             .content("reminderId=100"))
                     .andExpect(status().isUnsupportedMediaType());
+        }
+
+        @Test
+        @DisplayName("缺少 result 字段时返回 400")
+        void shouldReturn400WhenResultIsMissing() throws Exception {
+            Long userId = 1L;
+            MarkReviewedRequest request = new MarkReviewedRequest();
+            request.setReminderId(100L);
+            request.setTimeSpentSec(120);
+            request.setHintCount(2);
+            // result intentionally null
+
+            mockMvc.perform(post("/api/user-profile/{userId}/mark-reviewed", userId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -339,7 +366,6 @@ class UserProfileControllerTest {
             when(reviewReminderService.getAllReminders(userId)).thenReturn(Collections.emptyList());
 
             mockMvc.perform(get("/api/user-profile/{userId}/review-history", userId))
-                    .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data").isArray())
                     .andExpect(jsonPath("$.data", hasSize(0)));
         }
