@@ -51,7 +51,7 @@ import { getUserInfo } from "../utils/tokenManager";
 const SESSION_KEY = "m1_practice_session";
 const QUICK_COUNTS = [5, 10, 15, 20];
 
-export default function PracticePage({ onBack, onViewStatistics, embedded = false, mode = "FREE_PRACTICE", lessonId = "", initialParams = {} }) {
+export default function PracticePage({ onBack, onViewStatistics, onResetPracticeParams, embedded = false, mode = "FREE_PRACTICE", lessonId = "", initialParams = {} }) {
   // --- ChatPanel 状态 ---
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const userInfo = getUserInfo();
@@ -287,6 +287,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
 
   const openSessionSetup = () => {
     localStorage.removeItem(SESSION_KEY);
+    onResetPracticeParams?.();
     setHasSavedSession(false);
     setSession(null);
     setCurrentIndex(0);
