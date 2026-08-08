@@ -6,13 +6,18 @@ import {
   getLocalTeacherPreference,
 } from '@/services/virtualTeacherService.js';
 
-export default function CharacterViewer() {
+export default function CharacterViewer({ onReady, onError }) {
   const preference = getLocalTeacherPreference();
   const modelUrl = preference?.modelUrl ?? DEFAULT_TEACHER_AVATARS[2].modelUrl;
 
   return (
     <div className="absolute inset-0">
-      <VirtualTeacherViewer viewer={sharedViewer} modelUrl={modelUrl} />
+      <VirtualTeacherViewer
+        viewer={sharedViewer}
+        modelUrl={modelUrl}
+        onReady={onReady}
+        onError={onError}
+      />
     </div>
   );
 }
