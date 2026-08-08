@@ -523,14 +523,18 @@ export async function completeReviewReminder(reminderId, notes = '') {
 
 /**
  * 获取薄弱点模块给当前登录用户生成的练习建议。
- * 用户身份由 M1 后端从 JWT 解析，避免前端传入任意 userId。
+ * M3 推荐接口需要显式传入当前登录用户的 userId。
  */
 export async function getWeakPointRecommendations(params = {}) {
-  const query = {};
+  const userId = Number(params.userId);
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    throw new Error('当前登录信息缺少有效的 userId，请重新登录后再试');
+  }
+  const query = { userId };
   if (params.subject) query.subject = SUBJECT_REVERSE[params.subject] || params.subject;
   if (params.knowledgePoint) query.knowledgePoint = params.knowledgePoint;
   query.count = Math.max(1, Math.min(20, Number(params.count) || 5));
-  const res = await request('/api/practice/recommendations' + buildQuery(query));
+  const res = await request('/api/exercises/recommend' + buildQuery(query));
   return (unwrap(res) || []).map((item) => ({
     exerciseId: item.exerciseId || '',
     knowledgePoint: item.knowledgePoint || '',
@@ -724,7 +728,14 @@ export async function getNextQuestion(params = {}) {
  * 💡 后端不可用时自动回退到 Mock 数据
  */
 export async function generateSession(params = {}) {
-  const count = Math.max(1, Math.min(50, Number(params.questionCount) || 10));
+  const selectedQuestionIds = [...new Set(
+    (Array.isArray(params.questionIds) ? params.questionIds : [])
+      .map((questionId) => Number(questionId))
+      .filter((questionId) => Number.isSafeInteger(questionId) && questionId > 0)
+  )];
+  const count = selectedQuestionIds.length > 0
+    ? selectedQuestionIds.length
+    : Math.max(1, Math.min(50, Number(params.questionCount) || 10));
   const beParams = { page: 1, pageSize: 100, status: 'ENABLED' };
   if (params.subject) beParams.subject = SUBJECT_REVERSE[params.subject] || params.subject;
   if (params.grade) beParams.gradeLevel = params.grade;
@@ -737,6 +748,21 @@ export async function generateSession(params = {}) {
   if (params.mode) beParams.mode = params.mode;
 
   try {
+    if (params.mode === 'MISTAKE_REDO' && selectedQuestionIds.length > 0) {
+      const questions = await Promise.all(selectedQuestionIds.map((questionId) => getQuestionDetail(questionId)));
+      if (questions.some((question) => !question)) {
+        throw new Error('部分所选错题已不存在或无法读取');
+      }
+      return {
+        sessionId: 'mistake_redo_' + Date.now(),
+        questions,
+        totalCount: questions.length,
+        requestedCount: selectedQuestionIds.length,
+        subject: 'mistakes',
+        availabilityNotice: '',
+      };
+    }
+
     const res = await request('/api/practice/questions' + buildQuery(beParams));
     const data = unwrap(res);
     const items = (data.records || []).map(q => transformQuestion(q, true));
@@ -757,6 +783,9 @@ export async function generateSession(params = {}) {
         : '',
     };
   } catch (err) {
+    if (params.mode === 'MISTAKE_REDO' && selectedQuestionIds.length > 0) {
+      throw persistentApiError('加载选中的错题', err);
+    }
     if (err.skipMockFallback) throw err;
     if (!PRACTICE_MOCK_ENABLED) throw persistentApiError('生成练习', err);
     // 🔶 后端不可用，回退到 Mock 数据

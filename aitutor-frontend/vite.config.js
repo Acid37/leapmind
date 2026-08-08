@@ -38,6 +38,7 @@ export default defineConfig(({ mode }) => {
         '/api/teaching': javaProxy,
         '/api/ppt': javaProxy,
         '/api/weak-points': javaProxy,
+        '/api/exercises': javaProxy,
       },
     },
   }
