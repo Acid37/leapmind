@@ -51,6 +51,12 @@ const ContextIndicator = ({ sceneType, context = {}, className = '' }) => {
 function buildContextDetail(sceneType, context) {
   switch (sceneType) {
     case 'doing_exercise':
+      // questionId 是题库数据库主键，仅供后端定位题目；用户应看到会话内题号。
+      if (context.questionNumber != null) {
+        return context.totalQuestions != null
+          ? `第 ${context.questionNumber} / ${context.totalQuestions} 题`
+          : `第 ${context.questionNumber} 题`;
+      }
       return context.questionId ? `题目 #${context.questionId}` : '';
     case 'explaining':
       return context.wrongQuestionId ? `错题 #${context.wrongQuestionId}` : '';
