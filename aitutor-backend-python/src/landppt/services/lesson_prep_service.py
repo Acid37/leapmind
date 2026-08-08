@@ -146,6 +146,14 @@ class LessonPrepService:
             self._quality_guard = QualityGuard()
         return self._quality_guard
 
+    @property
+    def llm_judge(self):
+        """Lazy-init LLM judge (Layer 2 semantic quality)."""
+        from ..validators import LLMJudge
+        if getattr(self, "_llm_judge", None) is None:
+            self._llm_judge = LLMJudge()
+        return self._llm_judge
+
     # ════════════════════════════════════════════════════════════
     # [Layer 3] A/B test hooks
     # ════════════════════════════════════════════════════════════
@@ -676,10 +684,30 @@ class LessonPrepService:
     # Database persistence
     # ════════════════════════════════════════════════════════════
 
-    async def _save_to_db(self, ctx: PrepContext) -> int:
-        """Write the syllabus to teaching_contents table."""
+    async def _save_to_db(self, ctx: PrepContext, quality_info: dict = None) -> int:
+        """Write the syllabus to teaching_contents table.
+
+        Args:
+            ctx: 备课上下文。
+            quality_info: 质量报告（Layer 1 + LLM Judge），存入 generated_content_json。
+        """
         from ..database.database import AsyncSessionLocal
         from ..database.models import TeachingContent
+
+        generated_content = {
+            "syllabus": ctx.syllabus,
+            "subject": ctx.subject,
+            "grade": ctx.grade,
+            "knowledgePoints": [
+                {"id": kp_id, "name": name}
+                for kp_id, name in zip(
+                    ctx.knowledge_point_ids,
+                    ctx.knowledge_point_names or [""] * len(ctx.knowledge_point_ids),
+                )
+            ],
+        }
+        if quality_info:
+            generated_content["quality"] = quality_info
 
         async with AsyncSessionLocal() as session:
             record = TeachingContent(
@@ -698,10 +726,8 @@ class LessonPrepService:
                     "weak_point_ids": ctx.weak_point_ids,
                     "user_profile_summary": ctx.user_profile_summary,
                 }, ensure_ascii=False),
-                generated_content_json=json.dumps({
-                    "syllabus": ctx.syllabus,
-                }, ensure_ascii=False),
-                ppt_structure_json=json.dumps([]),
+                generated_content_json=json.dumps(generated_content, ensure_ascii=False),
+                ppt_structure_json=json.dumps(ctx.slides, ensure_ascii=False) if ctx.slides else json.dumps([]),
                 status="published",
             )
             session.add(record)
@@ -1001,9 +1027,81 @@ class LessonPrepService:
             if final_qr.is_blocking:
                 logger.error(f"[质量守卫] 阻断性问题: {final_qr.blocking_issues}")
 
-            # Save to database
+            # [Layer 2] LLM 语义评判：Layer 1 通过后自动执行
+            # 失败时降级为 None，不阻断生成流程
+            llm_judge_result = None
+            try:
+                llm_judge_result = await self.llm_judge.judge_all(
+                    syllabus=ctx.syllabus,
+                    slides=all_slides,
+                    subject=ctx.subject,
+                    grade=ctx.grade,
+                    knowledge_point_names=ctx.knowledge_point_names or None,
+                )
+                if llm_judge_result.get("error"):
+                    logger.warning(f"[LLM Judge] 评判失败（降级为null）: {llm_judge_result['error']}")
+                    llm_judge_result = None
+                else:
+                    logger.info(
+                        f"[LLM Judge] 评判完成: 总分={llm_judge_result['score']:.0f}, "
+                        f"needs_review={llm_judge_result['needs_review']}"
+                    )
+            except Exception as e:
+                logger.warning(f"[LLM Judge] 异常（降级为null）: {e}")
+                llm_judge_result = None
+
+            # [Layer 2.5] 低分自动修复：评分 < 60 时，根据反馈修复并重新评判
+            # 最多修复 1 次，避免成本失控
+            if (
+                llm_judge_result
+                and llm_judge_result["score"] < self.llm_judge.LOW_SCORE_THRESHOLD
+            ):
+                logger.info(
+                    f"[LLM Judge] 评分 {llm_judge_result['score']:.0f} < 60，触发自动修复"
+                )
+                repaired = await self._repair_low_quality(
+                    ctx=ctx,
+                    judge_result=llm_judge_result,
+                )
+                if repaired:
+                    # 修复成功，更新 ctx 中的内容
+                    ctx.syllabus = repaired["syllabus"]
+                    ctx.slides = repaired["slides"]
+                    all_slides = repaired["slides"]
+
+                    # 重新跑 Layer 1 检测（确保修复后结构没问题）
+                    final_qr = self.quality_guard.check_final(ctx.syllabus, all_slides)
+                    quality_info["score"] = final_qr.score
+                    quality_info["is_low_quality"] = final_qr.is_low_quality
+                    quality_info["issues"] = final_qr.issues if final_qr.issues else None
+                    quality_info["blocking_issues"] = (
+                        final_qr.blocking_issues if final_qr.is_blocking else None
+                    )
+
+                    # 重新跑 LLM Judge 验证修复效果
+                    try:
+                        rejudge = await self.llm_judge.judge_all(
+                            syllabus=ctx.syllabus,
+                            slides=all_slides,
+                            subject=ctx.subject,
+                            grade=ctx.grade,
+                            knowledge_point_names=ctx.knowledge_point_names or None,
+                        )
+                        if not rejudge.get("error"):
+                            llm_judge_result = rejudge
+                            llm_judge_result["repaired"] = True
+                            logger.info(
+                                f"[LLM Judge] 修复后重新评判: "
+                                f"{llm_judge_result['score']:.0f}分"
+                            )
+                    except Exception as e:
+                        logger.warning(f"[LLM Judge] 修复后重新评判失败: {e}")
+
+            quality_info["llm_judge"] = llm_judge_result
+
+            # Save to database（含质量报告）
             if ctx.syllabus:
-                prep_id = await self._save_to_db(ctx)
+                prep_id = await self._save_to_db(ctx, quality_info=quality_info)
 
             return {
                 "prep_id": prep_id,
@@ -1016,6 +1114,130 @@ class LessonPrepService:
         except Exception as e:
             logger.exception("generate_and_return failed")
             return {"error": str(e)}
+
+    # ══════════════════════════════════════════════════════════
+    #  Low-score feedback repair
+    # ══════════════════════════════════════════════════════════
+
+    async def _repair_low_quality(
+        self,
+        ctx: PrepContext,
+        judge_result: dict,
+    ) -> Optional[dict]:
+        """根据 LLM Judge 反馈修复低质量内容。
+
+        从评判结果中提取 issues + suggestions，分别修复大纲和 PPT。
+        修复失败的部分保留原始内容。
+
+        Args:
+            ctx: 备课上下文（含原始 syllabus 和 slides）。
+            judge_result: LLM Judge 的评判结果。
+
+        Returns:
+            {"syllabus": 修复后大纲, "slides": 修复后slides}
+            修复全部失败时返回 None。
+        """
+        syll_judge = judge_result.get("syllabus", {})
+        slides_judge = judge_result.get("slides", {})
+
+        # 提取问题和建议
+        syll_issues = syll_judge.get("issues", [])
+        syll_suggestions = syll_judge.get("suggestions", [])
+        slides_issues = slides_judge.get("issues", [])
+        slides_suggestions = slides_judge.get("suggestions", [])
+
+        repaired_syllabus = ctx.syllabus
+        repaired_slides = ctx.slides
+
+        any_success = False
+
+        # 修复大纲（有大纲问题且评判成功时才修复）
+        if syll_issues and not syll_judge.get("error"):
+            new_syllabus = await self.llm_judge.repair_syllabus(
+                syllabus=ctx.syllabus,
+                issues=syll_issues,
+                suggestions=syll_suggestions,
+                subject=ctx.subject,
+                grade=ctx.grade,
+            )
+            if new_syllabus is not None:
+                repaired_syllabus = new_syllabus
+                any_success = True
+
+        # 修复 PPT（有 PPT 问题且评判成功时才修复）
+        if slides_issues and not slides_judge.get("error"):
+            new_slides = await self.llm_judge.repair_slides(
+                slides=ctx.slides,
+                issues=slides_issues,
+                suggestions=slides_suggestions,
+                subject=ctx.subject,
+                grade=ctx.grade,
+            )
+            if new_slides is not None:
+                repaired_slides = new_slides
+                any_success = True
+
+        if not any_success:
+            logger.warning("[LLM Judge] 修复全部失败，保留原始内容")
+            return None
+
+        return {
+            "syllabus": repaired_syllabus,
+            "slides": repaired_slides,
+        }
+
+    # ══════════════════════════════════════════════════════════
+    #  Quality Report Query
+    # ══════════════════════════════════════════════════════════
+
+    async def get_quality_report(self, prep_id: int) -> dict:
+        """查询已保存的备课内容质量报告。
+
+        从 teaching_contents 表读取 generated_content_json，
+        解析其中的 quality 字段返回。
+
+        Args:
+            prep_id: 备课内容ID。
+
+        Returns:
+            {
+                "prep_id": int,
+                "title": str,
+                "subject": str,
+                "grade": str,
+                "quality": {...} | None
+            }
+            备课记录不存在时抛 ValueError。
+
+        Raises:
+            ValueError: 备课记录不存在。
+        """
+        from sqlalchemy import select
+        from ..database.database import AsyncSessionLocal
+        from ..database.models import TeachingContent
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(TeachingContent).where(TeachingContent.id == prep_id)
+            )
+            record = result.scalar_one_or_none()
+
+        if record is None:
+            raise ValueError(f"备课记录 {prep_id} 不存在")
+
+        content = json.loads(record.generated_content_json or "{}")
+        quality = content.get("quality")
+
+        if not quality:
+            raise ValueError(f"备课记录 {prep_id} 无质量报告（尚未生成或生成失败）")
+
+        return {
+            "prep_id": prep_id,
+            "title": record.title,
+            "subject": content.get("subject", ""),
+            "grade": content.get("grade", ""),
+            "quality": quality,
+        }
 
     # ══════════════════════════════════════════════════════════
     #  Auxiliary: Generate Goals / Process

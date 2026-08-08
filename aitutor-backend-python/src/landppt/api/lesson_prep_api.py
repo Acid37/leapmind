@@ -215,3 +215,38 @@ async def generate_process(request: GenerateProcessRequest):
         return JSONResponse(content={"teachingProcess": camel_process})
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": f"教学过程生成失败: {e}"})
+
+
+# ─── Quality report endpoint ───
+
+@router.get("/{prep_id}/quality")
+async def get_quality_report(prep_id: int):
+    """查询已保存的备课内容质量报告。
+
+    质量报告在生成时已自动生成并持久化，此接口直接读取返回。
+
+    返回:
+    {
+      "prepId": 301,
+      "title": "勾股定理备课",
+      "subject": "math",
+      "grade": "grade_9",
+      "quality": {
+        "layer1": { "score": 85.0, "isBlocking": false, ... },
+        "llmJudge": { "score": 78, "needsReview": false, ... } | null
+      }
+    }
+    """
+    service = LessonPrepService()
+    try:
+        result = await service.get_quality_report(prep_id)
+        # Convert snake_case keys to camelCase for frontend
+        camel_result = convert_keys_camel(result)
+        return JSONResponse(content=camel_result)
+    except ValueError as e:
+        msg = str(e)
+        if "不存在" in msg:
+            return JSONResponse(status_code=404, content={"detail": msg})
+        return JSONResponse(status_code=400, content={"detail": msg})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": f"查询质量报告失败: {e}"})
