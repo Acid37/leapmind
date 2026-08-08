@@ -24,6 +24,7 @@ from landppt.m6.profile_engine import (
   calculateProfileConfidence,
   calculateQuestionUnderstanding,
   calculateWeakPointScore,
+  calculateWrongQuestionScore,
   collectConfusionContributions,
   extractConfusionType,
   inferLearningPace,
@@ -218,6 +219,25 @@ def explanationEvent(
   return event
 
 
+def wrongQuestionEvent(
+  dbEventId: int,
+  *,
+  kpId: int = 101,
+  questionId: int = 1001,
+  status: str = "UNRESOLVED",
+  wrongCount: int = 1,
+  occurredAt: datetime = EVALUATED_AT,
+) -> dict:
+  """创建 M1 错题本状态变更事件。"""
+  return makeEvent(
+    dbEventId,
+    eventType="wrong_question_changed",
+    kpId=kpId,
+    occurredAt=occurredAt.isoformat(),
+    data={"questionId": questionId, "status": status, "wrongCount": wrongCount},
+  )
+
+
 def readyRequest(events: list[dict]) -> BuildProfileRequest:
   """补足全局五事件门槛并构造 READY 请求。"""
   completed = deepcopy(events)
@@ -248,7 +268,7 @@ async def test_empty_window_returns_no_change_without_version_increment() -> Non
 
   response = await buildProfile(request, evaluatedAt=EVALUATED_AT)
 
-  assert ALGORITHM_VERSION == "m6-profile-v1.0.0"
+  assert ALGORITHM_VERSION == "m6-profile-v1.1.0"
   assert response.status == "NO_CHANGE"
   assert response.targetProfileVersion == request.baseProfileVersion
   assert response.evaluatedAt == EVALUATED_AT
@@ -316,7 +336,7 @@ async def test_five_m1_events_returns_ready_profile_with_mastery() -> None:
     "learningPace": "moderate",
     "recentFocus": [{"kpId": 101, "weight": 1.0}],
     "recentConfusions": [],
-    "confidence": 0.385,
+    "confidence": 0.297,
   }
   assert len(output["knowledgeMastery"]) == 1
   assert output["knowledgeMastery"][0]["kpId"] == 101
@@ -1166,10 +1186,10 @@ def test_learning_situation_renormalizes_available_sources() -> None:
   withoutWeak = calculateLearningSituation(0.9, 0.3, None)
   withWeak = calculateLearningSituation(0.9, 0.3, 0.6)
 
-  assert withoutWeak.weights == {"answer": 0.6667, "question": 0.3333}
-  assert withoutWeak.score == 0.7
-  assert withWeak.weights == {"answer": 0.5333, "question": 0.2667, "weakPoint": 0.2}
-  assert withWeak.score == 0.68
+  assert withoutWeak.weights == {"answer": 0.5882, "question": 0.4118}
+  assert withoutWeak.score == 0.6529
+  assert withWeak.weights == {"answer": 0.3593, "question": 0.2515, "weakPoint": 0.3892}
+  assert withWeak.score == 0.6323
 
 
 def test_learning_situation_single_source_has_no_conclusion() -> None:
@@ -1179,6 +1199,44 @@ def test_learning_situation_single_source_has_no_conclusion() -> None:
   assert situation.weights == {"answer": 1.0}
   assert situation.score is None
   assert situation.label is None
+
+
+def test_wrong_question_score_empty_returns_none() -> None:
+  events = [answerEvent(1), answerEvent(2)]
+  request = BuildProfileRequest.model_validate(makeRequest(events))
+
+  assert calculateWrongQuestionScore(request.events) is None
+
+
+def test_wrong_question_score_uses_latest_per_question() -> None:
+  events = [
+    wrongQuestionEvent(1, kpId=101, questionId=1001, status="UNRESOLVED",
+                       occurredAt=EVALUATED_AT - timedelta(minutes=3)),
+    wrongQuestionEvent(2, kpId=101, questionId=1001, status="RESOLVED",
+                       occurredAt=EVALUATED_AT - timedelta(minutes=1)),
+    wrongQuestionEvent(3, kpId=101, questionId=1002, status="REVIEWING"),
+  ]
+  request = BuildProfileRequest.model_validate(makeRequest(events))
+
+  assert calculateWrongQuestionScore(request.events) == 0.75
+
+
+def test_wrong_question_score_resolved_ratio() -> None:
+  events = [
+    wrongQuestionEvent(1, kpId=101, questionId=1001, status="UNRESOLVED"),
+    wrongQuestionEvent(2, kpId=101, questionId=1002, status="RESOLVED"),
+  ]
+  request = BuildProfileRequest.model_validate(makeRequest(events))
+
+  assert calculateWrongQuestionScore(request.events) == 0.5
+
+
+def test_learning_situation_with_four_sources() -> None:
+  situation = calculateLearningSituation(0.9, 0.3, 0.6, 0.5)
+
+  assert situation.scores == {"answer": 0.9, "question": 0.3, "weakPoint": 0.6, "wrongQuestion": 0.5}
+  assert situation.weights == {"answer": 0.24, "question": 0.168, "weakPoint": 0.26, "wrongQuestion": 0.332}
+  assert situation.score == 0.5884
 
 
 def test_weak_point_score_uses_latest_event_per_knowledge_point() -> None:
@@ -1292,10 +1350,10 @@ async def test_learning_features_reuse_question_understanding() -> None:
 @pytest.mark.parametrize(
   ("validEventCount", "scores", "expected"),
   [
-    (10, (1.0, None, None), 0.51),
-    (20, (0.9, 0.8, 0.7), 0.95),
-    (20, (1.0, 0.0, 0.5), 0.8),
-    (100, (0.8, 0.8, 0.8), 0.95),
+    (10, (1.0, None, None), 0.422),
+    (20, (0.9, 0.8, 0.7), 0.86),
+    (20, (1.0, 0.0, 0.5), 0.7),
+    (100, (0.8, 0.8, 0.8), 0.9),
   ],
 )
 def test_profile_confidence_uses_quantity_coverage_consistency_and_cap(
@@ -1352,8 +1410,8 @@ async def test_ready_profile_serializes_preferences_pace_and_confidence() -> Non
   assert response.profile.preferredContentModes == ["video"]
   assert response.profile.preferredExplanationStyle == "step_by_step"
   assert response.profile.learningPace == "slow"
-  assert response.profile.confidence == 0.41
-  assert serialized["profile"]["confidence"] == 0.41
+  assert response.profile.confidence == 0.322
+  assert serialized["profile"]["confidence"] == 0.322
 
 
 def test_engine_source_has_no_legacy_stateful_dependencies() -> None:

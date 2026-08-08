@@ -34,6 +34,7 @@ VALID_EVENT_DATA = {
   "ask_doubt": {"topic": "  一元二次方程  ", "confusionTag": "formula_confusion", "isFollowUp": False},
   "mark_reviewed": {"result": "correct_without_hint", "timeSpentSec": 0, "hintCount": 0},
   "preference_changed": {"preferenceKey": "content_mode", "preferenceValue": "image"},
+  "wrong_question_changed": {"questionId": 1001, "status": "UNRESOLVED", "wrongCount": 1},
 }
 
 

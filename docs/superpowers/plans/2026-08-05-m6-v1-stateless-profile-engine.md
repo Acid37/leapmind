@@ -869,10 +869,10 @@ def inferLearningPace(durations):
 
 ```python
 LEARNING_SITUATION_WEIGHTS = {
-  "answer": 0.40,
-  "wrongQuestion": 0.25,
-  "question": 0.20,
-  "weakPoint": 0.15,
+  "answer": 0.24,
+  "wrongQuestion": 0.332,
+  "question": 0.168,
+  "weakPoint": 0.26,
 }
 
 

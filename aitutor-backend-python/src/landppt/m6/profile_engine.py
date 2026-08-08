@@ -27,7 +27,7 @@ from .schemas import (
 )
 
 
-ALGORITHM_VERSION = "m6-profile-v1.0.0"
+ALGORITHM_VERSION = "m6-profile-v1.1.0"
 SUMMARY_PROMPT_VERSION = "m6-summary-prompt-v1"
 DEFAULT_LLM_TIMEOUT_SECONDS = 10.0
 MIN_SUMMARY_LENGTH = 150
@@ -42,6 +42,7 @@ ACTIVE_EVENT_TYPES = frozenset({
   "ask_doubt",
   "mark_reviewed",
   "preference_changed",
+  "wrong_question_changed",
 })
 MIN_PROFILE_EVENTS = 5
 PROFILE_WINDOW_DAYS = 90
@@ -62,12 +63,12 @@ MIN_PACE_DURATIONS = 5
 FAST_PACE_MAX_SECONDS = 30
 MODERATE_PACE_MAX_SECONDS = 90
 LEARNING_SITUATION_PRIORS = {
-  "answer": 0.40,
-  "wrongQuestion": 0.25,
-  "question": 0.20,
-  "weakPoint": 0.15,
+  "answer": 0.24,
+  "wrongQuestion": 0.332,
+  "question": 0.168,
+  "weakPoint": 0.26,
 }
-AVAILABLE_SITUATION_WEIGHT = 0.75
+AVAILABLE_SITUATION_WEIGHT = 1.0
 MIN_SITUATION_SOURCES = 2
 PROFILE_CONFIDENCE_CAP = 0.95
 
@@ -90,6 +91,12 @@ FEEDBACK_UNDERSTANDING_VALUES = {
   "partly_understood": 0.5,
   "still_confused": 0.0,
 }
+WRONG_QUESTION_STATUS_VALUES = {
+  "UNRESOLVED": 0.0,
+  "REVIEWING": 0.5,
+  "RESOLVED": 1.0,
+}
+
 CONFUSION_PATTERNS = (
   ("原因不理解", re.compile(r"为什么|为何|怎么会|\bwhy\b")),
   ("概念不理解", re.compile(r"不懂|没懂|不明白|\bdon['’]t\s+understand\b")),
@@ -597,16 +604,36 @@ def calculateWeakPointScore(events: list[ProfileEvent]) -> float | None:
   return round(sum(values) / len(values), 4)
 
 
+def calculateWrongQuestionScore(events: list[ProfileEvent]) -> float | None:
+  """按知识点内错题解决比例计算来源得分。"""
+  latestByQuestion: dict[tuple[int, int], tuple[datetime, int, str]] = {}
+  for event in events:
+    if event.eventType != "wrong_question_changed" or event.kpId is None:
+      continue
+    qid = event.data["questionId"]
+    key = (event.kpId, qid)
+    eventKey = (toUtc(event.occurredAt), getattr(event, "dbEventId"))
+    current = latestByQuestion.get(key)
+    if current is None or eventKey > (current[0], current[1]):
+      latestByQuestion[key] = (eventKey[0], eventKey[1], event.data["status"])
+  if not latestByQuestion:
+    return None
+  values = [WRONG_QUESTION_STATUS_VALUES[status] for _, _, status in latestByQuestion.values()]
+  return round(sum(values) / len(values), 4)
+
+
 def calculateLearningSituation(
   answerScore: float | None,
   questionScore: float | None,
   weakPointScore: float | None,
+  wrongQuestionScore: float | None = None,
 ) -> LearningSituation:
   """仅对可用来源重归一，并在至少两个来源时形成综合结论。"""
   candidates = {
     "answer": answerScore,
     "question": questionScore,
     "weakPoint": weakPointScore,
+    "wrongQuestion": wrongQuestionScore,
   }
   validateSourceScores(candidates)
   scores = {name: value for name, value in candidates.items() if value is not None}
@@ -642,6 +669,7 @@ def calculateLearningSituationFeatures(
     calculateAnswerScore(events, mastery),
     calculateQuestionUnderstanding(events),
     calculateWeakPointScore(events),
+    calculateWrongQuestionScore(events),
   )
 
 
@@ -662,7 +690,7 @@ def calculateProfileConfidence(validEventCount: int, situation: LearningSituatio
 def validateSourceScores(scores: dict[str, float | None]) -> None:
   """拒绝范围外或非有限的综合学习情况来源分。"""
   for name, value in scores.items():
-    if name not in LEARNING_SITUATION_PRIORS or name == "wrongQuestion":
+    if name not in LEARNING_SITUATION_PRIORS:
       raise ValueError(f"不支持的学习情况来源：{name}")
     if value is None:
       continue

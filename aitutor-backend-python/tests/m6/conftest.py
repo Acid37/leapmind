@@ -18,6 +18,7 @@ EVENT_SOURCES = {
   "ask_doubt": "M7",
   "mark_reviewed": "M6",
   "preference_changed": "M6",
+  "wrong_question_changed": "M1",
 }
 
 

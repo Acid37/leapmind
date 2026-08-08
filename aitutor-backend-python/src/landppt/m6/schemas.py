@@ -52,6 +52,7 @@ EVENT_SOURCES = {
   "ask_doubt": "M7",
   "mark_reviewed": "M6",
   "preference_changed": "M6",
+  "wrong_question_changed": "M1",
 }
 
 
@@ -216,6 +217,14 @@ class PreferenceChangedData(StrictContractModel):
     return self
 
 
+class WrongQuestionChangedData(StrictContractModel):
+  """M1 错题本状态变更事件数据。"""
+
+  questionId: int = Field(strict=True, ge=1, le=MAX_INT64)
+  status: Literal["UNRESOLVED", "REVIEWING", "RESOLVED"]
+  wrongCount: int = Field(strict=True, ge=1, le=9999)
+
+
 EVENT_DATA_MODELS: dict[str, type[StrictContractModel]] = {
   "answer_question": AnswerQuestionData,
   "finish_practice": FinishPracticeData,
@@ -227,6 +236,7 @@ EVENT_DATA_MODELS: dict[str, type[StrictContractModel]] = {
   "ask_doubt": AskDoubtData,
   "mark_reviewed": MarkReviewedData,
   "preference_changed": PreferenceChangedData,
+  "wrong_question_changed": WrongQuestionChangedData,
 }
 
 EventType = Literal[
@@ -240,6 +250,7 @@ EventType = Literal[
   "ask_doubt",
   "mark_reviewed",
   "preference_changed",
+  "wrong_question_changed",
 ]
 
 

@@ -31,7 +31,7 @@ def test_valid_request_returns_200(client: TestClient, caplog: pytest.LogCapture
   assert response.status_code == 200
   assert response.json()["status"] == "NO_CHANGE"
   assert "12345678-1234-5678-1234-567812345678" in caplog.text
-  assert "m6-profile-v1.0.0" in caplog.text
+  assert "m6-profile-v1.1.0" in caplog.text
   assert "events" not in caplog.text
 
 
