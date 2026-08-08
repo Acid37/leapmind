@@ -33,7 +33,7 @@ class M6ContractAndMigrationTest {
     }
 
     @Test void migrationsDocumentedContractAndOpenApiStayFrozen() throws Exception {
-        String v3 = read("src/main/resources/db/migration/V4__create_m6_user_events.sql");
+        String v3 = read("src/main/resources/db/migration/V12__create_m6_user_events.sql");
         String v4 = read("src/main/resources/db/migration/V9__create_m6_user_profiles.sql");
         String v5 = read("src/main/resources/db/migration/V6__create_m6_user_knowledge_mastery.sql");
         String c3 = v3.replaceAll("\\s+", ""), c4 = v4.replaceAll("\\s+", ""), c5 = v5.replaceAll("\\s+", "");

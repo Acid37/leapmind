@@ -131,7 +131,7 @@ class PlatformContractsTest {
         PolicyEnforcedProfileContextProvider provider = new PolicyEnforcedProfileContextProvider(
                 (a, c, r) -> new PlatformCapabilityPolicy.CapabilityDecision(true, "ALLOWED"),
                 new PlatformIntegrationReadiness(true), core);
-        var knowledge = new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.KnowledgeContext(9L, "AVAILABLE",
+        var knowledge = new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.KnowledgeContext(9L, null, "AVAILABLE",
                 BigDecimal.valueOf(.4), "WEAK", BigDecimal.valueOf(.5), "DECLINING", 2L);
         var full = new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.FullProfile(7L, "READY", null, 2L,
                 "grade-7", List.of("text"), "concise", "slow", List.of(new com.treepeople.leapmindtts.pojo.dto.profile.M6ProfileDtos.RecentFocus(9L, BigDecimal.ONE)),
