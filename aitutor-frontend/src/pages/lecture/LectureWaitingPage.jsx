@@ -63,6 +63,7 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
   const [outline, setOutline] = useState('');
   const [slides, setSlides] = useState([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [lectureId, setLectureId] = useState(null);
   const [error, setError] = useState('');
   const [newSlideIndices, setNewSlideIndices] = useState(new Set());
   const containerRef = useRef(null);
@@ -76,16 +77,20 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
       setStatus('generating');
       try {
         await generateLecture({
+          userId: params?.userId,
           courseId: params?.courseId,
           sourceText: params?.textContent || params?.sourceText || '',
           sourceType: params?.sourceType,
           userProfile: params?.userProfile,
+          userProfileSummary: params?.userProfileSummary,
+          weakPointIds: params?.weakPointIds,
+          selectedWeakPoints: params?.selectedWeakPoints,
         }, (event) => {
           if (cancelled) return;
 
           switch (event.type) {
             case 'outline':
-              setOutline(event.content);
+              setOutline(event.content || event.title || '正在生成讲课大纲…');
               break;
             case 'slide':
               setSlides(prev => {
@@ -105,6 +110,8 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
               }, 2000);
               break;
             case 'done':
+            case 'saved':
+              if (event.prepId != null) setLectureId(event.prepId);
               setProgress({ current: event.totalPages, total: event.totalPages });
               setStatus('done');
               break;
@@ -131,7 +138,13 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
 
   const handleStartLecture = () => {
     if (status === 'done') {
-      onComplete?.({ lectureId: params?.lectureId, slides, totalPages: slides.length });
+      onComplete?.({
+        lectureId: lectureId ?? params?.lectureId,
+        title: params?.textContent || '在线课堂',
+        slides,
+        totalPages: slides.length,
+        knowledgePoints: params?.selectedWeakPoints || [],
+      });
     }
   };
 

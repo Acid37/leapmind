@@ -11,7 +11,21 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Paperclip, FileText, Target, X, File, AlertCircle, ArrowLeft, Send, Loader2 } from 'lucide-react';
 import { parseLectureFile, getWeakPoints } from '../../services/lectureService';
+import { getLearningProfile } from '../../services/learningProfileService';
 import { getOrCreateCourseId } from '../../features/chat/pptSession';
+
+function buildProfileSummary(profile) {
+  if (!profile) return '';
+  const { summary = {}, preferences = {}, user = {} } = profile;
+  const details = [
+    user.grade && `学习阶段：${user.grade}`,
+    Number.isFinite(summary.overallMastery) && `综合掌握度：${summary.overallMastery}%`,
+    Number.isFinite(summary.weeklyStudyMinutes) && `本周学习：${summary.weeklyStudyMinutes} 分钟`,
+    preferences.learningStyle && `学习偏好：${preferences.learningStyle}`,
+    summary.message && `学习建议：${summary.message}`,
+  ].filter(Boolean);
+  return details.join('；');
+}
 
 // ─── 子组件：薄弱点选择器 ───────────────────────────
 const WeakPointSelector = ({ items, selected, onToggle, loading }) => {
@@ -77,6 +91,7 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
   const [selectedWeakPoints, setSelectedWeakPoints] = useState([]);
   const [weakPoints, setWeakPoints] = useState([]);
   const [weakPointsLoading, setWeakPointsLoading] = useState(true);
+  const [learningProfile, setLearningProfile] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +103,19 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
         setWeakPointsLoading(false);
       }
     })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  // M6 上下文：画像读取失败时降级为空，不影响用户继续创建讲课。
+  useEffect(() => {
+    let cancelled = false;
+    getLearningProfile(userId)
+      .then((profile) => {
+        if (!cancelled) setLearningProfile(profile);
+      })
+      .catch(() => {
+        if (!cancelled) setLearningProfile(null);
+      });
     return () => { cancelled = true; };
   }, [userId]);
 
@@ -138,6 +166,9 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
 
   const handleGenerate = () => {
     if (!canGenerate || parsing) return;
+    const selectedWeakPointDetails = weakPoints
+      .filter((wp) => selectedWeakPoints.includes(wp.kpId))
+      .map((wp) => ({ id: wp.kpId, name: wp.kpName, weaknessScore: wp.weaknessScore }));
     onStartGeneration?.({
       userId,
       courseId: getOrCreateCourseId(),
@@ -146,6 +177,12 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
       textContent: textContent.trim() || undefined,
       parseResult,
       weakPointIds: selectedWeakPoints,
+      selectedWeakPoints: selectedWeakPointDetails,
+      userProfile: learningProfile ? {
+        summary: learningProfile.summary,
+        preferences: learningProfile.preferences,
+      } : {},
+      userProfileSummary: buildProfileSummary(learningProfile),
     });
   };
 

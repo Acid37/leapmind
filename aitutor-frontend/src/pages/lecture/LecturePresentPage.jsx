@@ -59,8 +59,8 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
   const { lectureId, title = '在线课堂', courseId, slides: rawSlides } = lectureData || {};
   const slides = useMemo(() => normalizeSlides(rawSlides), [rawSlides]);
   const hasSlides = slides.length > 0;
-  const currentSlideData = slides[currentSlide - 1];
   const [currentSlide, setCurrentSlide] = useState(1);
+  const currentSlideData = slides[currentSlide - 1];
   const [showEndPanel, setShowEndPanel] = useState(false);
   const [mobileTab, setMobileTab] = useState('slides');
   const [isPaused, setIsPaused] = useState(false);
@@ -116,38 +116,47 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
   };
 
   return (
-    <div className="w-full h-screen flex flex-col lg:flex-row bg-gradient-to-br from-purple-700 via-purple-600 via-blue-600 to-blue-700" style={bgGradient}>
+    <div className="w-full h-[100dvh] min-h-[36rem] flex flex-col lg:flex-row bg-gradient-to-br from-purple-700 via-purple-600 via-blue-600 to-blue-700" style={bgGradient}>
       {/* ═══════════════ 桌面端：左右两栏布局 ═══════════════ */}
-      {/* 左侧：幻灯片区 (75%) - PPT 全图 + 缩略图条 */}
-      <div className="hidden lg:flex lg:w-[75%] flex-col overflow-hidden">
-        <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
+      {/* 左侧：以 PPT 为视觉焦点的主舞台 */}
+      <div className="hidden lg:flex lg:flex-1 lg:min-w-0 flex-col overflow-hidden">
+        <div className="bg-slate-950/20 backdrop-blur-md border-b border-white/15">
           <Header lessonSubtitle={title} dark={true} onBack={onBack} />
         </div>
-        {hasSlides ? (
-          <div className="flex-1 flex flex-col min-h-0">
-            <SlideRenderer
-              slides={slides}
-              initialPage={1}
-              mode="play"
-              showNavigator={true}
-              showProgress={true}
-              transition="slide"
-              onPageChange={handleSlideChange}
-            />
+        <main className="flex-1 min-h-0 p-3 xl:p-5">
+          <div className="h-full min-h-0 rounded-2xl overflow-hidden bg-slate-950/20 ring-1 ring-white/15 shadow-[0_24px_70px_rgba(15,23,42,0.28)]">
+            {hasSlides ? (
+              <SlideRenderer
+                slides={slides}
+                initialPage={1}
+                mode="play"
+                showNavigator={true}
+                showProgress={true}
+                transition="slide"
+                onPageChange={handleSlideChange}
+              />
+            ) : (
+              <div className="h-full overflow-hidden">
+                <SlideViewer courseId={courseId || lectureId} projectId={lectureId} onSlideChange={handleSlideChange} />
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="flex-1 overflow-hidden">
-            <SlideViewer courseId={courseId || lectureId} projectId={lectureId} onSlideChange={handleSlideChange} />
-          </div>
-        )}
+        </main>
       </div>
 
-      {/* 右侧：追问对话面板 (25%) - 含输入框 */}
-      <div className="hidden lg:flex lg:w-[25%] flex-col p-3 gap-3">
+      {/* 右侧：课堂控制与追问侧栏 */}
+      <aside className="hidden lg:flex lg:w-[22rem] xl:w-[25rem] flex-shrink-0 flex-col p-3 xl:p-4 gap-3 bg-slate-950/15 border-l border-white/15 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-1 text-white/80">
+          <div>
+            <p className="text-sm font-semibold">课堂追问</p>
+            <p className="text-xs text-white/50 mt-0.5">正在讲解 · 第 {currentSlide} 页</p>
+          </div>
+          <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium">PPT</span>
+        </div>
         {/* 暂停/恢复按钮 */}
         <button
           onClick={handleTogglePause}
-          className={`flex-shrink-0 w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium shadow-lg transition-colors ${
+          className={`flex-shrink-0 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium shadow-lg transition-colors ${
             isPaused
               ? 'bg-amber-500/90 hover:bg-amber-500 text-white'
               : 'bg-white/20 hover:bg-white/30 text-white'
@@ -156,16 +165,16 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
           {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
           {isPaused ? '继续讲课' : '暂停讲课'}
         </button>
-        <div className="flex-1 min-h-0">
-          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide, slideContent: currentSlideData?.bulletPoints?.join('\n') || '', title: currentSlideData?.title || '' }} userId={userId} visible={true} onMessageSent={handleMessageSent} />
+        <div className="flex-1 min-h-0 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-white/20">
+          <ChatPanel title="向老师提问" sceneType="teaching" context={{ lectureId, slide: currentSlide, slideContent: currentSlideData?.bulletPoints?.join('\n') || '', title: currentSlideData?.title || '' }} userId={userId} visible={true} onMessageSent={handleMessageSent} />
         </div>
         <button
           onClick={handleEndLecture}
-          className="flex-shrink-0 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-red-500/90 hover:bg-red-500 text-white text-sm font-medium shadow-lg transition-colors"
+          className="flex-shrink-0 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500/90 hover:bg-red-500 text-white text-sm font-medium shadow-lg transition-colors"
         >
           <Flag className="w-4 h-4" />结束讲课
         </button>
-      </div>
+      </aside>
 
       {/* ═══════════════ 移动端：全屏 + 底部 Tab ═══════════════ */}
       {/* 幻灯片视图 */}

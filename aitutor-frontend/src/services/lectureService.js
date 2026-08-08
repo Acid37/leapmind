@@ -3,7 +3,7 @@
  * 
  * 已对接真实后端（2026-08-07）：
  *   - 讲课文件上传 → POST /api/teaching/{courseId}/upload（M4 TeachingController）
- *   - 讲课生成 SSE → POST /api/teaching/{courseId}/stream-generate（M4 TeachingController）
+ *   - 讲课生成 SSE → POST /api/lesson-prep/contents/generate/stream（M5 完整 PPT 生成）
  *   - 讲课内容 CRUD（历史列表/详情/删除/发布）→ Java GET/PUT/DELETE /api/lesson-prep/contents（M5 备课）
  *   - 薄弱知识点查询 → GET /api/weak-points（M3 曾俊桥 / develop 分支）
  *   - M6 事件上报 → POST /api/events/collect（M6 画像引擎）
@@ -147,11 +147,11 @@ export async function parseLectureFile(file, courseId) {
 
 /**
  * 生成讲课内容（SSE 流式）
- * POST /api/teaching/{courseId}/stream-generate → SSE
+ * POST /api/lesson-prep/contents/generate/stream → SSE
  *
- * 后端：TeachingController.streamGenerateTeachingContent
- * 请求体: { course_id, source_text, user_profile }
- * SSE 事件: outline / slide / done（见 M4_前端对接清单.md §三）
+ * 后端：TeachingContentController.generateLessonPrepStream
+ * 请求体: M5 LessonPrepRequest（含 M6 用户画像摘要与薄弱点 ID）
+ * SSE 事件: outline / slide / narration / saved / done
  *
  * @param {Object} params
  * @param {string} params.courseId - 课程 ID（讲课后端路径参数）
@@ -179,14 +179,29 @@ export async function generateLecture(params, onEvent) {
     };
   }
 
-  const { courseId, sourceText = '', userProfile } = params || {};
-  const response = await fetch(`/api/teaching/${courseId}/stream-generate`, {
+  const {
+    userId = 1,
+    sourceText = '',
+    userProfile,
+    userProfileSummary = '',
+    weakPointIds = [],
+    selectedWeakPoints = [],
+  } = params || {};
+  const title = sourceText.trim().slice(0, 100) || 'AI 即时讲课';
+  const response = await fetch('/api/lesson-prep/contents/generate/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      course_id: courseId,
-      source_text: sourceText,
-      user_profile: userProfile || {},
+      userId,
+      title,
+      subject: '通用',
+      grade: userProfile?.summary?.grade || '未指定',
+      knowledgePointIds: [],
+      teachingGoals: selectedWeakPoints.map((wp) => `重点讲解：${wp.name}`),
+      totalHours: 1,
+      style: 'interactive',
+      weakPointIds,
+      userProfileSummary,
     }),
   });
 
@@ -205,13 +220,31 @@ export async function generateLecture(params, onEvent) {
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
+    let eventName = 'message';
     for (const line of lines) {
-      if (line.startsWith('data: ')) {
+      if (line.startsWith('event:')) {
+        eventName = line.slice(6).trim() || 'message';
+      } else if (line.startsWith('data: ')) {
         try {
           const data = JSON.parse(line.slice(6));
-          onEvent(data);
-          if (data.type === 'done') result = data;
+          const event = { ...data, type: data.type || eventName };
+          if (event.type === 'slide') {
+            event.slide = data.slide || {
+              pageNum: data.pageNum,
+              type: data.type || 'content',
+              title: data.title || '',
+              subtitle: data.subtitle || '',
+              bulletPoints: data.bulletPoints || [],
+              imageSuggestion: data.imageSuggestion,
+              formula: data.formula,
+              highlightPoints: data.highlightPoints || [],
+              interaction: data.interaction || null,
+            };
+          }
+          onEvent(event);
+          if (event.type === 'done' || event.type === 'saved') result = { ...result, ...event };
         } catch { /* ignore parse errors */ }
+        eventName = 'message';
       }
     }
   }
