@@ -95,7 +95,7 @@ public class PptGenerationServiceImpl {
             String pptUrl = pptxService.exportFromStructure(structure, content.getTemplateId(), content.getTitle());
             result.setPptDownloadUrl(pptUrl);
             try {
-                content.setPptDownloadUrl(pptUrl);
+             content.setPptDownloadUrl(pptUrl);
                 mapper.updateById(content);
             } catch (Exception dbEx) {
                 log.warn("Pipeline 回写 ppt_download_url 失败（不影响最终结果）, prepId={}, err={}", prepId, dbEx.getMessage());
@@ -173,3 +173,4 @@ public class PptGenerationServiceImpl {
         public long getDuration() { return endTime - startTime; }
     }
 }
+ 
