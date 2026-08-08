@@ -1,67 +1,81 @@
 package com.treepeople.leapmindtts.service.profile.engine;
 
-import com.treepeople.leapmindtts.config.PythonServiceProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.treepeople.leapmindtts.config.PythonInternalAiProperties;
 import java.io.IOException;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
+import java.time.Duration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 /**
- * Java → Python 画像引擎 HTTP 适配器，通过
- * {@code POST /api/internal/ai/build-profile} 调用无状态引擎。
- *
- * <p>Spring 自动发现该 Bean 后，{@code @ConditionalOnMissingBean}
- * 将选用本实现替换默认的 {@link DisabledProfileEngineAdapter}。</p>
+ * 真实 Python build-profile HTTP 客户端。
+ * 仅在 m6.profile-engine.enabled=true 时注册，否则由 DisabledProfileEngineAdapter 兜底。
+ * 请求体沿用 Java 契约，仅顶层 userId 重命名为 Python 契约的 user_id；响应严格校验，非法结果不得覆盖旧画像。
  */
-@Slf4j
 @Component
+@ConditionalOnProperty(prefix = "m6.profile-engine", name = "enabled", havingValue = "true")
 public final class HttpProfileEngineAdapter implements ProfileEnginePort {
 
-    private final RestTemplate restTemplate;
-    private final StrictProfileEngineJsonCodec codec;
-    private final String buildProfileUrl;
+    private static final ObjectMapper RENAME_MAPPER = new ObjectMapper();
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
-    public HttpProfileEngineAdapter(PythonServiceProperties props) {
-        this.buildProfileUrl = props.getBaseUrl() + props.getBuildProfilePath();
-        this.restTemplate = new RestTemplate();
-        this.codec = new StrictProfileEngineJsonCodec();
-        log.info("M6 画像引擎已连接：{}", buildProfileUrl);
+    private final WebClient webClient;
+    private final PythonInternalAiProperties properties;
+    private final StrictProfileEngineJsonCodec codec = new StrictProfileEngineJsonCodec();
+
+    public HttpProfileEngineAdapter(WebClient.Builder webClientBuilder, PythonInternalAiProperties properties) {
+        this.properties = properties;
+        this.webClient = webClientBuilder.baseUrl(properties.getBaseUrl()).build();
     }
 
     @Override
     public ProfileEngineResponse buildProfile(ProfileEngineRequest request) {
+        byte[] responseBytes = post(request);
         try {
-            byte[] body = codec.writeRequest(request);
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<byte[]> entity = new HttpEntity<>(body, headers);
+            return codec.readAndValidateResponse(request, responseBytes);
+        } catch (IOException | IllegalArgumentException e) {
+            throw new ProfileEngineUnavailableException("INVALID_RESPONSE");
+        }
+    }
 
-            ResponseEntity<byte[]> resp = restTemplate.postForEntity(buildProfileUrl, entity, byte[].class);
-
-            if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
-                log.error("Python 引擎返回 HTTP {}", resp.getStatusCode().value());
-                throw new ProfileEngineUnavailableException(
-                        "Python engine HTTP " + resp.getStatusCode().value());
-            }
-
-            ProfileEngineResponse response = codec.readAndValidateResponse(request, resp.getBody());
-            log.info("M6 画像计算完成：requestId={}, status={}, userId={}",
-                    request.requestId(), response.status(), request.userId());
-            return response;
-
+    private byte[] post(ProfileEngineRequest request) {
+        byte[] body;
+        try {
+            body = codec.writeRequest(request);
         } catch (IOException e) {
-            log.error("M6 JSON 编解码失败：requestId={}", request.requestId(), e);
-            throw new ProfileEngineUnavailableException("JSON_CODEC_ERROR");
+            throw new IllegalArgumentException("profile engine request serialization failed", e);
+        }
+        byte[] wire = toPythonWire(body);
+        try {
+            byte[] response = webClient.post()
+                    .uri(properties.getBuildProfilePath())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(wire)
+                    .retrieve()
+                    .bodyToMono(byte[].class)
+                    .block(TIMEOUT);
+            if (response == null) throw new ProfileEngineUnavailableException("EMPTY_RESPONSE");
+            return response;
         } catch (ProfileEngineUnavailableException e) {
             throw e;
-        } catch (Exception e) {
-            log.error("M6 引擎 HTTP 调用失败：requestId={}", request.requestId(), e);
-            throw new ProfileEngineUnavailableException("HTTP_ERROR");
+        } catch (RuntimeException e) {
+            throw new ProfileEngineUnavailableException("UNREACHABLE");
+        }
+    }
+
+    private static byte[] toPythonWire(byte[] camelCase) {
+        try {
+            JsonNode tree = RENAME_MAPPER.readTree(camelCase);
+            ObjectNode root = (ObjectNode) tree;
+            JsonNode userId = root.remove("userId");
+            if (userId != null) root.set("user_id", userId);
+            return RENAME_MAPPER.writeValueAsBytes(root);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("profile engine request rename failed", e);
         }
     }
 }
