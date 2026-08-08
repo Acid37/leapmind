@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * @ Package：com.treepeople.leapmindtts.controller
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/voice-chat")
 @RequiredArgsConstructor
+@Tag(name = "Voice Chat - 语音对话", description = "AI 语音问答和文字转语音")
 public class VoiceChatController {
 
     private final VoiceChatService voiceChatService;
@@ -37,6 +40,7 @@ public class VoiceChatController {
      * 接收用户问题，调用AI服务获取回答
      * 注意：从响应式改为同步调用，解决Spring MVC与WebFlux混用导致的403问题
      */
+    @Operation(summary = "语音对话提问", description = "提交用户问题，调用 AI 获取回答")
     @PostMapping("/ask")
     public ResponseEntity<VoiceChatResponse> handleVoiceChat(
             @RequestBody @Valid VoiceChatRequest request) {
@@ -75,6 +79,7 @@ public class VoiceChatController {
      * 将文本转换为语音音频
      * 注意：从响应式改为同步调用，解决Spring MVC与WebFlux混用导致的403问题
      */
+    @Operation(summary = "文字转语音", description = "将文本转换为 WAV 语音音频")
     @PostMapping("/synthesize")
     public ResponseEntity<byte[]> synthesizeVoice(
             @RequestBody @Valid VoiceSynthesisRequest request) {

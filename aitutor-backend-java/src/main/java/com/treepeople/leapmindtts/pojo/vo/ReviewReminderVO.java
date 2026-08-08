@@ -85,6 +85,18 @@ public class ReviewReminderVO {
     private LocalDateTime reviewedAt;
 
     /**
+     * 复习备注，用户在标记已复习时填写
+     */
+    @Schema(description = "复习备注，用户填写的心得或掌握程度", example = "已完全掌握该知识点，练习正确率100%", nullable = true)
+    private String notes;
+
+    /**
+     * 知识点ID，用于 M6 画像事件关联
+     */
+    @Schema(description = "知识点ID，关联 knowledge_points 表", example = "42", nullable = true)
+    private Long kpId;
+
+    /**
      * 提醒创建时间
      */
     @Schema(description = "提醒创建时间", example = "2026-08-04T02:00:00")

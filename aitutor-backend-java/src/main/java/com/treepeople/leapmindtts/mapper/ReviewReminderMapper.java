@@ -53,13 +53,18 @@ public interface ReviewReminderMapper extends BaseMapper<ReviewReminder> {
 
     /**
      * 标记指定ID的提醒为已复习
-     * <p>同时更新 reviewed_at 和 updated_at 为当前时间</p>
+     * <p>同时更新 reviewed_at、updated_at 和 notes 字段</p>
      *
-     * @param id 复习提醒ID
+     * @param id    复习提醒ID
+     * @param notes 复习备注（可为 null）
      * @return 受影响行数，1 表示成功，0 表示记录不存在
      */
-    @Update("UPDATE review_reminders SET is_reviewed = 1, reviewed_at = NOW(), updated_at = NOW() WHERE id = #{id}")
-    int markAsReviewed(@Param("id") Long id);
+    @Update("<script>"
+            + "UPDATE review_reminders SET is_reviewed = 1, reviewed_at = NOW(), updated_at = NOW()"
+            + "<if test='notes != null'>, notes = #{notes}</if>"
+            + " WHERE id = #{id}"
+            + "</script>")
+    int markAsReviewed(@Param("id") Long id, @Param("notes") String notes);
 
     /**
      * 查询所有到期未复习的提醒（不区分用户）

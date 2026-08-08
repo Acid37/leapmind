@@ -217,5 +217,6 @@ python-service:
   base-url: http://localhost:8000
   review-calculation-path: /api/review/calculate-all
   event-process-path: /api/events/process
+  profile-build-path: /api/internal/ai/build-profile
   connect-timeout: 30
   read-timeout: 300

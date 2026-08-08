@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 批量语音合成控制器
@@ -24,6 +26,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 @Validated
+@Tag(name = "Speech - 语音合成", description = "批量语音合成、PPT音频生成、文本预处理")
 public class BulkSpeechController {
 
     private final BulkSpeechService bulkSpeechService;
@@ -34,6 +37,7 @@ public class BulkSpeechController {
     /**
      * 批量语音合成接口
      */
+    @Operation(summary = "批量语音合成", description = "提交 PPT 全部文本进行批量语音合成")
     @PostMapping("/bulk-synthesis")
     public ResponseEntity<BulkSynthesisResponse> bulkSynthesis(@Valid @RequestBody BulkSynthesisRequest request) {
         log.info("接收到批量语音合成请求，PPT标题: {}, slides数量: {}", request.getTitle(), request.getSlides().size());
@@ -57,6 +61,7 @@ public class BulkSpeechController {
      * 查询指定页面的音频信息和片段元数据
      * 数据库存储的是页面级音频，返回的是该页面的音频信息和片段元数据
      */
+    @Operation(summary = "获取页面音频分段", description = "查询指定课程某页的音频分段元数据")
     @GetMapping("/ppt/{courseId}/page/{pageNumber}")
     public ResponseEntity<List<PPTAudioSegment>> getPageAudioSegments(
             @PathVariable @NotBlank String courseId,
@@ -81,6 +86,7 @@ public class BulkSpeechController {
     /**
      * 查询整个PPT的音频信息和统计数据
      */
+    @Operation(summary = "获取PPT音频信息", description = "查询整个 PPT 的音频统计和状态")
     @GetMapping("/ppt/{courseId}")
     public ResponseEntity<PPTAudioInfo> getPPTAudioInfo(@PathVariable @NotBlank String courseId) {
 
@@ -104,6 +110,7 @@ public class BulkSpeechController {
      * 播放指定页面的完整音频文件
      * 注意：现在数据库存储的是页面级音频，返回整个页面的合并音频
      */
+    @Operation(summary = "播放页面音频", description = "返回指定页面完整合并音频（WAV 格式）")
     @GetMapping("/ppt/{courseId}/page/{pageNumber}/audio")
     public ResponseEntity<byte[]> playPageAudio(
             @PathVariable @NotBlank String courseId,
@@ -139,6 +146,7 @@ public class BulkSpeechController {
      * 批量文本预处理接口（不进行语音合成）
      * 处理文本润色和分句，保存到数据库等待审核
      */
+    @Operation(summary = "批量文本预处理", description = "仅文本润色和分句，不合成语音，结果保存供审核")
     @PostMapping("/bulk-preprocessing")
     public ResponseEntity<BulkPreprocessingResponse> bulkPreprocessing(@Valid @RequestBody BulkSynthesisRequest request) {
         log.info("接收到批量文本预处理请求，PPT标题: {}, slides数量: {}", request.getTitle(), request.getSlides().size());
@@ -162,6 +170,7 @@ public class BulkSpeechController {
     /**
      * 执行批量语音合成接口（基于已审核通过的文本）
      */
+    @Operation(summary = "执行批量合成", description = "基于审核通过的文本执行实际语音合成")
     @PostMapping("/bulk-synthesis-execute/{courseId}")
     public ResponseEntity<BulkSynthesisResponse> executeBulkSynthesis(@PathVariable @NotBlank String courseId) {
         log.info("接收到批量语音合成执行请求，会话ID: {}", courseId);

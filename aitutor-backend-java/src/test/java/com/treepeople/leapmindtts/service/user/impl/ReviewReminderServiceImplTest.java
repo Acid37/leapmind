@@ -1,10 +1,12 @@
 package com.treepeople.leapmindtts.service.user.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.treepeople.leapmindtts.exception.UserNotFoundException;
 import com.treepeople.leapmindtts.mapper.ReviewReminderMapper;
 import com.treepeople.leapmindtts.pojo.dto.MarkReviewedRequest;
 import com.treepeople.leapmindtts.pojo.entity.ReviewReminder;
 import com.treepeople.leapmindtts.pojo.vo.ReviewReminderVO;
+import com.treepeople.leapmindtts.service.profile.UserEventService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,11 @@ class ReviewReminderServiceImplTest {
     @Mock
     private ReviewReminderMapper reviewReminderMapper;
 
+    @Mock
+    private UserEventService userEventService;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @InjectMocks
     private ReviewReminderServiceImpl reviewReminderService;
 
@@ -66,6 +73,9 @@ class ReviewReminderServiceImplTest {
         MarkReviewedRequest request = new MarkReviewedRequest();
         request.setReminderId(reminderId);
         request.setNotes("已掌握");
+        request.setResult("correct_without_hint");
+        request.setTimeSpentSec(120);
+        request.setHintCount(2);
         return request;
     }
 
@@ -160,6 +170,8 @@ class ReviewReminderServiceImplTest {
                     .priority(2)
                     .isReviewed(0)
                     .reviewedAt(null)
+                    .notes("备注内容")
+                    .kpId(42L)
                     .createdAt(LocalDateTime.of(2026, 7, 20, 12, 0))
                     .updatedAt(LocalDateTime.of(2026, 7, 20, 12, 0))
                     .build();
@@ -181,6 +193,8 @@ class ReviewReminderServiceImplTest {
             assertThat(vo.getPriority()).isEqualTo(2);
             assertThat(vo.getIsReviewed()).isEqualTo(0);
             assertThat(vo.getReviewedAt()).isNull();
+            assertThat(vo.getNotes()).isEqualTo("备注内容");
+            assertThat(vo.getKpId()).isEqualTo(42L);
             assertThat(vo.getCreatedAt()).isNotNull();
         }
     }
@@ -192,7 +206,7 @@ class ReviewReminderServiceImplTest {
     class MarkAsReviewedTests {
 
         @Test
-        @DisplayName("正常标记已复习，返回更新后的提醒")
+        @DisplayName("正常标记已复习，返回更新后的提醒并发布 M6 事件")
         void shouldMarkAsReviewedSuccessfully() {
             // Given
             Long userId = 1L;
@@ -206,7 +220,7 @@ class ReviewReminderServiceImplTest {
                     LocalDateTime.of(2026, 7, 21, 15, 30));
 
             when(reviewReminderMapper.selectById(reminderId)).thenReturn(beforeUpdate, afterUpdate);
-            when(reviewReminderMapper.markAsReviewed(reminderId)).thenReturn(1);
+            when(reviewReminderMapper.markAsReviewed(eq(reminderId), anyString())).thenReturn(1);
 
             // When
             ReviewReminderVO result = reviewReminderService.markAsReviewed(userId, request);
@@ -217,11 +231,13 @@ class ReviewReminderServiceImplTest {
 
             // 验证调用顺序：先查询 → 再更新 → 再查询（共2次）
             verify(reviewReminderMapper, times(2)).selectById(reminderId);
-            verify(reviewReminderMapper).markAsReviewed(reminderId);
+            verify(reviewReminderMapper).markAsReviewed(eq(reminderId), anyString());
+            // 验证 M6 事件已发布
+            verify(userEventService).recordInternal(any());
         }
 
         @Test
-        @DisplayName("提醒不存在时抛出 UserNotFoundException")
+        @DisplayName("提醒不存在时抛出 UserNotFoundException，不发布事件")
         void shouldThrowExceptionWhenReminderNotFound() {
             // Given
             Long userId = 1L;
@@ -234,11 +250,12 @@ class ReviewReminderServiceImplTest {
                     .hasMessageContaining("复习提醒不存在")
                     .hasMessageContaining("999");
 
-            verify(reviewReminderMapper, never()).markAsReviewed(anyLong());
+            verify(reviewReminderMapper, never()).markAsReviewed(anyLong(), anyString());
+            verify(userEventService, never()).recordInternal(any());
         }
 
         @Test
-        @DisplayName("提醒不属于当前用户时抛出 IllegalArgumentException")
+        @DisplayName("提醒不属于当前用户时抛出 IllegalArgumentException，不发布事件")
         void shouldThrowExceptionWhenReminderBelongsToAnotherUser() {
             // Given
             Long currentUserId = 1L;
@@ -256,11 +273,12 @@ class ReviewReminderServiceImplTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("不属于当前用户");
 
-            verify(reviewReminderMapper, never()).markAsReviewed(anyLong());
+            verify(reviewReminderMapper, never()).markAsReviewed(anyLong(), anyString());
+            verify(userEventService, never()).recordInternal(any());
         }
 
         @Test
-        @DisplayName("数据库更新影响行数为 0 时抛出 RuntimeException")
+        @DisplayName("数据库更新影响行数为 0 时抛出 RuntimeException，不发布事件")
         void shouldThrowExceptionWhenUpdateAffectsZeroRows() {
             // Given
             Long userId = 1L;
@@ -271,16 +289,18 @@ class ReviewReminderServiceImplTest {
                     "REVIEW", "内容", LocalDate.now(), 1, 0, null);
 
             when(reviewReminderMapper.selectById(reminderId)).thenReturn(reminder);
-            when(reviewReminderMapper.markAsReviewed(reminderId)).thenReturn(0);
+            when(reviewReminderMapper.markAsReviewed(eq(reminderId), anyString())).thenReturn(0);
 
             // When & Then
             assertThatThrownBy(() -> reviewReminderService.markAsReviewed(userId, request))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("标记已复习失败");
+
+            verify(userEventService, never()).recordInternal(any());
         }
 
         @Test
-        @DisplayName("重复标记已复习的记录也应该成功（幂等操作）")
+        @DisplayName("重复标记已复习的记录也应该成功（幂等操作），并发布事件")
         void shouldHandleMarkingAlreadyReviewedReminder() {
             // Given
             Long userId = 1L;
@@ -293,7 +313,7 @@ class ReviewReminderServiceImplTest {
 
             // 模拟已复习的记录：查询返回已复习状态，更新仍然执行（幂等）
             when(reviewReminderMapper.selectById(reminderId)).thenReturn(alreadyReviewed);
-            when(reviewReminderMapper.markAsReviewed(reminderId)).thenReturn(1);
+            when(reviewReminderMapper.markAsReviewed(eq(reminderId), anyString())).thenReturn(1);
             when(reviewReminderMapper.selectById(reminderId)).thenReturn(alreadyReviewed);
 
             // When
@@ -301,7 +321,9 @@ class ReviewReminderServiceImplTest {
 
             // Then — 幂等操作不会失败
             assertThat(result.getIsReviewed()).isEqualTo(1);
-            verify(reviewReminderMapper).markAsReviewed(reminderId);
+            verify(reviewReminderMapper).markAsReviewed(eq(reminderId), anyString());
+            // M6 事件仍会被尝试发布（幂等由事件层处理）
+            verify(userEventService).recordInternal(any());
         }
 
         @Test
@@ -321,6 +343,34 @@ class ReviewReminderServiceImplTest {
             assertThatThrownBy(() -> reviewReminderService.markAsReviewed(userId, request))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("不属于当前用户");
+        }
+
+        @Test
+        @DisplayName("M6 事件发布失败时不影响已复习状态更新（outbox 补偿模式）")
+        void shouldNotRollbackWhenEventPublishFails() {
+            // Given
+            Long userId = 1L;
+            Long reminderId = 100L;
+            MarkReviewedRequest request = createMarkReviewedRequest(reminderId);
+
+            ReviewReminder beforeUpdate = createReminder(reminderId, userId, "C001",
+                    "REVIEW", "内容", LocalDate.now(), 1, 0, null);
+            ReviewReminder afterUpdate = createReminder(reminderId, userId, "C001",
+                    "REVIEW", "内容", LocalDate.now(), 1, 1,
+                    LocalDateTime.of(2026, 7, 21, 15, 30));
+
+            when(reviewReminderMapper.selectById(reminderId)).thenReturn(beforeUpdate, afterUpdate);
+            when(reviewReminderMapper.markAsReviewed(eq(reminderId), anyString())).thenReturn(1);
+            doThrow(new RuntimeException("事件发布模拟失败"))
+                    .when(userEventService).recordInternal(any());
+
+            // When — 不应抛出异常
+            ReviewReminderVO result = reviewReminderService.markAsReviewed(userId, request);
+
+            // Then — 状态更新成功，事件发布失败被吞掉
+            assertThat(result.getIsReviewed()).isEqualTo(1);
+            assertThat(result.getReviewedAt()).isNotNull();
+            verify(userEventService).recordInternal(any());
         }
     }
 
