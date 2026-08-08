@@ -47,6 +47,11 @@ import {
 } from "../services/practiceService";
 import { ChatPanel } from "../components/chat";
 import { getUserInfo } from "../utils/tokenManager";
+import {
+  isSessionComplete,
+  migrateSessionAnswers,
+  withSessionQuestionKeys,
+} from "../utils/practiceSession";
 
 const SESSION_KEY = "m1_practice_session";
 const QUICK_COUNTS = [5, 10, 15, 20];
@@ -96,7 +101,7 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
       return;
     }
     if (session && Object.keys(answers).length > 0) {
-      const completed = session.questions.every((question) => answers[question.questionId]?.submitted);
+      const completed = isSessionComplete(session, answers);
       if (completed) {
         localStorage.removeItem(SESSION_KEY);
         return;
@@ -136,9 +141,9 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
             setLoading(false);
             return;
           }
-          const completed = parsed.session.questions.every(
-            (question) => parsed.answers?.[question.questionId]?.submitted
-          );
+          const restoredSession = withSessionQuestionKeys(parsed.session);
+          const restoredAnswers = migrateSessionAnswers(restoredSession, parsed.answers);
+          const completed = isSessionComplete(restoredSession, restoredAnswers);
           if (completed) {
             localStorage.removeItem(SESSION_KEY);
             setShowSetup(true);
@@ -146,9 +151,9 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
             return;
           }
           setHasSavedSession(true);
-          setSession(parsed.session);
+          setSession(restoredSession);
           setCurrentIndex(parsed.currentIndex || 0);
-          setAnswers(parsed.answers || {});
+          setAnswers(restoredAnswers);
           setLoading(false);
           return;
         }
@@ -259,11 +264,15 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
       const subjectLabel = setup.subject === "mixed"
         ? "混合科目"
         : availableSubjects.find((item) => item.value === setup.subject)?.label || setup.subject;
-      setSession({ ...data, setup: { questionCount: data.questions.length, requestedCount: questionCount, subject: setup.subject, subjectLabel } });
+      const sessionData = withSessionQuestionKeys({
+        ...data,
+        setup: { questionCount: data.questions.length, requestedCount: questionCount, subject: setup.subject, subjectLabel },
+      });
+      setSession(sessionData);
       setCurrentIndex(0);
       const initial = {};
-      data.questions.forEach((q) => {
-        initial[q.questionId] = {
+      sessionData.questions.forEach((q) => {
+        initial[q.sessionQuestionKey] = {
           selectedAnswer: null,
           isCorrect: null,
           timeSpent: 0,
@@ -336,7 +345,7 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
 
   const currentQuestion = session?.questions?.[currentIndex];
   const currentAnswer = currentQuestion
-    ? answers[currentQuestion.questionId]
+    ? answers[currentQuestion.sessionQuestionKey]
     : null;
 
   // --- 选择答案 ---
@@ -346,8 +355,8 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
       setSubmitError("");
       setAnswers((prev) => ({
         ...prev,
-        [currentQuestion.questionId]: {
-          ...prev[currentQuestion.questionId],
+        [currentQuestion.sessionQuestionKey]: {
+          ...prev[currentQuestion.sessionQuestionKey],
           selectedAnswer: answer,
         },
       }));
@@ -371,8 +380,8 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
       });
       setAnswers((prev) => ({
         ...prev,
-        [currentQuestion.questionId]: {
-          ...prev[currentQuestion.questionId],
+        [currentQuestion.sessionQuestionKey]: {
+          ...prev[currentQuestion.sessionQuestionKey],
           isCorrect: result.isCorrect,
           submitted: true,
           result,
@@ -405,8 +414,8 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
     if (!currentQuestion) return;
     setAnswers((prev) => ({
       ...prev,
-      [currentQuestion.questionId]: {
-        ...prev[currentQuestion.questionId],
+        [currentQuestion.sessionQuestionKey]: {
+          ...prev[currentQuestion.sessionQuestionKey],
         timeSpent: s,
       },
     }));
@@ -415,7 +424,7 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
   // --- 计算统计 ---
   const answerStatuses = session?.questions?.map(
     (q) => {
-      const a = answers[q.questionId];
+      const a = answers[q.sessionQuestionKey];
       if (!a?.submitted) return null;
       return a.isCorrect ? "correct" : "wrong";
     }
@@ -609,7 +618,7 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
             <Timer
               isRunning={!currentAnswer?.submitted}
               onTick={handleTick}
-              resetKey={currentQuestion?.questionId}
+              resetKey={currentQuestion?.sessionQuestionKey}
             />
           </div>
         </div>
@@ -724,6 +733,8 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
               sceneType="doing_exercise"
               context={{
                 questionId: currentQuestion?.questionId,
+                questionNumber: currentIndex + 1,
+                totalQuestions: session.questions.length,
                 stem: currentQuestion?.content?.stem,
                 options: currentQuestion?.content?.options,
                 type: currentQuestion?.type,

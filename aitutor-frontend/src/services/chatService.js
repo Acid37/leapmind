@@ -15,9 +15,10 @@ import { getToken } from '../utils/tokenManager';
  * 结构化错误，携带错误码便于前端差异化处理
  *
  * 错误码对应后端 exception/BizErrorCode.java：
- *   1001 RATE_LIMITED     — 限流，不显示重试
- *   1003 SERVICE_DEGRADED — 降级，显示重试
- *   2001 AI_TIMEOUT       — 超时，显示重试
+ *   1001 RATE_LIMITED       — 限流，不显示重试
+ *   1002 QUESTION_DUPLICATE — 重复提问（问题正在思考中），不显示重试
+ *   1003 SERVICE_DEGRADED   — 降级，显示重试
+ *   2001 AI_TIMEOUT         — 超时，显示重试
  */
 export class ChatError extends Error {
   constructor(code, message) {

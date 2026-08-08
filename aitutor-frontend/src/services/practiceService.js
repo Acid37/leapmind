@@ -413,7 +413,9 @@ export async function submitAnswer(params = {}) {
   }
 
   let userAnswer = '';
-  if (typeof params.answer?.selected === 'string') {
+  if (typeof params.answer === 'string') {
+    userAnswer = params.answer;
+  } else if (typeof params.answer?.selected === 'string') {
     userAnswer = params.answer.selected;
   } else if (Array.isArray(params.answer?.selected)) {
     userAnswer = params.answer.selected.join(',');

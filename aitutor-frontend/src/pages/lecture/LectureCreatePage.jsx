@@ -9,8 +9,8 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Paperclip, FileText, Target, X, File, AlertCircle, ArrowLeft, Send, Loader2 } from 'lucide-react';
-import { parseLectureFile, getWeakPoints } from '../../services/lectureService';
+import { Paperclip, FileText, Target, X, File, AlertCircle, ArrowLeft, Send, Loader2, Library } from 'lucide-react';
+import { parseLectureFile, getWeakPoints, getPublishedPpts, getPublishedPptDetail } from '../../services/lectureService';
 import { getLearningProfile } from '../../services/learningProfileService';
 import { getOrCreateCourseId } from '../../features/chat/pptSession';
 
@@ -92,6 +92,11 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
   const [weakPoints, setWeakPoints] = useState([]);
   const [weakPointsLoading, setWeakPointsLoading] = useState(true);
   const [learningProfile, setLearningProfile] = useState(null);
+  const [publishedPpts, setPublishedPpts] = useState([]);
+  const [loadingPpts, setLoadingPpts] = useState(false);
+  const [showPptLibrary, setShowPptLibrary] = useState(false);
+  const [importedPpt, setImportedPpt] = useState(null);
+  const [pptError, setPptError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +150,38 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
     setParseError('');
   };
 
+  const openPptLibrary = async () => {
+    setShowPptLibrary(true);
+    setPptError('');
+    setLoadingPpts(true);
+    try {
+      setPublishedPpts(await getPublishedPpts(userId));
+    } catch (err) {
+      setPptError(err?.message || '加载备课库失败');
+      setPublishedPpts([]);
+    } finally {
+      setLoadingPpts(false);
+    }
+  };
+
+  const importPpt = async (ppt) => {
+    setLoadingPpts(true);
+    setPptError('');
+    try {
+      const detail = await getPublishedPptDetail(ppt.lectureId, userId);
+      if (!detail?.slides?.length) throw new Error('该备课内容没有可用的 PPT 页面');
+      setImportedPpt(detail);
+      setFile(null);
+      setParseResult(null);
+      setTextContent(detail.title || '');
+      setShowPptLibrary(false);
+    } catch (err) {
+      setPptError(err?.message || '导入备课 PPT 失败');
+    } finally {
+      setLoadingPpts(false);
+    }
+  };
+
   // 拖拽上传
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -162,7 +199,7 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
   };
 
   // 是否可以生成：有解析成功的文件 或 有足够文本
-  const canGenerate = !!parseResult || textContent.trim().length > 0;
+  const canGenerate = !!importedPpt || !!parseResult || textContent.trim().length > 0;
 
   const handleGenerate = () => {
     if (!canGenerate || parsing) return;
@@ -176,6 +213,9 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
       sourceId: parseResult?.fileId,
       textContent: textContent.trim() || undefined,
       parseResult,
+      importedPrepId: importedPpt?.lectureId,
+      importedTitle: importedPpt?.title,
+      importedSlides: importedPpt?.slides,
       weakPointIds: selectedWeakPoints,
       selectedWeakPoints: selectedWeakPointDetails,
       userProfile: learningProfile ? {
@@ -246,7 +286,19 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
                 : 'border-slate-200 focus-within:border-purple-400 focus-within:ring-4 focus-within:ring-purple-100'
             }`}
           >
-            {/* 已上传文件 chips */}
+            {/* 已上传文件 / 已导入备课 chips */}
+            {importedPpt && (
+              <div className="flex flex-wrap gap-2 pt-3 px-3">
+                <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs max-w-full">
+                  <Library className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <span className="text-slate-700 font-medium truncate max-w-[220px]">已导入：{importedPpt.title}</span>
+                  <span className="text-blue-500 text-[10px] shrink-0">{importedPpt.slides.length} 页</span>
+                  <button onClick={() => setImportedPpt(null)} className="p-0.5 hover:bg-blue-100 rounded transition-colors">
+                    <X className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" />
+                  </button>
+                </div>
+              </div>
+            )}
             {(file || parsing) && (
               <div className="flex flex-wrap gap-2 pt-3 px-3">
                 <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs max-w-full ${
@@ -304,6 +356,16 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
                 </button>
                 <span className="text-[10px] sm:text-xs text-slate-400 truncate hidden md:inline">支持 PDF、Word、PPT、图片、TXT（≤50MB）</span>
               </div>
+              <button
+                type="button"
+                onClick={openPptLibrary}
+                disabled={loadingPpts}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition-colors disabled:opacity-50"
+                title="从已发布备课中导入"
+              >
+                <Library className="w-4 h-4" />
+                <span className="text-xs font-medium hidden sm:inline">备课库导入</span>
+              </button>
 
               {/* 右侧：生成按钮 */}
               <button
@@ -343,6 +405,34 @@ const LectureCreatePage = ({ userId = 1, initialText = '', onStartGeneration, on
               <p className="text-xs text-green-600 mt-1">
                 {parseResult.parsedContent.sections.length} 个章节 · 预计 {parseResult.parsedContent.estimatedDuration} 分钟
               </p>
+            </div>
+          )}
+
+          {showPptLibrary && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-slate-800">从备课库导入</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">仅展示已发布的 PPT，导入后可直接开始讲课。</p>
+                </div>
+                <button onClick={() => setShowPptLibrary(false)} className="rounded p-1 text-slate-400 hover:bg-slate-100"><X className="w-4 h-4" /></button>
+              </div>
+              {loadingPpts ? (
+                <p className="py-6 text-center text-sm text-slate-400">正在加载备课库…</p>
+              ) : pptError ? (
+                <p className="py-4 text-sm text-red-500">{pptError}</p>
+              ) : publishedPpts.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-400">暂无已发布的 PPT</p>
+              ) : (
+                <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                  {publishedPpts.map((ppt) => (
+                    <button key={ppt.lectureId} onClick={() => importPpt(ppt)} className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-left hover:border-purple-300 hover:bg-purple-50">
+                      <span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-700">{ppt.title}</span><span className="text-xs text-slate-400">{ppt.subject || '未分类'} · {ppt.slideCount || 0} 页</span></span>
+                      <span className="ml-3 shrink-0 text-xs font-medium text-purple-600">导入</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

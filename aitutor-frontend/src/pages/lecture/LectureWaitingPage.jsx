@@ -24,6 +24,8 @@ const getPreviewStyle = (type) => {
 
 const SlideThumbnail = ({ slide, index, isNew }) => {
   const style = getPreviewStyle(slide.type);
+  // 真实 M5 SSE 为扁平结构（title 在顶层），旧 Mock 使用 content.title。
+  const title = slide.title || slide.content?.title || '未命名幻灯片';
   return (
     <div
       className={`rounded-xl border-2 transition-all overflow-hidden ${
@@ -48,8 +50,8 @@ const SlideThumbnail = ({ slide, index, isNew }) => {
       </div>
       {/* 底部标题区 */}
       <div className="p-2 lg:p-2.5">
-        <p className="text-xs lg:text-sm font-semibold text-slate-700 line-clamp-1 leading-tight" title={slide.content.title}>
-          {slide.content.title}
+        <p className="text-xs lg:text-sm font-semibold text-slate-700 line-clamp-1 leading-tight" title={title}>
+          {title}
         </p>
       </div>
     </div>
@@ -95,19 +97,33 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
             case 'slide':
               setSlides(prev => {
                 const next = [...prev];
-                next[event.pageNum - 1] = event.slide;
+                const slideIndex = (event.pageNum ?? event.page_num ?? event.slide?.pageNum ?? event.slide?.page_num ?? 1) - 1;
+                next[slideIndex] = { ...next[slideIndex], ...event.slide };
                 return next;
               });
-              setProgress({ current: event.pageNum, total: event.totalPages || 0 });
+              setProgress({ current: event.pageNum ?? event.page_num ?? 0, total: event.totalPages ?? event.total_pages ?? 0 });
               // 标记新生成的 slide 用于高亮动画
-              setNewSlideIndices(prev => new Set([...prev, event.pageNum - 1]));
+              setNewSlideIndices(prev => new Set([...prev, (event.pageNum ?? event.page_num ?? 1) - 1]));
               setTimeout(() => {
                 setNewSlideIndices(prev => {
                   const next = new Set(prev);
-                  next.delete(event.pageNum - 1);
+                  next.delete((event.pageNum ?? event.page_num ?? 1) - 1);
                   return next;
                 });
               }, 2000);
+              break;
+            case 'narration':
+              setSlides(prev => {
+                const slideIndex = (event.pageNum ?? event.page_num ?? 1) - 1;
+                const next = [...prev];
+                if (slideIndex < 0 || !next[slideIndex]) return prev;
+                next[slideIndex] = {
+                  ...next[slideIndex],
+                  narrationText: event.narrationText ?? event.narration_text ?? '',
+                  estimatedDurationSec: event.estimatedDurationSec ?? event.estimated_duration_seconds,
+                };
+                return next;
+              });
               break;
             case 'done':
             case 'saved':

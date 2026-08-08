@@ -54,8 +54,18 @@ const ChatPanel = ({
 
   const [inputValue, setInputValue] = useState('');
   const [isVoiceListening, setIsVoiceListening] = useState(false);
+  // 本地去重轻提示（连点相同/不同问题时的提示，短暂显示后消失）
+  const [dedupNotice, setDedupNotice] = useState('');
+  const dedupNoticeTimerRef = useRef(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+
+  // 短暂显示去重提示（2s 后自动消失）
+  const showDedupNotice = (msg) => {
+    setDedupNotice(msg);
+    if (dedupNoticeTimerRef.current) clearTimeout(dedupNoticeTimerRef.current);
+    dedupNoticeTimerRef.current = setTimeout(() => setDedupNotice(''), 2000);
+  };
 
   // 消息更新时自动滚到底部
   useEffect(() => {
@@ -79,8 +89,16 @@ const ChatPanel = ({
   const handleSend = (e) => {
     e?.preventDefault();
     const text = inputValue.trim();
-    if (!text || isGenerating) return;
-    send(text);
+    if (!text) return;
+    const result = send(text);
+    if (result === 'duplicate') {
+      showDedupNotice('该问题正在回复中，请稍候...');
+      return;
+    }
+    if (result === 'busy') {
+      showDedupNotice('AI 正在回复其他问题，请稍候...');
+      return;
+    }
     setInputValue('');
     onMessageSent?.(text);
   };
@@ -271,6 +289,15 @@ const ChatPanel = ({
         </div>
       )}
 
+      {/* ===== 去重提示条（连点相同问题时的轻提示） ===== */}
+      {dedupNotice && (
+        <div className="flex-shrink-0 flex justify-center">
+          <div className="px-3 py-1 text-xs text-indigo-600 bg-indigo-50 rounded-full">
+            {dedupNotice}
+          </div>
+        </div>
+      )}
+
       {/* ===== 底部输入区 ===== */}
       <div className="flex-shrink-0 p-3 border-t border-slate-100">
         <form onSubmit={handleSend} className="flex items-end gap-2">
@@ -319,10 +346,9 @@ const ChatPanel = ({
                 handleSend();
               }
             }}
-            placeholder={isGenerating ? 'AI 正在回复...' : '输入你的问题...'}
-            disabled={isGenerating}
+            placeholder={isGenerating ? 'AI 正在回复中，可继续输入...' : '输入你的问题...'}
             rows={1}
-            className="flex-1 px-3 py-2 text-sm bg-slate-100 border border-transparent rounded-xl resize-none outline-none focus:border-indigo-300 focus:bg-white transition-colors placeholder:text-slate-400 disabled:opacity-50"
+            className="flex-1 px-3 py-2 text-sm bg-slate-100 border border-transparent rounded-xl resize-none outline-none focus:border-indigo-300 focus:bg-white transition-colors placeholder:text-slate-400"
             style={{ minHeight: '36px', maxHeight: '100px' }}
             onInput={(e) => {
               e.target.style.height = 'auto';
@@ -333,7 +359,7 @@ const ChatPanel = ({
           {/* 发送按钮 */}
           <button
             type="submit"
-            disabled={!inputValue.trim() || isGenerating}
+            disabled={!inputValue.trim()}
             className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
             title="发送"
           >
