@@ -17,6 +17,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { getWrongQuestions, toggleFocus, deleteWrongQuestion, deleteWrongQuestions } from "../services/practiceService";
+import MathText from "../components/practice/MathText";
 
 const SUBJECT_LABELS = {
   math: "数学",
@@ -397,9 +398,9 @@ export default function WrongQuestionBookPage({ onRedo }) {
                     <span className="text-xs text-slate-400">{q.createdAt?.slice(0, 10)}</span>
                   </div>
 
-                  <p className="text-sm text-slate-700 leading-relaxed line-clamp-2">
-                    {q.questionContent?.stem}
-                  </p>
+                  <div className="text-sm text-slate-700 leading-relaxed line-clamp-2">
+                    <MathText>{q.questionContent?.stem}</MathText>
+                  </div>
 
                   {/* 知识点 */}
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -450,7 +451,9 @@ export default function WrongQuestionBookPage({ onRedo }) {
               {expandedIds.includes(q.id) && (
                 <div className="ml-7 mt-3 rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-sm">
                   <div className="font-medium text-violet-700">标准答案：{q.correctAnswer || "暂无"}</div>
-                  <p className="mt-2 leading-6 text-slate-600">{q.explanation || "这道题暂时没有录入解析。"}</p>
+                  <div className="mt-2 leading-6 text-slate-600">
+                    <MathText>{q.explanation || "这道题暂时没有录入解析。"}</MathText>
+                  </div>
                 </div>
               )}
             </div>
