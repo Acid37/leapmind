@@ -59,15 +59,42 @@ ai:
     key: sk-ead3ef8a1ef941bab04b2b530ed24a34
   prompt: '你是一个聪明且体贴的老师，请简洁的回答以下这个问题，回答完后需要加入"还有其他问题欢迎继续问我呀。”'
 
-# 阿里云TTS配置
+# 阿里云TTS配置 【M8 对接后 M5 不再直接调阿里云 TTS】
+# 保留此块是为了兼容老代码中 @Value("${tts.voice}") 等默认值读取（VirtualTeacherTtsService 用到）
 tts:
   api-url: http://localhost:8080/api/virtual-teacher/tts
   api:
-    key: # 这个将通过TokenService动态获取
+    key: # 这个将通过TokenService动态获取（M5 不再用）
   app:
     key: 1NKi3NqL8jyXC8PK
-  voice: zhixiaoxia # 发音人配置
+  voice: zhixiaoxia # 发音人配置（作为 M8 音色默认值兜底）
   api-url: http://localhost:8080/api/virtual-teacher/tts
+m8:
+  # M8 服务部署地址（不要带 /api 路径；如果 M8 和 M5 在同一个 Spring Boot 应用部署，
+  # 就填 M5 自己的 server.port 地址，当前项目 application.yml 顶部 server.port=8080，
+  # 所以默认值就是 http://localhost:8080，无需改）
+  base-url: ${M8_BASE_URL:http://localhost:8080}
+
+  # 【M8 对接修正：文档未给出固定内部服务 Token】
+  # 鉴权规则原文：请求头格式 Authorization: Bearer <token> ；
+  # token 需要由 M5 后台「用户登录鉴权」之后获取，通过 Controller 层把请求头
+  # Authorization: Bearer <token> 里的 token 部分取出，一路透传到 M8TtsClient.userJwt 参数。
+  # 不再使用「固定内部 Token」，所以此配置项废弃，保留仅为了避免 @Value 找不到报启动异常。
+  # 生产/开发都不需要设置环境变量 M8_INTERNAL_SERVICE_TOKEN。
+  internal-service-token: ${M8_INTERNAL_SERVICE_TOKEN:}
+
+  # HTTP 超时：connect-timeout 建立连接，read-timeout 等合成完成（M8 文档 synthesis-timeout=125s）
+  connect-timeout-ms: 10000
+  read-timeout-seconds: 125
+  retry-count: 3
+
+  # 默认音色 & 语速（M8 文档 voiceType / speed 字段）
+  default-voice: ${M8_DEFAULT_VOICE:zhixiaoxia}
+  default-speed: 1.0
+
+  # 单条文本最大字符数（M8 文档 500，超长时 M8TtsClient.synthesizeChunkedUrls 会自动切分句调多次）
+  single-text-max: 500
+  
 # 阿里云AccessKey配置
 aliyun:
   access-key-id: LTAI5t9BuGenr8gDhn4uhcuN
