@@ -165,9 +165,6 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
       },
     };
 
-    // 是否为终端事件（收到后必须立即切断连接，不再继续 read）
-    const isTerminal = (type) => type === 'done' || type === 'error' || type === 'interrupted';
-
     function read() {
       reader.read().then(({ done, value }) => {
         if (done) {
@@ -181,11 +178,6 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
           if (value.sessionId) {
             setSessionId(value.sessionId);
           }
-          // ⚠️ 致命切断点：终端事件立即 cancel，防止继续消费多余数据
-          //   （fetch 不自动重连；换 fetch-event-source 后此处更是防重连打挂限流器的关键）
-          if (isTerminal(value.type)) {
-            stopStream();
-          }
 
           if (value.type === 'thinking') {
             // thinking 态：骨架屏/Loading（ChatPanel 渲染）
@@ -194,13 +186,16 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
             setPhase('content');
             applyContent(value);
           } else if (value.type === 'done') {
-            // 生成完毕：收尾消息 + 清空 buffer
+            // ⚠️ 终端事件：立即切断连接（防重连打挂限流器）+ 收尾消息
+            stopStream();
             const captured = bufferRef.current; // ⚠️ 必须捕获！下面立即清空 ref
             finishGenerating('idle');
             finalizeMessage(captured);
             bufferRef.current = '';
+            return; // 终端事件不再继续 read()
           } else if (value.type === 'error') {
-            // 后端推送错误事件（限流/降级/超时），按 code 差异化处理
+            // ⚠️ 终端事件：立即切断连接 + 按 code 差异化处理
+            stopStream();
             const captured = bufferRef.current;
             finishGenerating('error');
             if (!captured) dropEmptyPlaceholder();
@@ -210,16 +205,18 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
               code: value.code || undefined,
             });
             bufferRef.current = '';
+            return; // 终端事件不再继续 read()
           } else if (value.type === 'interrupted') {
-            // interrupted 态：保留半成品文本，恢复输入框
+            // ⚠️ 终端事件：立即切断连接 + 保留半成品文本
+            stopStream();
             const captured = bufferRef.current;
             finishGenerating('interrupted');
             finalizeMessage(captured);
             bufferRef.current = '';
+            return; // 终端事件不再继续 read()
           }
-          // 终端事件不继续 read()
-          return;
         }
+        // 非终端事件（thinking/content/未知）继续消费后续 chunk
         read();
       }).catch((err) => {
         // reader cancel（用户主动打断）走 abort 路径，不会进这里
