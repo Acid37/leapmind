@@ -95,6 +95,10 @@ public class UserProfileQueryServiceImpl implements UserProfileQueryService {
     public ProfileView profile(Long userId, HttpServletRequest request) {
         actors.authorizeSelf(request, userId);
         audit(request, userId, userId, "PROFILE_READ", "ALLOWED");
+        return readFull(userId);
+    }
+
+    ProfileView readFull(Long userId) {
         UserProfile stamp = profiles.selectVersionStamp(userId);
         String key = M6ProfileCache.profileKey(userId);
         if (notReady(stamp)) {
@@ -132,6 +136,10 @@ public class UserProfileQueryServiceImpl implements UserProfileQueryService {
         }
         actors.authorizeSelf(request, userId);
         audit(request, userId, userId, "SUMMARY_" + scene.toUpperCase(java.util.Locale.ROOT), "ALLOWED");
+        return readSummary(userId, scene, kpId);
+    }
+
+    SummaryView readSummary(Long userId, String scene, Long kpId) {
         UserProfile stamp = profiles.selectVersionStamp(userId);
         String key = M6ProfileCache.summaryKey(userId, scene, kpId);
         if (notReady(stamp)) {
@@ -160,6 +168,10 @@ public class UserProfileQueryServiceImpl implements UserProfileQueryService {
     public KnowledgeStatusResponse knowledge(Long userId, List<Long> requested, HttpServletRequest request) {
         actors.authorizeSelf(request, userId);
         audit(request, userId, userId, "KNOWLEDGE_READ", "ALLOWED");
+        return readKnowledge(userId, requested);
+    }
+
+    KnowledgeStatusResponse readKnowledge(Long userId, List<Long> requested) {
         // 未指定 kpId 时返回全部知识点
         boolean returnAll = requested == null || requested.isEmpty();
         if (!returnAll && (requested.size() > 100

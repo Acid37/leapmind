@@ -36,10 +36,11 @@ class M6ContractAndMigrationTest {
         String v3 = read("src/main/resources/db/migration/V4__create_m6_user_events.sql");
         String v4 = read("src/main/resources/db/migration/V9__create_m6_user_profiles.sql");
         String v5 = read("src/main/resources/db/migration/V6__create_m6_user_knowledge_mastery.sql");
-        assertAll(() -> assertTrue(v3.contains("PRIMARY KEY") && v3.contains("uk_user_events_event_id") && v3.contains("payload_hash_version")),
-                () -> assertTrue(v4.contains("uk_user_profiles_user_id") && v4.contains("chk_user_profiles_ready_or_stale") && v4.contains("JSON_TYPE(profile_data_json) = 'OBJECT'") && v4.contains("TRIM(algorithm_version)<>''") && v4.contains("DECIMAL(4,3)")
-                        && v4.contains("chk_user_profiles_learning_pace") && v4.contains("chk_user_profiles_summary_profile_length") && v4.contains("CHAR_LENGTH(summary_profile)<=16383")),
-                () -> assertTrue(v5.contains("uk_user_knowledge_mastery_user_kp") && v5.contains("idx_user_knowledge_mastery_user_version") && v5.contains("chk_ukm_user") && v5.contains("chk_ukm_kp")),
+        String c3 = v3.replaceAll("\\s+", ""), c4 = v4.replaceAll("\\s+", ""), c5 = v5.replaceAll("\\s+", "");
+        assertAll(() -> assertTrue(c3.contains("PRIMARYKEY") && c3.contains("uk_user_events_event_id") && c3.contains("payload_hash_version")),
+                () -> assertTrue(c4.contains("uk_user_profiles_user_id") && c4.contains("chk_user_profiles_ready_or_stale") && c4.contains("JSON_TYPE(profile_data_json)='OBJECT'") && c4.contains("TRIM(algorithm_version)<>''") && c4.contains("DECIMAL(4,3)")
+                        && c4.contains("chk_user_profiles_learning_pace") && c4.contains("chk_user_profiles_summary_profile_length") && c4.contains("CHAR_LENGTH(summary_profile)<=16383")),
+                () -> assertTrue(c5.contains("uk_user_knowledge_mastery_user_kp") && c5.contains("idx_user_knowledge_mastery_user_version") && c5.contains("chk_ukm_user") && c5.contains("chk_ukm_kp")),
                 () -> assertFalse((v3 + v4 + v5).toUpperCase().contains("FOREIGN KEY")));
         String openApi = read("docs/m6/user-profile-openapi.yaml"), contract = read("docs/m6/profile-engine-contract.yaml");
         Map<?, ?> openApiDocument = new Yaml().load(openApi);

@@ -9,6 +9,8 @@ import com.treepeople.leapmindtts.service.profile.platform.LearningEventPublishe
 import com.treepeople.leapmindtts.service.profile.platform.PlatformCapabilityPolicy;
 import com.treepeople.leapmindtts.service.profile.platform.ProfileContextProvider;
 import com.treepeople.leapmindtts.service.profile.platform.PlatformIntegrationReadiness;
+import com.treepeople.leapmindtts.service.profile.platform.PolicyEnforcedLearningEventPublisher;
+import com.treepeople.leapmindtts.service.profile.platform.PolicyEnforcedProfileContextProvider;
 import com.treepeople.leapmindtts.service.profile.platform.ProfilePlatformDefaultsConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -23,6 +25,8 @@ class PlatformDefaultsConfigurationTest {
                     assertEquals(1, context.getBeansOfType(ProfileContextProvider.class).size());
                     assertEquals(1, context.getBeansOfType(ProfileEnginePort.class).size());
                     assertEquals(1, context.getBeansOfType(PlatformIntegrationReadiness.class).size());
+                    assertEquals(0, context.getBeansOfType(PolicyEnforcedLearningEventPublisher.class).size());
+                    assertEquals(0, context.getBeansOfType(PolicyEnforcedProfileContextProvider.class).size());
                 });
     }
 
