@@ -1,7 +1,7 @@
 
  package com.treepeople.leapmindtts.listeners;
  
- import com.treepeople.leapmindtts.service.optimize.MetricsService;
+ import com.treepeople.leapmindtts.service.common.MetricsService;
  import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
  import jakarta.annotation.PostConstruct;
  import lombok.RequiredArgsConstructor;

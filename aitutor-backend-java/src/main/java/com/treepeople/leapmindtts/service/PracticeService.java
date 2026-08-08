@@ -21,11 +21,13 @@ public interface PracticeService {
     List<Map<String, Object>> getMistakes(Long userId, String status, String chapter, String knowledgePoint);
     Map<String, Object> setMistakeFocus(Long userId, Long mistakeId, Boolean focused);
     void deleteMistake(Long userId, Long mistakeId);
+    Map<String, Object> deleteMistakes(Long userId, List<Long> mistakeIds);
     Map<String, Object> createMistakeRedoSession(Long userId, List<Long> mistakeIds);
     void updateMistakeStatus(Long userId, Long mistakeId, PracticeController.UpdateMistakeRequest request);
     Map<String, Object> getDashboard(Long userId);
     Map<String, Object> getStatistics(Long userId, String range);
     Map<String, Object> getLeaderboards(Long userId, String track);
+    Map<String, Object> getLeaderboards(Long userId, String track, String type);
     Map<String, Object> checkin(Long userId);
     Map<String, Object> getCheckinStatus(Long userId);
     void updatePrivacy(Long userId, boolean hidden);

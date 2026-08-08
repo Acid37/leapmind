@@ -16,7 +16,7 @@ public class RedisCacheService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final MeterRegistry meterRegistry;
 
-    private static final String NULL_PLACEHOLDER = "__NULL__";
+    public static final String NULL_PLACEHOLDER = "__NULL__";
     private static final Duration NULL_TTL = Duration.ofMinutes(5); // 空值防穿透拦截 5 分钟
 
     public String get(String cacheKey) {

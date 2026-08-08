@@ -27,6 +27,30 @@ services:
     networks:
       - landppt_network
 
+  # M3 薄弱点计算引擎 — 薄弱度计算 / 推荐题目 / 知识图谱 / 增量更新
+  m3-engine:
+    image: bradleylzh/landppt:latest
+    container_name: m3-engine
+    ports:
+      - "8001:8001"
+    volumes:
+      # Configuration (使用同一份 .env，包含 DB 连接信息)
+      - ./.env:/app/.env
+    environment:
+      - PYTHONPATH=/app/src:/app/backend:/opt/venv
+      - PYTHONUNBUFFERED=1
+      - PORT=8001
+    command: ["python", "backend/main.py"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - landppt_network
+
 volumes:
   landppt_data:
     driver: local

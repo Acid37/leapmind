@@ -87,6 +87,7 @@ def _recalculate_for_user(
         db.upsert_weak_point({
             "user_id": user_id,
             "kp_id": wp["kp_id"],
+            "knowledge_point": wp["kp_name"],
             "weakness_score": wp["weakness_score"],
             "error_count": wp["error_count"],
             "total_attempts": wp["total_attempts"],
@@ -170,6 +171,7 @@ def run_incremental_update(
             db.upsert_weak_point({
                 "user_id": user_id,
                 "kp_id": wp["kp_id"],
+                "knowledge_point": wp["kp_name"],
                 "weakness_score": wp["weakness_score"],
                 "error_count": wp["error_count"],
                 "total_attempts": wp["total_attempts"],

@@ -20,6 +20,26 @@ public class MetricsService {
         meterRegistry.counter("questions.processed.total", "type", type, "status", status).increment();
     }
 
+    // 记录打断次数
+    public void incrementInterruptCount() {
+        meterRegistry.counter("conversation.interrupt.count").increment();
+    }
+
+    // 记录首字延迟
+    public void recordTtft(long durationMs) {
+        meterRegistry.timer("conversation.ttft").record(java.time.Duration.ofMillis(durationMs));
+    }
+
+    // 记录AI流错误
+    public void incrementStreamError() {
+        meterRegistry.counter("conversation.stream.error").increment();
+    }
+
+    // 记录连接断开
+    public void incrementStreamDisconnect() {
+        meterRegistry.counter("conversation.stream.disconnect").increment();
+    }
+
     public void recordCircuitBreakerState(String name, String from, String to) {
         meterRegistry.counter("circuitbreaker.state.change", "name", name, "from", from, "to", to).increment();
     }

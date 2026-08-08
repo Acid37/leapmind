@@ -59,6 +59,22 @@ public class WebClientConfig {
         return webClientBuilder.build();
     }
 
+    @Bean
+    @Qualifier("contextCompressWebClient")
+    public WebClient contextCompressWebClient() {
+        // As per user spec: connect 2s, response 10s. The total timeout is controlled by .timeout() in the service.
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000) // 2 seconds
+                .responseTimeout(Duration.ofSeconds(10)) // 10 seconds
+                .doOnConnected(conn ->
+                        conn.addHandlerLast(new ReadTimeoutHandler(10, TimeUnit.SECONDS))
+                                .addHandlerLast(new WriteTimeoutHandler(10, TimeUnit.SECONDS)));
+
+        return WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
+    }
+
     /**
      * 上下文压缩专用 WebClient（连接 2s，响应 10s）。
      * 总超时由服务层 .timeout() 控制。

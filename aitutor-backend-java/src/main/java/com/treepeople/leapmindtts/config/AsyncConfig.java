@@ -58,6 +58,7 @@ public class AsyncConfig {
         return executor;
     }
 
+    
     /**
      * [SSE流式] 备课生成流式透传专用线程池。
      * 用途：承载 Python → Java → 前端 的 SSE 流式处理后台线程（每个请求占用1条线程读 WebClient 流并写入 SseEmitter）。

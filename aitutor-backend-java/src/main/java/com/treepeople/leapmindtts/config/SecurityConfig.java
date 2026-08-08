@@ -75,6 +75,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/lesson-prep/**").permitAll()
                         // 允许访问流式对话和打断接口
                         .requestMatchers("/api/conversation/**").permitAll()
+                        // Actuator 监控端点（本地/内网监控验证；生产建议收紧或加独立管理端口鉴权）
+                        .requestMatchers("/actuator/**").permitAll()
                         // 语音合成和音频相关接口需要认证
                         .requestMatchers("/api/speech/**").authenticated()
                         // 语音对话接口需要认证

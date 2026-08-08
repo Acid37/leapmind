@@ -28,6 +28,8 @@ COPY pyproject.toml uv.lock* README.md ./
 # Install Python dependencies to a specific directory
 RUN uv pip install --target=/opt/venv apryse-sdk>=11.5.0 --extra-index-url=https://pypi.apryse.com && \
     uv pip install --target=/opt/venv -r pyproject.toml && \
+    # Install M3 engine dependencies
+    uv pip install --target=/opt/venv fastapi uvicorn pymysql numpy pandas pydantic python-dotenv apscheduler networkx && \
     # Clean up build artifacts
     find /opt/venv -name "*.pyc" -delete && \
     find /opt/venv -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
@@ -80,6 +82,7 @@ WORKDIR /app
 # Copy application code (minimize layers)
 COPY run.py ./
 COPY src/ ./src/
+COPY backend/ ./backend/
 COPY template_examples/ ./template_examples/
 COPY docker-healthcheck.sh docker-entrypoint.sh ./
 COPY .env.example ./.env

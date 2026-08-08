@@ -54,6 +54,16 @@ public class WrongQuestionController {
         return ResponseEntity.ok(ApiResponse.success(null, "错题记录已删除"));
     }
 
+    @PostMapping("/batch-delete")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> batchDelete(
+            HttpServletRequest request,
+            @RequestBody(required = false) BatchDeleteRequest body) {
+        List<Long> ids = body == null ? List.of() : body.getIds();
+        return ResponseEntity.ok(ApiResponse.success(
+                practiceService.deleteMistakes(currentUserId(request), ids),
+                "Mistakes deleted"));
+    }
+
     @PostMapping("/batch-redo")
     public ResponseEntity<ApiResponse<Map<String, Object>>> batchRedo(
             HttpServletRequest request,
@@ -79,6 +89,11 @@ public class WrongQuestionController {
 
     @Data
     public static class BatchRedoRequest {
+        private List<Long> ids;
+    }
+
+    @Data
+    public static class BatchDeleteRequest {
         private List<Long> ids;
     }
 }
