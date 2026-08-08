@@ -86,7 +86,7 @@ function SectionCard({ icon: Icon, title, themeKey, subtitle, children }) {
   )
 }
 
-export default function SectionEditor({ section, index, onChange }) {
+export default function SectionEditor({ section, index, onChange, userId, subject, grade, knowledgePointIds = [], knowledgePointNames = [] }) {
   const update = (field, val) => {
     onChange({ ...section, [field]: val })
   }
@@ -174,6 +174,14 @@ export default function SectionEditor({ section, index, onChange }) {
       <TeachingProcessEditor
         value={section.teachingProcess || []}
         onChange={(process) => update('teachingProcess', process)}
+        userId={userId}
+        subject={subject}
+        grade={grade}
+        knowledgePointIds={knowledgePointIds}
+        knowledgePointNames={knowledgePointNames}
+        teachingGoals={section.teachingGoals || []}
+        sectionIndex={index + 1}
+        sectionTitle={section.title || ''}
       />
 
       {/* 课后作业 */}

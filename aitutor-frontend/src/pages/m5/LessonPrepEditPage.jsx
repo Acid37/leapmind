@@ -250,6 +250,11 @@ export default function LessonPrepEditPage({ prepId, onBack, onGeneratedPpt }) {
                 section={activeSection}
                 index={activeIndex}
                 onChange={(section) => updateSection(activeIndex, section)}
+                userId={userId || 1}
+                subject={detail?.subject || ''}
+                grade={detail?.grade || ''}
+                knowledgePointIds={[]}
+                knowledgePointNames={[]}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-purple-200/40">

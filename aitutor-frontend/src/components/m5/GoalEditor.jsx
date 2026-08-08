@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Plus, X, Sparkles, GripVertical } from 'lucide-react'
-import { mockAIGenerateGoals } from '../../services/m5'
+import { generateGoals } from '../../services/m5'
 
-export default function GoalEditor({ knowledgePointNames = [], value = [], onChange }) {
+export default function GoalEditor({ userId, subject, grade, knowledgePointIds = [], knowledgePointNames = [], value = [], onChange }) {
   const [input, setInput] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
 
@@ -27,8 +27,14 @@ export default function GoalEditor({ knowledgePointNames = [], value = [], onCha
   const handleAIGenerate = async () => {
     setAiLoading(true)
     try {
-      const goals = await mockAIGenerateGoals(knowledgePointNames)
-      onChange(goals)
+      const goals = await generateGoals({
+        userId: userId || 1,
+        knowledgePointIds,
+        knowledgePointNames,
+        subject,
+        grade,
+      })
+      if (goals && goals.length > 0) onChange(goals)
     } catch (err) {
       console.error('AI 生成目标失败:', err)
     }

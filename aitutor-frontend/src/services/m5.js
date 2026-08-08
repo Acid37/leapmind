@@ -120,6 +120,60 @@ export async function generateLessonPrep(params, onEvent) {
   }
 }
 
+/**
+ * 生成教学目标（真实接口）
+ * POST /api/lesson-prep/generate-goals
+ * 文档：m5-lesson-prep-aux-api.md §1
+ * 请求：{ userId, knowledgePointIds, knowledgePointNames, subject, grade, goalDirection, weakPointIds }
+ * 响应：{ goals: string[] }（3-5条）
+ */
+export async function generateGoals(params) {
+  const res = await fetch('/api/lesson-prep/generate-goals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: params.userId,
+      knowledgePointIds: params.knowledgePointIds || [],
+      knowledgePointNames: params.knowledgePointNames || [],
+      subject: params.subject || '',
+      grade: params.grade || '',
+      goalDirection: params.goalDirection || '',
+      weakPointIds: params.weakPointIds || [],
+    }),
+  })
+  const json = await res.json()
+  if (json.goals) return json.goals
+  throw new Error(json.detail || json.message || '生成教学目标失败')
+}
+
+/**
+ * 生成教学过程（真实接口）
+ * POST /api/lesson-prep/generate-process
+ * 文档：m5-lesson-prep-aux-api.md §2
+ * 请求：{ userId, knowledgePointIds, knowledgePointNames, subject, grade, teachingGoals, totalHours, sectionIndex, sectionTitle }
+ * 响应：{ teachingProcess: [{ step, duration, teacherActivity, studentActivity, designIntent }] }（4-6个）
+ */
+export async function generateProcess(params) {
+  const res = await fetch('/api/lesson-prep/generate-process', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: params.userId,
+      knowledgePointIds: params.knowledgePointIds || [],
+      knowledgePointNames: params.knowledgePointNames || [],
+      subject: params.subject || '',
+      grade: params.grade || '',
+      teachingGoals: params.teachingGoals || [],
+      totalHours: params.totalHours || 1,
+      sectionIndex: params.sectionIndex || 1,
+      sectionTitle: params.sectionTitle || '',
+    }),
+  })
+  const json = await res.json()
+  if (json.teachingProcess) return json.teachingProcess
+  throw new Error(json.detail || json.message || '生成教学过程失败')
+}
+
 // ===================================================================
 // Mock 实现
 // ===================================================================

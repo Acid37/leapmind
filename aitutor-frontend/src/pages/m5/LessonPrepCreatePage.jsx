@@ -295,6 +295,10 @@ export default function LessonPrepCreatePage({ onBack, onPrepCreated }) {
 
             {/* 教学目标 */}
             <GoalEditor
+              userId={userId}
+              subject={subject}
+              grade={normalizeGradeCode(grade)}
+              knowledgePointIds={selectedKps.map(kp => kp.id)}
               knowledgePointNames={selectedKps.map(kp => kp.name)}
               value={goals}
               onChange={setGoals}

@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import { Plus, X, ArrowUp, ArrowDown, ListOrdered, Sparkles } from 'lucide-react'
 import RichTextEditor from './RichTextEditor'
-import { mockAIGenerateProcess } from '../../services/m5'
+import { generateProcess } from '../../services/m5'
 
 const STEP_PRESETS = [
   '课堂导入', '新知讲授', '互动探究', '巩固练习', '课堂小结',
 ]
 
-export default function TeachingProcessEditor({ value = [], onChange }) {
+export default function TeachingProcessEditor({
+  value = [], onChange,
+  userId, subject, grade, knowledgePointIds = [], knowledgePointNames = [],
+  teachingGoals = [], sectionIndex = 1, sectionTitle = '',
+}) {
   const [aiLoading, setAiLoading] = useState(false)
   const [expanded, setExpanded] = useState(0)
 
@@ -38,9 +42,21 @@ export default function TeachingProcessEditor({ value = [], onChange }) {
   const handleAIGenerate = async () => {
     setAiLoading(true)
     try {
-      const steps = await mockAIGenerateProcess()
-      onChange(steps)
-      setExpanded(0)
+      const steps = await generateProcess({
+        userId: userId || 1,
+        knowledgePointIds,
+        knowledgePointNames,
+        subject,
+        grade,
+        teachingGoals,
+        totalHours: 1,
+        sectionIndex,
+        sectionTitle,
+      })
+      if (steps && steps.length > 0) {
+        onChange(steps)
+        setExpanded(0)
+      }
     } catch (err) {
       console.error('AI 生成教学过程失败:', err)
     }
