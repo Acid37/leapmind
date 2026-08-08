@@ -44,6 +44,8 @@ export default function LearningApp({
   onOpenLearningProfile,
   onM1Practice,
   onM4Lecture,
+  onM3WeakPoints,
+  onM3KnowledgeGraph,
 }) {
   // UI 状态
   const [isGradeOpen, setIsGradeOpen] = useState(false)
@@ -460,6 +462,8 @@ export default function LearningApp({
     { id: 'ai-explain', title: "AI 讲题", color: "from-purple-400 via-purple-300 to-indigo-500", icon: null, custom: true, action: onM2Explain },
     { id: 'learning-profile', title: "学情分析", color: "from-cyan-300 via-blue-300 to-blue-500", icon: "./svg/xueqingfenxi.svg", action: onOpenLearningProfile },
     { id: 'm1-practice', title: "AI 做题", color: "from-emerald-400 via-green-400 to-teal-500", icon: null, custom: true, action: onM1Practice },
+    { id: 'm3-weak-points', title: "薄弱点分析", color: "from-orange-400 via-amber-400 to-yellow-500", icon: null, custom: true, action: onM3WeakPoints },
+    { id: 'm3-knowledge-graph', title: "知识图谱", color: "from-indigo-400 via-violet-400 to-purple-500", icon: null, custom: true, action: onM3KnowledgeGraph },
   ]
 
 
@@ -754,6 +758,38 @@ export default function LearningApp({
               className={`w-full bg-gradient-to-br ${feature.color} rounded-xl p-0 text-center text-purple-900 font-semibold text-base shadow-2xl hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 cursor-pointer min-h-48 flex flex-col items-center justify-center border border-white/20 overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-200/70`}
             >
               {feature.custom ? (
+                feature.title === "薄弱点分析" ? (
+                  <div className="flex items-center justify-center w-full h-full gap-3 px-3">
+                    {/* 左边：柱状分析图标 */}
+                    <svg className="w-16 h-16 shrink-0" viewBox="0 0 80 80">
+                      <circle cx="40" cy="40" r="30" fill="white" opacity="0.2"/>
+                      <rect x="18" y="38" width="12" height="26" rx="3" fill="white" opacity="0.85"/>
+                      <rect x="34" y="26" width="12" height="38" rx="3" fill="white" opacity="0.95"/>
+                      <rect x="50" y="32" width="12" height="32" rx="3" fill="white" opacity="0.75"/>
+                      <rect x="18" y="64" width="44" height="4" rx="2" fill="white" opacity="0.4"/>
+                      <circle cx="40" cy="18" r="4" fill="#FFD700" opacity="0.9"/>
+                    </svg>
+                    {/* 中间：文字 */}
+                    <div className="flex flex-col items-center justify-center flex-1">
+                      <span className="text-3xl font-bold text-white drop-shadow-xl tracking-[0.2em] leading-tight">薄弱点</span>
+                      <span className="text-2xl font-semibold text-white/90 drop-shadow-xl tracking-[0.25em] leading-tight mt-1">分析</span>
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <div className="w-2 h-2 rounded-full bg-white/60" />
+                        <div className="w-2 h-2 rounded-full bg-white/40" />
+                        <div className="w-2 h-2 rounded-full bg-white/20" />
+                      </div>
+                    </div>
+                    {/* 右边：星光 */}
+                    <div className="flex flex-col items-center gap-1.5 shrink-0">
+                      <svg className="w-6 h-6 text-yellow-200/70" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 0l1.5 6.5L18 7l-5.5 3.5L13 17l-3-4.5L7 17l.5-6.5L2 7l6.5-.5z"/>
+                      </svg>
+                      <svg className="w-4 h-4 text-blue-200/50" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 0l1.5 6.5L18 7l-5.5 3.5L13 17l-3-4.5L7 17l.5-6.5L2 7l6.5-.5z"/>
+                      </svg>
+                    </div>
+                  </div>
+                ) : (
                 <div className="flex items-center justify-center w-full h-full gap-3 px-3">
                   {/* 左边：小机器人 */}
                   <svg className="w-16 h-16 shrink-0" viewBox="0 0 80 80">
@@ -797,6 +833,7 @@ export default function LearningApp({
                     </svg>
                   </div>
                 </div>
+                )
               ) : feature.emoji ? (
                 <span className="text-5xl">{feature.emoji}</span>
               ) : feature.icon ? (
