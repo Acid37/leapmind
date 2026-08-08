@@ -575,7 +575,7 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
 
   // --- 做题中 ---
   return (
-    <div className="flex gap-5 h-full max-w-5xl mx-auto">
+    <div className="flex gap-5 h-full w-full px-4 lg:px-6">
       {/* 主区域 */}
       <div className="flex-1 min-w-0 flex flex-col gap-4">
         {/* 顶部栏 */}
@@ -714,9 +714,28 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
         </div>
       </div>
 
-      {/* 侧边栏：题目导航 */}
-      <div className="hidden lg:block w-48 flex-shrink-0">
-        <div className="sticky top-4 space-y-4">
+      {/* 右侧功能栏：题目导航与 AI 助手互斥切换，避免遮挡/模糊题目 */}
+      <div className={`hidden lg:block flex-shrink-0 transition-[width] duration-300 ${
+        chatPanelOpen ? "w-96" : "w-48"
+      }`}>
+        {chatPanelOpen ? (
+          <div className="sticky top-0 h-full min-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <ChatPanel
+              sceneType="doing_exercise"
+              context={{
+                questionId: currentQuestion?.questionId,
+                stem: currentQuestion?.content?.stem,
+                options: currentQuestion?.content?.options,
+                type: currentQuestion?.type,
+                knowledgePoint: setup.knowledgePoint,
+              }}
+              userId={userInfo?.id}
+              visible={chatPanelOpen}
+              onClose={() => setChatPanelOpen(false)}
+            />
+          </div>
+        ) : (
+          <div className="sticky top-4 space-y-4">
           <QuestionNav
             total={session.questions.length}
             currentIndex={currentIndex}
@@ -754,28 +773,9 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      {/* ChatPanel 弹出层 */}
-      {chatPanelOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end pointer-events-none">
-          <div className="pointer-events-auto w-96 h-full shadow-2xl">
-            <ChatPanel
-              sceneType="doing_exercise"
-              context={{
-                questionId: currentQuestion?.questionId,
-                stem: currentQuestion?.content?.stem,
-                options: currentQuestion?.content?.options,
-                type: currentQuestion?.type,
-                knowledgePoint: setup.knowledgePoint,
-              }}
-              userId={userInfo?.id}
-              visible={chatPanelOpen}
-              onClose={() => setChatPanelOpen(false)}
-            />
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

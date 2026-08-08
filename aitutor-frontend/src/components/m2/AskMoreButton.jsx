@@ -8,8 +8,16 @@ export default function AskMoreButton({ questionContext }) {
   const [input, setInput] = useState('')
 
   const userId = getUserInfo()?.userId || 1
+  // 补全题干：让后端把题目正文注入 AI system prompt（修复"追问不结合题目"）
+  // 参考 M7 前端报告问题 1：questionContent.stem / options 已在题目对象中
+  const content = questionContext?.questionContent
   const context = questionContext
-    ? { questionId: questionContext.questionId || questionContext.id, relatedKpId: questionContext.knowledgePoints?.[0]?.id }
+    ? {
+        questionId: questionContext.questionId || questionContext.id,
+        stem: content?.stem,
+        options: content?.options,
+        relatedKpId: questionContext.knowledgePoints?.[0]?.id,
+      }
     : {}
 
   const { messages, isGenerating, error, send, clear } = useChatSession({
@@ -62,7 +70,7 @@ export default function AskMoreButton({ questionContext }) {
           {error && (
             <div className="px-4 py-2 bg-red-500/10 border-b border-red-400/10 flex items-center gap-1.5">
               <AlertCircle className="w-3 h-3 text-red-300" />
-              <span className="text-[11px] text-red-200/80">{error}</span>
+              <span className="text-[11px] text-red-200/80">{error.message || '生成失败，请重试'}</span>
             </div>
           )}
 
