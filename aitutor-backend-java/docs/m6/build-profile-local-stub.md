@@ -21,14 +21,14 @@ m6:
 
 ## 2. 请求形状（Java → Python）
 
-Java 契约序列化后仅做一步转换：顶层 `userId` 重命名为 `user_id`（Python 只认下划线）。
+Java 按 `profile-engine-contract.yaml` 原样发送契约体，顶层字段为 camelCase `userId`（与 yaml 必填一致）。
 事件体保持 Java 驼峰字段（`isCorrect`、`timeSpentSec`、`isFollowUp` 等）。
 
 ```json
 {
   "contractVersion": "1.0",
   "requestId": "00000000-0000-0000-0000-000000000001",
-  "user_id": 7,
+  "userId": 7,
   "mode": "INCREMENTAL",
   "baseProfileVersion": 0,
   "fromEventIdExclusive": 0,
@@ -75,7 +75,7 @@ class ProfileEvent(BaseModel):
 class BuildProfileRequest(BaseModel):
     contractVersion: str
     requestId: str
-    user_id: int
+    userId: int
     mode: str
     baseProfileVersion: int
     fromEventIdExclusive: int
@@ -111,7 +111,7 @@ def build_profile(req: BuildProfileRequest):
             "status": "NO_CHANGE",
             "contractVersion": "1.0",
             "requestId": req.requestId,
-            "user_id": req.user_id,
+            "userId": req.userId,
             "baseProfileVersion": req.baseProfileVersion,
             "targetProfileVersion": req.baseProfileVersion,
             "eventWatermarkInclusive": req.eventWatermarkInclusive,
@@ -122,7 +122,7 @@ def build_profile(req: BuildProfileRequest):
         "status": "READY",
         "contractVersion": "1.0",
         "requestId": req.requestId,
-        "user_id": req.user_id,
+        "userId": req.userId,
         "baseProfileVersion": req.baseProfileVersion,
         "targetProfileVersion": req.baseProfileVersion + 1,
         "eventWatermarkInclusive": req.eventWatermarkInclusive,

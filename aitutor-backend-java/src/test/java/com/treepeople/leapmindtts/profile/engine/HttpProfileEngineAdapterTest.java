@@ -56,7 +56,7 @@ class HttpProfileEngineAdapterTest {
                 0L, 0L, 1L, List.of(new ProfileEngineEvent(1L, command)));
     }
 
-    @Test void sendsCamelCaseEventsWithTopLevelUserIdRenamedToUserUnderscoreId() throws Exception {
+    @Test void sendsContractBodyWithCamelCaseTopLevelUserId() throws Exception {
         server.enqueue(new MockResponse().setResponseCode(200)
                 .setHeader("Content-Type", "application/json")
                 .setBody(noChange()));
@@ -66,8 +66,8 @@ class HttpProfileEngineAdapterTest {
         assertEquals("/api/internal/ai/build-profile", recorded.getPath());
         assertTrue(recorded.getHeader("Content-Type").startsWith("application/json"));
         JsonNode body = JSON.readTree(recorded.getBody().readByteArray());
-        assertNull(body.get("userId"));
-        assertEquals(7L, body.get("user_id").asLong());
+        assertEquals(7L, body.get("userId").asLong());
+        assertNull(body.get("user_id"));
         assertEquals("ask_doubt", body.get("events").get(0).get("eventType").asText());
         assertEquals("right_triangle", body.get("events").get(0).get("data").get("topic").asText());
         assertTrue(body.get("events").get(0).get("data").get("isFollowUp").asBoolean());

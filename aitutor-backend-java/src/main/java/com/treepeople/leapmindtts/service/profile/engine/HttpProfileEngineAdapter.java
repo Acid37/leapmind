@@ -1,8 +1,5 @@
 package com.treepeople.leapmindtts.service.profile.engine;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.treepeople.leapmindtts.config.PythonInternalAiProperties;
 import java.io.IOException;
 import java.time.Duration;
@@ -14,13 +11,12 @@ import org.springframework.web.reactive.function.client.WebClient;
 /**
  * 真实 Python build-profile HTTP 客户端。
  * 仅在 m6.profile-engine.enabled=true 时注册，否则由 DisabledProfileEngineAdapter 兜底。
- * 请求体沿用 Java 契约，仅顶层 userId 重命名为 Python 契约的 user_id；响应严格校验，非法结果不得覆盖旧画像。
+ * 请求体即 profile-engine-contract.yaml 契约体（顶层 userId，camelCase）；响应严格校验，非法结果不得覆盖旧画像。
  */
 @Component
 @ConditionalOnProperty(prefix = "m6.profile-engine", name = "enabled", havingValue = "true")
 public final class HttpProfileEngineAdapter implements ProfileEnginePort {
 
-    private static final ObjectMapper RENAME_MAPPER = new ObjectMapper();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     private final WebClient webClient;
@@ -49,12 +45,11 @@ public final class HttpProfileEngineAdapter implements ProfileEnginePort {
         } catch (IOException e) {
             throw new IllegalArgumentException("profile engine request serialization failed", e);
         }
-        byte[] wire = toPythonWire(body);
         try {
             byte[] response = webClient.post()
                     .uri(properties.getBuildProfilePath())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(wire)
+                    .bodyValue(body)
                     .retrieve()
                     .bodyToMono(byte[].class)
                     .block(TIMEOUT);
@@ -64,18 +59,6 @@ public final class HttpProfileEngineAdapter implements ProfileEnginePort {
             throw e;
         } catch (RuntimeException e) {
             throw new ProfileEngineUnavailableException("UNREACHABLE");
-        }
-    }
-
-    private static byte[] toPythonWire(byte[] camelCase) {
-        try {
-            JsonNode tree = RENAME_MAPPER.readTree(camelCase);
-            ObjectNode root = (ObjectNode) tree;
-            JsonNode userId = root.remove("userId");
-            if (userId != null) root.set("user_id", userId);
-            return RENAME_MAPPER.writeValueAsBytes(root);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("profile engine request rename failed", e);
         }
     }
 }

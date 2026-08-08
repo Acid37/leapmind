@@ -2,7 +2,9 @@
 
 > 本文档由张梓鸿编写，说明 Java 侧已就绪的契约与客户端，以及 Python 侧需要对齐的点。
 > 属于 Python 画像引擎的代码、算法和路由由 Python 成员实现，本清单只负责把契约钉死。
-> 状态：**Java 客户端已实现并有 MockWebServer 契约测试（2026-08-08）**；Python 路由是否已实现需核对 `aitutor-backend-python`。
+> 状态：**Java 客户端已实现并有 MockWebServer 契约测试（2026-08-08）**；陈富民已回复（`python-build-profile-integration-reply.md`）：
+> Python 路由已存在（`src/landppt/m6/router.py`）且将按契约重构；顶层字段以契约 `userId` 为准（Java 侧已同步修正，见 2026-08-08 修订）。
+> 修订记录：2026-08-08 顶层字段 `user_id` → `userId`（对齐 `profile-engine-contract.yaml` 必填 `userId`）。
 
 ## 1. 权威契约
 
@@ -14,12 +16,12 @@
 
 | 项 | 要求 | 当前状态 |
 |---|---|---|
-| 顶层字段 | `user_id`（下划线，Java 侧由 `userId` 转换后发出） | Java 已实现；**Python 端必须接受 `user_id`** |
+| 顶层字段 | `userId`（camelCase，契约必填；Python 可保留 `user_id` 别名兼容旧实现） | Java 已实现；**Python 端按 `userId` 接收** |
 | 其余顶层字段 | `contractVersion`、`requestId`、`mode`、`baseProfileVersion`、`fromEventIdExclusive`、`eventWatermarkInclusive`、`events` | 见 yaml `BuildProfileRequest` |
-| `additionalProperties` | Python 模型**不要设置 forbid_extra**，Java 按完整契约体发送，多余字段应被容忍 | **待 Python 确认** |
-| events.data | 事件 data 保持 Java 驼峰字段（`isCorrect`、`timeSpentSec`、`hintCount`、`isFollowUp`、`confusionTag` 等） | **待 Python 确认** |
+| `additionalProperties` | Python 模型**不要设置 forbid_extra**，Java 按完整契约体发送，多余字段应被容忍 | Python 已确认（Pydantic `extra="ignore"`） |
+| events.data | 事件 data 保持 Java 驼峰字段（`isCorrect`、`timeSpentSec`、`hintCount`、`isFollowUp`、`confusionTag` 等） | Python 已核对 |
 | schemaVersion | 每个事件 `"1.0"` | 一致 |
-| kpId | Long，允许 null（未映射知识点事件） | **Python 端不得因 kpId=null 报错** |
+| kpId | Long，允许 null（未映射知识点事件） | Python 已确认（`Optional[int]`） |
 
 十种事件类型：`answer_question`、`finish_practice`、`request_explanation`、`explanation_feedback`、
 `weak_point_changed`、`lecture_interact`、`lesson_material_used`、`ask_doubt`、`mark_reviewed`、`preference_changed`。
@@ -29,7 +31,7 @@
 | 项 | 要求 | 当前状态 |
 |---|---|---|
 | status 判别 | 按 `status` 字段区分三态，与 Java 枚举一致 | **待 Python 实现** |
-| 回显字段 | 必须原样回显 `requestId`、`user_id`、`baseProfileVersion`、`eventWatermarkInclusive` | 缺失或错值 → Java 判 `INVALID_RESPONSE` |
+| 回显字段 | 必须原样回显 `requestId`、`userId`、`baseProfileVersion`、`eventWatermarkInclusive` | 缺失或错值 → Java 判 `INVALID_RESPONSE` |
 | targetProfileVersion | READY/INSUFFICIENT_DATA 必须 = baseProfileVersion + 1；NO_CHANGE 必须 = base | 同上 |
 | knowledgeMastery | 字段名**保持 camelCase**：`masteryScore`、`masteryStatus`、`evidenceCount`、`algorithmVersion`、`windowStart`、`windowEnd`、`updatedAt` | **待 Python 确认** |
 | masteryStatus 取值 | `WEAK`、`CONSOLIDATING`、`BASIC_MASTERY`、`MASTERED`、`INSUFFICIENT_EVIDENCE` | 枚举严格 |
