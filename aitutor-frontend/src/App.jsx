@@ -102,9 +102,11 @@ export default function App() {
     };
 
     const handleM1Nav = (page) => {
-      if (page === 'practice') {
-        setM1PracticeParams({});
-      }
+      setM1PracticeParams((params) => {
+        if (page === 'practice') return {};
+        if (params.mode !== 'MISTAKE_REDO') return params;
+        return params.lessonId ? { lessonId: params.lessonId } : {};
+      });
       setM1Page(page);
     };
 
