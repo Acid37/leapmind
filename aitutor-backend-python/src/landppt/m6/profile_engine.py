@@ -508,12 +508,6 @@ def compute_profile_from_events(
             "weight": round(evidence / total_events, 4) if total_events > 0 else 0,
         })
 
-    s_names = [f"kp_{s['kpId']}" for s in sorted(kp_stats.values(),
-               key=lambda x: x["correct_count"] / x["evidence_count"] if x["evidence_count"] > 0 else 0,
-               reverse=True)[:3]]
-    w_names = [f"kp_{s['kpId']}" for s in sorted(kp_stats.values(),
-               key=lambda x: x["correct_count"] / x["evidence_count"] if x["evidence_count"] > 0 else 1,
-               reverse=False)[:3]]
     summary = (
         f"该学生近期正确率{overall_accuracy:.0%}，"
         f"学习风格偏向{learning_style}。"
