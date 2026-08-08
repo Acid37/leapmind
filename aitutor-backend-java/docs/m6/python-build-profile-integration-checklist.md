@@ -44,7 +44,7 @@
 
 | 项 | 要求 |
 |---|---|
-| 端口 | 8001（`application.yml` 中 `m6.profile-engine.base-url` 默认值） |
+| 端口 | 8000（`m6.profile-engine.base-url` 默认值；Python `main.py` uvicorn 实际端口，契约 yaml 的 `servers.url: 8001` 仅为开发默认，可用 `PROFILE_ENGINE_BASE_URL` 覆盖） |
 | 认证 | `/api/internal/ai/build-profile` 在 Python `public_prefixes`（免认证）中；若改走 service bearer，需双方同步 |
 | 幂等 | 同一 `requestId` 重试返回同一结果；不同内容同 requestId → 409 语义 |
 | 失败码 | 400 契约失败 / 401 未认证 / 403 身份拒绝 / 409 冲突 / 503 引擎不可用 |

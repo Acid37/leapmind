@@ -11,7 +11,7 @@
 m6:
   profile-engine:
     enabled: ${M6_PROFILE_ENGINE_ENABLED:false}
-    base-url: ${M6_PROFILE_ENGINE_BASE_URL:http://localhost:8001}
+    base-url: ${M6_PROFILE_ENGINE_BASE_URL:http://localhost:8000}
     build-profile-path: /api/internal/ai/build-profile
 ```
 
@@ -149,10 +149,11 @@ def build_profile(req: BuildProfileRequest):
     }
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
 ```
 
-运行：`python stub_profile_engine.py`，然后设置 `M6_PROFILE_ENGINE_ENABLED=true` 启动 Java。
+运行：`python stub_profile_engine.py`（端口与 Java 默认 `base-url: http://localhost:8000` 一致），
+然后设置 `M6_PROFILE_ENGINE_ENABLED=true` 启动 Java。
 
 ## 4. 客户端行为
 
