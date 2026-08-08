@@ -5,7 +5,7 @@
  * Top 3 特殊样式，当前用户高亮
  */
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Trophy, Medal, Crown, TrendingUp, User } from "lucide-react";
+import { Trophy, Medal, Crown, TrendingUp, User, ChevronDown } from "lucide-react";
 import { getRanking } from "../services/practiceService";
 import { getUserInfo } from "../utils/tokenManager";
 
@@ -14,6 +14,7 @@ export default function RankingPage() {
   const [type, setType] = useState("daily");
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showPointsRules, setShowPointsRules] = useState(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -53,6 +54,39 @@ export default function RankingPage() {
           <Trophy size={22} className="text-amber-500" /> 排行榜
         </h1>
         <p className="text-sm text-slate-500 mt-1">努力学习，争当第一！</p>
+      </div>
+
+      <div className="mb-5 flex flex-col items-center">
+        <button
+          type="button"
+          aria-expanded={showPointsRules}
+          aria-controls="ranking-points-rules"
+          onClick={() => setShowPointsRules((visible) => !visible)}
+          className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
+        >
+          积分规则
+          <ChevronDown
+            size={16}
+            className={`transition-transform ${showPointsRules ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {showPointsRules && (
+          <div
+            id="ranking-points-rules"
+            className="mt-2 w-full rounded-2xl border border-indigo-100 bg-indigo-50/70 px-5 py-4 text-sm text-slate-600"
+          >
+            <div className="grid gap-2 sm:grid-cols-2">
+              <p><span className="font-semibold text-slate-700">第一次答对：</span>基础题 5 分、进阶题 10 分、困难题 15 分。</p>
+              <p><span className="font-semibold text-slate-700">第二次答对：</span>获得该题首次积分的一半，积分取整数。</p>
+              <p><span className="font-semibold text-slate-700">第三次及以后答对：</span>不再增加该题积分。</p>
+              <p><span className="font-semibold text-slate-700">答错：</span>本次不增加积分。</p>
+            </div>
+            <p className="mt-3 border-t border-indigo-100 pt-3 text-xs text-slate-500">
+              日榜统计今天、周榜统计最近 7 天、月榜统计最近 30 天获得的答题积分；签到积分不计入日周月答题榜。
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Tab 切换 */}
