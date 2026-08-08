@@ -7,13 +7,12 @@ import com.treepeople.leapmindtts.pojo.dto.MarkReviewedRequest;
 import com.treepeople.leapmindtts.pojo.entity.ReviewReminder;
 import com.treepeople.leapmindtts.pojo.vo.ReviewReminderVO;
 import com.treepeople.leapmindtts.service.profile.UserEventService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
@@ -44,11 +43,12 @@ class ReviewReminderServiceImplTest {
     @Mock
     private UserEventService userEventService;
 
-    @Spy
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @InjectMocks
     private ReviewReminderServiceImpl reviewReminderService;
+
+    @BeforeEach
+    void setUp() {
+        reviewReminderService = new ReviewReminderServiceImpl(reviewReminderMapper, userEventService, new ObjectMapper());
+    }
 
     // ========== 测试数据工厂方法 ==========
 
