@@ -55,6 +55,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   // --- ChatPanel 状态 ---
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const userInfo = getUserInfo();
+  const currentUserId = Number(userInfo?.id ?? userInfo?.userId ?? 0);
 
   // --- 签到状态 ---
   const [checkinStatus, setCheckinStatus] = useState(null);
@@ -68,6 +69,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   const [weakRecommendations, setWeakRecommendations] = useState([]);
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const completionReportedRef = useRef("");
+  const autoStartRef = useRef(false);
 
   // --- 会话状态 ---
   const [session, setSession] = useState(null);
@@ -108,6 +110,17 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   useEffect(() => {
     // 检查是否有未完成的会话
     try {
+      const shouldAutoStart = mode === "MISTAKE_REDO"
+        && initialParams.autoStart
+        && Array.isArray(initialParams.questionIds)
+        && initialParams.questionIds.length > 0;
+      if (shouldAutoStart) {
+        localStorage.removeItem(SESSION_KEY);
+        setShowSetup(false);
+        setLoading(true);
+        return;
+      }
+
       const saved = localStorage.getItem(SESSION_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -150,7 +163,15 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   useEffect(() => {
     let active = true;
     setRecommendationLoading(true);
+
+    if (!Number.isSafeInteger(currentUserId) || currentUserId <= 0) {
+      setWeakRecommendations([]);
+      setRecommendationLoading(false);
+      return () => { active = false; };
+    }
+
     getWeakPointRecommendations({
+      userId: currentUserId,
       subject: setup.subject === "mixed" ? undefined : setup.subject,
       count: 6,
     })
@@ -171,7 +192,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
         if (active) setRecommendationLoading(false);
       });
     return () => { active = false; };
-  }, [setup.subject]);
+  }, [currentUserId, setup.subject]);
 
   useEffect(() => {
     let active = true;
@@ -253,6 +274,16 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const shouldAutoStart = mode === "MISTAKE_REDO"
+      && initialParams.autoStart
+      && Array.isArray(initialParams.questionIds)
+      && initialParams.questionIds.length > 0;
+    if (!shouldAutoStart || autoStartRef.current) return;
+    autoStartRef.current = true;
+    initSession();
+  }, [mode, initialParams.autoStart, initialParams.questionIds]);
 
   const openSessionSetup = () => {
     localStorage.removeItem(SESSION_KEY);

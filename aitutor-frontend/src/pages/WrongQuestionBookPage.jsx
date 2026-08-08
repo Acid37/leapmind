@@ -30,10 +30,11 @@ const SUBJECT_LABELS = {
   general: "通用",
 };
 
-export default function WrongQuestionBookPage({ onRedo, onExplain }) {
+export default function WrongQuestionBookPage({ onRedo }) {
   const [questions, setQuestions] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [statusFilter, setStatusFilter] = useState(""); // unresolved / reviewing / resolved
   const [selectedIds, setSelectedIds] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -41,6 +42,7 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
   const [kpFilter, setKpFilter] = useState("");
   const [timeFilter, setTimeFilter] = useState("all");
   const [filterSource, setFilterSource] = useState([]);
+  const [expandedIds, setExpandedIds] = useState([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -92,8 +94,40 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
     setTotal((prev) => Math.max(0, prev - 1));
   };
 
+  const toggleExplanation = (id) => {
+    setExpandedIds((prev) => prev.includes(id)
+      ? prev.filter((item) => item !== id)
+      : [...prev, id]
+    );
+  };
+
+  const launchRedo = (mistakeIds) => {
+    const selectedQuestions = questions.filter((question) => mistakeIds.includes(question.id));
+    const questionIds = [...new Set(
+      selectedQuestions
+        .map((question) => question.questionId)
+        .filter((questionId) => questionId !== undefined && questionId !== null && questionId !== "")
+    )];
+
+    if (selectedQuestions.length === 0) {
+      setLoadError("请先选择需要重做的错题");
+      return;
+    }
+    if (questionIds.length !== selectedQuestions.length) {
+      setLoadError("部分错题缺少对应的题目编号，暂时无法重做，请刷新错题本后再试");
+      return;
+    }
+
+    setLoadError("");
+    onRedo?.({
+      mistakeIds: selectedQuestions.map((question) => question.id),
+      questionIds,
+      questionCount: questionIds.length,
+    });
+  };
+
   const handleBatchRedo = () => {
-    onRedo?.(selectedIds);
+    launchRedo(selectedIds);
   };
 
   const toggleSelect = (id) => {
@@ -235,6 +269,12 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
       </div>
 
       {/* 列表 */}
+      {loadError && (
+        <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {loadError}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-7 h-7 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
@@ -326,15 +366,15 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
                     <Star size={16} fill={q.isKeyFocus ? "currentColor" : "none"} />
                   </button>
                   <button
-                    onClick={() => onRedo?.([q.id])}
+                    onClick={() => launchRedo([q.id])}
                     className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg cursor-pointer transition-colors"
                     title="重做"
                   >
                     <RotateCcw size={16} />
                   </button>
                   <button
-                    onClick={() => onExplain?.(q)}
-                    className="p-2 text-slate-400 hover:text-violet-500 hover:bg-violet-50 rounded-lg cursor-pointer transition-colors"
+                    onClick={() => toggleExplanation(q.id)}
+                    className={`p-2 rounded-lg cursor-pointer transition-colors ${expandedIds.includes(q.id) ? "bg-violet-50 text-violet-500" : "text-slate-400 hover:text-violet-500 hover:bg-violet-50"}`}
                     title="查看讲解"
                   >
                     <BookOpen size={16} />
@@ -348,6 +388,12 @@ export default function WrongQuestionBookPage({ onRedo, onExplain }) {
                   </button>
                 </div>
               </div>
+              {expandedIds.includes(q.id) && (
+                <div className="ml-7 mt-3 rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-sm">
+                  <div className="font-medium text-violet-700">标准答案：{q.correctAnswer || "暂无"}</div>
+                  <p className="mt-2 leading-6 text-slate-600">{q.explanation || "这道题暂时没有录入解析。"}</p>
+                </div>
+              )}
             </div>
           ))}
         </div>

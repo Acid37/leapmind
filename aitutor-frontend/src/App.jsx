@@ -145,7 +145,13 @@ export default function App() {
                         ) : m1Page === 'question-bank' ? (
                             <QuestionBankPage onStartPractice={handleLaunchM1} lessonId={m1PracticeParams.lessonId || ""} />
                         ) : m1Page === 'mistakes' ? (
-                            <WrongQuestionBookPage onRedo={() => handleLaunchM1({ mode: 'MISTAKE_REDO' })} />
+                            <WrongQuestionBookPage onRedo={(selection) => handleLaunchM1({
+                                mode: 'MISTAKE_REDO',
+                                questionIds: selection.questionIds,
+                                mistakeIds: selection.mistakeIds,
+                                questionCount: selection.questionCount,
+                                autoStart: true,
+                            })} />
                         ) : m1Page === 'statistics' ? (
                             <StatisticsPage />
                         ) : (
