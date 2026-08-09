@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -90,11 +91,18 @@ public class PracticeServiceImpl implements PracticeService {
     @Override
     public Map<String, Object> getFilters() {
         Map<String, Object> filters = new HashMap<>();
-        filters.put("subjects", distinctColumn("subject"));
+        // 题库管理需要看见停用/待完善题目的科目，否则编辑出一个新科目后无法再筛选到它。
+        filters.put("subjects", distinctColumn("subject", false));
+        // 开始做题只展示至少有一道启用题目的科目，避免用户选中后无题可做。
+        filters.put("practiceSubjects", distinctColumn("subject", true));
         filters.put("gradeLevels", distinctColumn("grade_level"));
         filters.put("tracks", distinctColumn("track"));
         filters.put("chapters", distinctColumn("chapter"));
-        filters.put("knowledgePoints", distinctColumn("knowledge_point"));
+        // 题库筛选保留停用/待完善题目的知识点，开始做题只使用启用题目的知识点。
+        filters.put("knowledgePoints", distinctColumn("knowledge_point", false));
+        filters.put("practiceKnowledgePoints", distinctColumn("knowledge_point", true));
+        filters.put("knowledgePointsBySubject", knowledgePointsBySubject(false));
+        filters.put("practiceKnowledgePointsBySubject", knowledgePointsBySubject(true));
         filters.put("questionTypes", List.of("SINGLE_CHOICE", "MULTIPLE_CHOICE", "FILL_BLANK", "SHORT_ANSWER"));
         filters.put("difficulties", List.of("BASIC", "ADVANCED", "HARD"));
         filters.put("modes", List.of(MODE_FREE, MODE_AFTER_CLASS, MODE_MISTAKE_REDO, MODE_SEQUENTIAL, MODE_RANDOM, MODE_MISTAKES));
@@ -833,12 +841,45 @@ public class PracticeServiceImpl implements PracticeService {
     }
 
     private List<Object> distinctColumn(String column) {
-        return questionMapper.selectObjs(new QueryWrapper<PracticeQuestion>()
+        return distinctColumn(column, true);
+    }
+
+    private List<Object> distinctColumn(String column, boolean enabledOnly) {
+        QueryWrapper<PracticeQuestion> wrapper = new QueryWrapper<PracticeQuestion>()
                 .select("DISTINCT " + column)
                 .isNotNull(column)
                 .ne(column, "")
-                .eq("status", STATUS_ENABLED)
-                .orderByAsc(column));
+                .ne("subject", "通用")
+                .ne("status", STATUS_ARCHIVED);
+        if (enabledOnly) {
+            wrapper.eq("status", STATUS_ENABLED);
+        }
+        wrapper.orderByAsc(column);
+        return questionMapper.selectObjs(wrapper);
+    }
+
+    private Map<String, List<String>> knowledgePointsBySubject(boolean enabledOnly) {
+        QueryWrapper<PracticeQuestion> wrapper = new QueryWrapper<PracticeQuestion>()
+                .select("subject", "knowledge_point")
+                .isNotNull("subject")
+                .ne("subject", "")
+                .ne("subject", "通用")
+                .isNotNull("knowledge_point")
+                .ne("knowledge_point", "")
+                .ne("status", STATUS_ARCHIVED);
+        if (enabledOnly) {
+            wrapper.eq("status", STATUS_ENABLED);
+        }
+        wrapper.orderByAsc("subject", "knowledge_point");
+
+        Map<String, Set<String>> grouped = new LinkedHashMap<>();
+        questionMapper.selectList(wrapper).forEach((question) -> grouped
+                .computeIfAbsent(question.getSubject(), ignored -> new LinkedHashSet<>())
+                .add(question.getKnowledgePoint()));
+
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        grouped.forEach((subject, points) -> result.put(subject, new ArrayList<>(points)));
+        return result;
     }
 
     private void publishPracticeEvent(Long userId, String eventType, Map<String, Object> eventData) {
@@ -858,7 +899,7 @@ public class PracticeServiceImpl implements PracticeService {
     }
 
     private PracticeQuestion fromQuestionRequest(PracticeQuestion question, PracticeController.QuestionRequest request) {
-        question.setSubject(nvl(request.getSubject(), "通用"));
+        question.setSubject(required(request.getSubject(), "科目不能为空"));
         question.setGradeLevel(nvl(request.getGradeLevel(), "大学"));
         question.setQuestionType(nvl(request.getQuestionType(), "SINGLE_CHOICE").toUpperCase(Locale.ROOT));
         question.setTitle(required(request.getTitle(), "题目标题不能为空"));
@@ -881,6 +922,9 @@ public class PracticeServiceImpl implements PracticeService {
     }
 
     private void validateQuestion(PracticeQuestion question) {
+        if ("通用".equals(question.getSubject())) {
+            throw new IllegalArgumentException("“通用”不是有效科目，请填写实际科目");
+        }
         if (!List.of("SINGLE_CHOICE", "MULTIPLE_CHOICE", "FILL_BLANK", "SHORT_ANSWER").contains(question.getQuestionType())) {
             throw new IllegalArgumentException("题型不合法");
         }
