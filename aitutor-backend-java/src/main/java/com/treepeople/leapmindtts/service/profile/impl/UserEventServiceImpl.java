@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.springframework.dao.DataAccessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class UserEventServiceImpl implements UserEventService {
+    /** 服务端直调模块白名单：这些 sourceModule 无用户 JWT，只校验 userId 一致。 */
+    private static final Set<String> SERVICE_SOURCE_MODULES = Set.of("M1", "M3");
     private final M6EventJsonCodec codec;
     private final ProfileActorResolver actor;
     private final EventIngestionCore core;
@@ -43,12 +46,20 @@ public class UserEventServiceImpl implements UserEventService {
         this(codec, actor, new EventIngestionCore(validator, writer, reader), clock);
     }
 
+    /** 白名单模块（M1/M3）无 JWT 直调，只校验 userId 一致；其余模块走用户 JWT 鉴权。 */
+    private void authorize(HttpServletRequest request, Long pathUserId, LearningEventRequest event) {
+        if (SERVICE_SOURCE_MODULES.contains(event.sourceModule())) {
+            if (!pathUserId.equals(event.userId())) throw accessDenied();
+            return;
+        }
+        actor.authorizeSelf(request, pathUserId);
+    }
+
     @Override
     public EventAck record(Long path, LearningEventRequest event, HttpServletRequest request) {
-        actor.authorizeSelf(request, path);
+        authorize(request, path, event);
         Instant receivedAt = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         core.validate(event);
-        if (!path.equals(event.userId())) throw accessDenied();
         return ack(core.ingest(event, receivedAt), request);
     }
 
@@ -61,7 +72,6 @@ public class UserEventServiceImpl implements UserEventService {
 
     @Override
     public List<EventResult> batch(Long path, List<JsonNode> nodes, HttpServletRequest request) {
-        actor.authorizeSelf(request, path);
         Instant receivedAt = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         String requestId = M6RequestIds.resolveOrCreate(request);
         List<EventResult> results = new ArrayList<>(nodes.size());
@@ -73,7 +83,7 @@ public class UserEventServiceImpl implements UserEventService {
                 LearningEventRequest event = codec.read(node, LearningEventRequest.class);
                 core.validate(event);
                 safeEventId = event.eventId();
-                if (!path.equals(event.userId())) throw accessDenied();
+                authorize(request, path, event);
                 EventAck ack = ack(core.ingest(event, receivedAt), request);
                 results.add(new EventResult(index, ack.eventId(), ack.eventStatus(), ack.profileUpdateStatus(),
                         ack.receivedAt(), null, requestId));
