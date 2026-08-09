@@ -397,7 +397,7 @@ class M6ProfileQueryAndCacheTest {
 
     private UserProfileQueryServiceImpl service(ProfileActorResolver actor, UserProfileMapper profiles,
                                                  ProfileSnapshotReader snapshots, M6ProfileCache cache) {
-        return new UserProfileQueryServiceImpl(actor, profiles, snapshots, json, cache, new SceneSummaryAssembler(json));
+        return new UserProfileQueryServiceImpl(actor, profiles, snapshots, json, cache, new SceneSummaryAssembler(json), null);
     }
     private M6ProfileCache disabledCache() { return new M6ProfileCache(mock(StringRedisTemplate.class), json, false); }
     private CacheFixture enabledCache(String payload) {
@@ -469,7 +469,7 @@ class M6ProfileQueryAndCacheTest {
                 row.getComputedAt().toInstant(java.time.ZoneOffset.UTC), null, masteryContext(kpId), List.of(),
                 List.of("text"), null, null));
     }
-    private KnowledgeContext masteryContext(Long kp) { return new KnowledgeContext(kp, "AVAILABLE", BigDecimal.ONE, "MASTERED", BigDecimal.ONE, null, 1L); }
+    private KnowledgeContext masteryContext(Long kp) { return new KnowledgeContext(kp, "测试知识点", "AVAILABLE", BigDecimal.ONE, "MASTERED", BigDecimal.ONE, null, 1L); }
     private record CacheFixture(StringRedisTemplate redis, M6ProfileCache cache) { }
     private UserProfile visible(String status, String reason) {
         UserProfile p = new UserProfile(); p.setUserId(1001L); p.setProfileStatus(status); p.setStatusReason(reason);

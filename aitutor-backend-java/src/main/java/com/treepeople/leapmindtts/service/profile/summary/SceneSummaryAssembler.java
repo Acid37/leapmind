@@ -22,7 +22,7 @@ public class SceneSummaryAssembler {
         UserProfile profile = snapshot.profile();
         KnowledgeContext selected = kpId == null ? null : knowledge.stream()
                 .filter(k -> kpId.equals(k.kpId())).findFirst()
-                .orElse(new KnowledgeContext(kpId, "EMPTY", null, null, null, null, 0L));
+                .orElse(new KnowledgeContext(kpId, null, "EMPTY", null, null, null, null, 0L));
         List<RecentConfusion> relevant = new ArrayList<>(confusions.stream()
                 .filter(c -> kpId == null || kpId.equals(c.kpId())).limit(3).toList());
         return switch (scene) {

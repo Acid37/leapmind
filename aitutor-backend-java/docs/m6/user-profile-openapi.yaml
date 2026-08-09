@@ -2,38 +2,42 @@ openapi: 3.0.3
 info:
   title: LeapMind M6 User Profile API
   version: '1.0'
-  description: Self-only M6 profile context API. contractVersion 1.0 freezes the ten event payload schemas.
+  description: Self-only M6 core API. This document covers the five M6 event/profile routes only; authentication and legacy review-reminder routes are outside this contract. contractVersion 1.0 freezes the ten event payload schemas.
+servers:
+  - url: http://localhost:8080
+    description: Local same-machine development only; replace this URL for LAN or deployed environments.
 security: [{bearerAuth: []}]
 paths:
   /api/user-profile/{userId}/record-event:
     post:
       summary: Record exactly one immutable M6 learning event
       parameters: [{$ref: '#/components/parameters/UserId'}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LearningEvent'}}}}
-      responses: {'200': {$ref: '#/components/responses/EventAcknowledged'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '409': {$ref: '#/components/responses/Conflict'}, '415': {$ref: '#/components/responses/UnsupportedMediaType'}, '503': {$ref: '#/components/responses/Degraded'}}
+      requestBody: {required: true, description: 'Use application/json. The runtime also accepts structured-suffix JSON media types matched by Spring as application/*+json.', content: {application/json: {schema: {$ref: '#/components/schemas/LearningEvent'}}}}
+      responses: {'200': {$ref: '#/components/responses/EventAcknowledged'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '409': {$ref: '#/components/responses/Conflict'}, '415': {$ref: '#/components/responses/UnsupportedMediaType'}, '500': {$ref: '#/components/responses/Internal'}, '503': {$ref: '#/components/responses/Degraded'}}
   /api/user-profile/{userId}/batch-events:
     post:
       summary: Record 1 to 100 events, preserving input order and reporting item failures
       parameters: [{$ref: '#/components/parameters/UserId'}]
       requestBody:
         required: true
+        description: 'Use application/json. The runtime also accepts structured-suffix JSON media types matched by Spring as application/*+json.'
         content: {application/json: {schema: {type: object, additionalProperties: false, required: [events], properties: {events: {type: array, minItems: 1, maxItems: 100, items: {$ref: '#/components/schemas/LearningEvent'}}}}}}
-      responses: {'200': {$ref: '#/components/responses/BatchAcknowledged'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '415': {$ref: '#/components/responses/UnsupportedMediaType'}, '503': {$ref: '#/components/responses/Degraded'}}
+      responses: {'200': {$ref: '#/components/responses/BatchAcknowledged'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '415': {$ref: '#/components/responses/UnsupportedMediaType'}, '500': {$ref: '#/components/responses/Internal'}, '503': {$ref: '#/components/responses/Degraded'}}
   /api/user-profile/{userId}:
     get:
       summary: Get own full profile; returns NOT_READY until a READY profile is committed
       parameters: [{$ref: '#/components/parameters/UserId'}]
-      responses: {'200': {$ref: '#/components/responses/ProfileRead'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '503': {$ref: '#/components/responses/Degraded'}}
+      responses: {'200': {$ref: '#/components/responses/ProfileRead'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '500': {$ref: '#/components/responses/Internal'}, '503': {$ref: '#/components/responses/Degraded'}}
   /api/user-profile/{userId}/summary:
     get:
       summary: Get minimum scene-specific summary; explaining and photo_qa require kpId, while lecturing and conversation accept it optionally; lesson_prep is always denied
       parameters: [{$ref: '#/components/parameters/UserId'}, {name: sceneType, in: query, required: true, description: 'photo_qa is a deprecated alias normalized to explaining and returns RFC 9745 Deprecation header.', schema: {enum: [explaining, lecturing, conversation, lesson_prep, photo_qa]}}, {name: kpId, in: query, schema: {type: integer, format: int64, minimum: 1}}]
-      responses: {'200': {$ref: '#/components/responses/SummaryRead'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '503': {$ref: '#/components/responses/Degraded'}}
+      responses: {'200': {$ref: '#/components/responses/SummaryRead'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '500': {$ref: '#/components/responses/Internal'}, '503': {$ref: '#/components/responses/Degraded'}}
   /api/user-profile/{userId}/knowledge-status:
     get:
       summary: Get knowledge status in query kpId order; unknown points are EMPTY
       parameters: [{$ref: '#/components/parameters/UserId'}, {name: kpId, in: query, required: true, schema: {type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: {type: integer, format: int64, minimum: 1}}}]
-      responses: {'200': {$ref: '#/components/responses/KnowledgeStatusRead'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '503': {$ref: '#/components/responses/Degraded'}}
+      responses: {'200': {$ref: '#/components/responses/KnowledgeStatusRead'}, '400': {$ref: '#/components/responses/BadEvent'}, '401': {$ref: '#/components/responses/Unauthenticated'}, '403': {$ref: '#/components/responses/Denied'}, '500': {$ref: '#/components/responses/Internal'}, '503': {$ref: '#/components/responses/Degraded'}}
 components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
@@ -86,12 +90,12 @@ components:
         userId: {type: integer, format: int64, minimum: 1}
         eventType: {type: string}
         sourceModule: {type: string}
-        occurredAt: {type: string, format: date-time}
+        occurredAt: {type: string, format: date-time, description: 'Normalized to UTC millisecond precision for persistence and idempotency. Values more than 24 hours before or after receipt are accepted as QUARANTINED and do not enter normal projection processing.'}
         schemaVersion: {type: string, enum: ['1.0']}
         sessionId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$', nullable: true}
         kpId: {type: integer, format: int64, minimum: 1, nullable: true}
         traceId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$', nullable: true}
-        data: {type: object}
+        data: {type: object, description: 'Strict per-event allowlist. Canonical payload max 16 KiB; maximum nesting depth 8, maximum 256 JSON nodes, and maximum 2048 UTF-8 bytes per text value. The whole HTTP request body is capped at 2 MiB.'}
     LearningEvent:
       oneOf:
         - {$ref: '#/components/schemas/AnswerQuestionEvent'}
@@ -153,6 +157,7 @@ components:
     Unauthenticated: {description: M6 PROFILE_UNAUTHENTICATED error, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Denied: {description: M6 PROFILE_ACCESS_DENIED error, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Conflict: {description: PROFILE_IDEMPOTENCY_CONFLICT, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Internal: {description: Sanitized PROFILE_INTERNAL_ERROR response, headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Degraded: {description: 'Sanitized PROFILE_SERVICE_DEGRADED response. A systemic DataAccessException is request-level 503, not an item parameter failure; prior REQUIRES_NEW batch items remain committed and later items are not attempted.', headers: {X-Request-Id: {$ref: '#/components/headers/RequestId'}}, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
   headers:
     RequestId: {schema: {type: string, maxLength: 128}}

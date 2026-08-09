@@ -312,7 +312,7 @@ function normalizeSummary(source, fallback) {
     weeklyGoalProgress: percentage(pick(summary, ['weeklyGoalProgress', 'goalProgress'], fallback.weeklyGoalProgress), fallback.weeklyGoalProgress),
     completedCourses: numberValue(pick(summary, ['completedCourses', 'courseCount', 'finishedCourses'], fallback.completedCourses), fallback.completedCourses),
     completedExercises: numberValue(pick(summary, ['completedExercises', 'exerciseCount', 'questionCount'], fallback.completedExercises), fallback.completedExercises),
-    message: pick(summary, ['message', 'insight', 'suggestion', 'summaryText'], fallback.message),
+    message: pick(summary, ['summaryProfile', 'message', 'insight', 'suggestion', 'summaryText'], fallback.message),
   };
 }
 
@@ -353,8 +353,8 @@ function normalizeKnowledgeNode(item, index, fallbackSubject = '') {
   const mastery = percentage(pick(item, ['mastery', 'masteryRate', 'score', 'progress', 'value'], 0));
   const children = collectionFrom(item, ['children', 'knowledgePoints', 'nodes', 'items']);
   const id = pick(item, ['id', 'knowledgePointId', 'pointId', 'knowledgeId', 'code'], `knowledge-${index + 1}`);
-  const name = pick(item, ['name', 'knowledgePointName', 'pointName', 'title'], '\u672a\u547d\u540d\u77e5\u8bc6\u70b9');
   const subject = pick(item, ['subject', 'subjectName', 'courseName', 'category'], fallbackSubject);
+  const name = pick(item, ['kpName', 'name', 'knowledgePointName', 'pointName', 'title'], `\u77e5\u8bc6\u70b9${id}`);
 
   return {
     id: String(id),
@@ -370,7 +370,7 @@ function normalizeKnowledgeNode(item, index, fallbackSubject = '') {
 }
 
 function normalizeKnowledgeTree(source, fallback) {
-  const raw = collectionFrom(source, ['knowledgeTree', 'knowledgeStatus', 'knowledgeStatuses', 'knowledgePoints', 'statuses', 'records', 'list', 'items']);
+  const raw = collectionFrom(source, ['knowledge', 'knowledgeTree', 'knowledgeStatus', 'knowledgeStatuses', 'knowledgePoints', 'statuses', 'records', 'list', 'items']);
   if (!raw.length) return clone(fallback);
 
   const nodes = raw.map((item, index) => normalizeKnowledgeNode(item, index));
@@ -412,17 +412,42 @@ function normalizeKnowledgeTree(source, fallback) {
 }
 
 function normalizeTimeline(source, fallback) {
-  const raw = collectionFrom(source, ['timeline', 'learningTimeline', 'recentActivities', 'activities', 'learningRecords']);
+  const raw = collectionFrom(source, ['events', 'timeline', 'learningTimeline', 'recentActivities', 'activities', 'learningRecords']);
   if (!raw.length) return clone(fallback);
 
+  const moduleNames = { M1:'\u7b54\u9898\u7ec3\u4e60', M2:'AI\u8bb2\u9898', M3:'\u8584\u5f31\u68c0\u6d4b', M4:'\u77e5\u8bc6\u56fe\u8c31', M5:'\u5907\u8bfe\u6750\u6599', M6:'\u590d\u4e60\u504f\u597d', M7:'\u5b66\u4e60\u7b54\u7591' };
+  const eventLabels = { answer_question:'\u7b54\u9898', finish_practice:'\u5b8c\u6210\u7ec3\u4e60', request_explanation:'\u8bf7\u6c42\u8bb2\u89e3', explanation_feedback:'\u8bb2\u89e3\u53cd\u9988', weak_point_changed:'\u8584\u5f31\u70b9\u53d8\u5316', lecture_interact:'\u8bfe\u5802\u4e92\u52a8', lesson_material_used:'\u5907\u8bfe\u6750\u6599', ask_doubt:'\u63d0\u95ee', mark_reviewed:'\u590d\u4e60\u6807\u8bb0', preference_changed:'\u504f\u597d\u53d8\u66f4' };
+  const reasonLabels = { WRONG_ANSWER:'\u7b54\u9519\u540e\u8bb2\u89e3', REPEATED_ERROR:'\u53cd\u590d\u9519\u8bef', USER_REQUEST:'\u4e3b\u52a8\u63d0\u95ee', LOW_CONFIDENCE:'\u4fe1\u5fc3\u4e0d\u8db3', REVIEW_NEEDED:'\u590d\u4e60\u9700\u8981' };
+  const feedbackLabels = { understood:'\u5df2\u7406\u89e3', partly_understood:'\u90e8\u5206\u7406\u89e3', still_confused:'\u4ecd\u56f0\u60d1' };
+  const weakReasonLabels = { ACCURACY_DROP:'\u6b63\u786e\u7387\u4e0b\u964d', REPEATED_ERROR:'\u53cd\u590d\u9519\u8bef', TEACHER_MARKED:'\u6559\u5e08\u6807\u8bb0', RECALCULATED:'\u91cd\u65b0\u8ba1\u7b97' };
+
+  function formatEventDesc(item) {
+    const raw = item.description || item.event_data || '';
+    let data = raw;
+    try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch(e) {}
+    const kpId = item.kp_id || (typeof data === 'object' && data?.kpId) || '';
+    const kpStr = kpId ? `\u77e5\u8bc6\u70b9${kpId}` : '';
+    const eventType = item.event_type || '';
+    try {
+      const d = typeof data === 'string' ? JSON.parse(data) : data;
+      if (eventType === 'answer_question') return `${kpStr} ${d.isCorrect ? '\u56de\u7b54\u6b63\u786e' : '\u56de\u7b54\u9519\u8bef'}\uff0c\u96be\u5ea6${d.difficulty || '?'}\uff0c\u7528\u65f6${d.timeSpentSec || '?'}\u79d2`;
+      if (eventType === 'finish_practice') return `${kpStr} \u5b8c\u6210${d.questionCount || '?'}\u9898\uff0c\u6b63\u786e\u7387${Math.round((d.accuracy||0)*100)}%`;
+      if (eventType === 'request_explanation') return `${kpStr} \u8bf7\u6c42\u8bb2\u89e3(${reasonLabels[d.reasonTag] || d.reasonTag || ''})`;
+      if (eventType === 'explanation_feedback') return `${kpStr} \u8bb2\u89e3\u53cd\u9988\uff1a${feedbackLabels[d.feedback] || d.feedback || ''}`;
+      if (eventType === 'weak_point_changed') return `${kpStr} \u8584\u5f31\u5206 ${d.oldScore}\u2192${d.newScore}\uff08${weakReasonLabels[d.reason] || d.reason || ''}\uff09`;
+      if (eventType === 'ask_doubt') return `${kpStr} \u63d0\u95ee\uff1a${d.topic || ''}`;
+    } catch (e) { /* use raw */ }
+    return typeof data === 'string' ? data : JSON.stringify(data);
+  }
+
   return raw.map((item, index) => ({
-    id: String(pick(item, ['id', 'recordId', 'activityId'], `activity-${index + 1}`)),
-    type: pick(item, ['type', 'activityType', 'recordType'], 'study'),
-    title: pick(item, ['title', 'name', 'activityName'], '\u5b66\u4e60\u8bb0\u5f55'),
-    description: pick(item, ['description', 'content', 'detail'], ''),
+    id: String(pick(item, ['event_id', 'id', 'recordId', 'activityId'], `activity-${index + 1}`)),
+    type: pick(item, ['event_type', 'type', 'activityType', 'recordType'], 'study'),
+    title: eventLabels[item.event_type] || moduleNames[item.module] || pick(item, ['module', 'title', 'name', 'activityName'], '\u5b66\u4e60\u8bb0\u5f55'),
+    description: formatEventDesc(item),
     subject: pick(item, ['subject', 'subjectName', 'courseName'], ''),
     score: pick(item, ['score', 'accuracy', 'result'], null),
-    time: pick(item, ['time', 'createdAt', 'studyTime', 'date'], ''),
+    time: pick(item, ['created_at', 'time', 'createdAt', 'studyTime', 'date'], ''),
   }));
 }
 
@@ -501,15 +526,18 @@ export async function getLearningProfile(userId) {
 
   if (!userId) return demo;
 
-  const [profileResult, knowledgeResult, reminderResult] = await Promise.allSettled([
+  const timelineUrl = `http://localhost:8001/api/user-profile/${encodeURIComponent(normalizedUserId)}/timeline?limit=10`;
+  const [profileResult, knowledgeResult, reminderResult, timelineResult] = await Promise.allSettled([
     get(PROFILE_ENDPOINT(normalizedUserId)),
     get(KNOWLEDGE_STATUS_ENDPOINT(normalizedUserId)),
     get(REVIEW_REMINDERS_ENDPOINT(normalizedUserId)),
+    fetch(timelineUrl).then(r => r.ok ? r.json() : Promise.reject(r.status)),
   ]);
 
   const profileSource = resultPayload(profileResult);
   const knowledgeSource = resultPayload(knowledgeResult);
   const reminderSource = resultPayload(reminderResult);
+  const timelineSource = resultPayload(timelineResult);
   const isDemo = !requestSucceeded(profileResult)
     || !requestSucceeded(knowledgeResult)
     || !requestSucceeded(reminderResult);
@@ -525,7 +553,7 @@ export async function getLearningProfile(userId) {
     stats: normalizeStats(profileSource || {}, summary, demo.stats),
     dimensions: normalizeDimensions(profileSource || {}, demo.dimensions),
     knowledgeTree: normalizeKnowledgeTree(knowledgeSource || profileSource || {}, demo.knowledgeTree),
-    timeline: normalizeTimeline(profileSource || {}, demo.timeline),
+    timeline: normalizeTimeline(timelineSource || profileSource || {}, demo.timeline),
     reminders: normalizeReminders(reminderSource || profileSource || {}, demo.reminders),
     preferences: normalizePreferences(profileSource || {}, demo.preferences),
   };

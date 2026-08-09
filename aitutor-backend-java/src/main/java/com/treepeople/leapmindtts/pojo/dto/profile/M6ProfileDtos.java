@@ -15,7 +15,7 @@ public final class M6ProfileDtos {
             implements ProfileView, SummaryView { }
     public record RecentFocus(Long kpId, BigDecimal weight) { }
     public record RecentConfusion(Long kpId, String detail, Long evidenceCount, BigDecimal confidence, Instant lastOccurredAt) { }
-    public record KnowledgeContext(Long kpId, String status, BigDecimal masteryScore, String masteryStatus,
+    public record KnowledgeContext(Long kpId, String kpName, String status, BigDecimal masteryScore, String masteryStatus,
                                    BigDecimal confidence, String trend, Long evidenceCount) { }
     public record FullProfile(Long userId, String profileStatus, String statusReason, Long profileVersion,
                               String grade, List<String> preferredContentModes, String preferredExplanationStyle,

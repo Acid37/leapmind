@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * @ Package：com.treepeople.leapmindtts.controller
@@ -23,10 +25,12 @@ import java.util.List;
 @RequestMapping("/api/courses")
 @Slf4j
 @RequiredArgsConstructor
+@Tag(name = "PPT Data - PPT数据", description = "课程 PPT 幻灯片数据查询")
 public class PPTSlidesController {
 
     private final PPTSlidesService pptSlidesService;
 
+    @Operation(summary = "获取课程PPT数据", description = "根据课程 ID 获取该课程所有幻灯片展示数据")
     @GetMapping("/{courseId}/slides-data")
     public ResponseEntity<ApiResponse<List<PPTSlidesVO>>> getPPTSlides(@PathVariable String courseId) {
         log.info("获取PPT数据: {}", courseId);
