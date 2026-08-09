@@ -46,6 +46,8 @@ export default function LearningApp({
   onM4Lecture,
   onM3WeakPoints,
   onM3KnowledgeGraph,
+  onM5Create,
+  onM5List,
 }) {
   // UI 状态
   const [isGradeOpen, setIsGradeOpen] = useState(false)
@@ -464,6 +466,7 @@ export default function LearningApp({
     { id: 'm1-practice', title: "AI 做题", color: "from-emerald-400 via-green-400 to-teal-500", icon: null, custom: true, action: onM1Practice },
     { id: 'm3-weak-points', title: "薄弱点分析", color: "from-orange-400 via-amber-400 to-yellow-500", icon: null, custom: true, action: onM3WeakPoints },
     { id: 'm3-knowledge-graph', title: "知识图谱", color: "from-indigo-400 via-violet-400 to-purple-500", icon: null, custom: true, action: onM3KnowledgeGraph },
+    { id: 'm5-lesson-prep', title: "AI 备课", color: "from-emerald-400 via-teal-400 to-cyan-500", icon: null, custom: true, action: onM5List },
   ]
 
 
