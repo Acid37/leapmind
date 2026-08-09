@@ -1,4 +1,4 @@
-package com.treepeople.leapmindtts.controller.admin;
+package com.treepeople.leapmindtts.controller.Admin;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;

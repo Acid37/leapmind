@@ -24,8 +24,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     public RateLimitInterceptor(RateLimiterRegistry rateLimiterRegistry) {
         this.rateLimiterRegistry = rateLimiterRegistry;
-        // 修改为：如果找不到 user-rate-limiter，就优雅降级使用默认配置 (getDefaultConfig)
-        this.rateLimiterConfig = rateLimiterRegistry.getConfiguration("user-rate-limiter")
+        // 修改为：如果找不到 userQuestionLimiter，就优雅降级使用默认配置 (getDefaultConfig)
+        this.rateLimiterConfig = rateLimiterRegistry.getConfiguration("userQuestionLimiter")
                 .orElseGet(rateLimiterRegistry::getDefaultConfig);
     }
 

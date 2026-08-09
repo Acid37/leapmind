@@ -84,3 +84,12 @@ class GraphEdge(_AliasModel):
 class KnowledgeGraphResponse(_AliasModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+
+
+# ── 统一错误响应 ──
+
+class ErrorResponse(_AliasModel):
+    status: str = "error"
+    message: str
+    detail: Optional[str] = None
+    error_code: Optional[str] = None

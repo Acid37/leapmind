@@ -101,11 +101,19 @@ def build_stage1_messages(
     style: str,
     weak_point_ids: list[int],
     user_profile_summary: Optional[str] = None,
+    knowledge_point_names: Optional[list[str]] = None,
 ) -> list:
     """Build messages for Stage 1: Syllabus generation (streaming)."""
     from ...ai import AIMessage, MessageRole
 
-    kp_str = "\n".join(f"- 知识点ID: {id}" for id in knowledge_point_ids)
+    # 有名称时用"名称（ID: x）"，无名称时降级为纯ID
+    if knowledge_point_names and len(knowledge_point_names) == len(knowledge_point_ids):
+        kp_str = "\n".join(
+            f"- {name}（ID: {kp_id}）"
+            for kp_id, name in zip(knowledge_point_ids, knowledge_point_names)
+        )
+    else:
+        kp_str = "\n".join(f"- 知识点ID: {id}" for id in knowledge_point_ids)
     goals_str = "\n".join(f"- {g}" for g in teaching_goals) if teaching_goals else "- 无特定教学目标"
     style_desc = STYLE_DESCRIPTIONS.get(style, STYLE_DESCRIPTIONS["standard"])
 
@@ -139,23 +147,24 @@ def build_stage1_messages(
 STAGE2_SYSTEM_TEMPLATE = """你是PPT教学设计专家，擅长将教案内容转化为视觉化幻灯片结构。
 
 ## 设计原则
-1. 每页5-7个信息点（7±2原则）
-2. 核心概念需要突出显示
-3. 如有公式，用LaTeX格式输出
-4. 在适当位置插入互动问题（选择题/思考题）
+1. 将教学内容拆分为多张幻灯片，页数由内容复杂度决定（典型3-8页，覆盖完整教学流程）
+2. 每页5-7个信息点（7±2原则）
+3. 核心概念需要突出显示
+4. 如有公式，用LaTeX格式输出
+5. 在适当位置插入互动问题（选择题/思考题）
 
 ## 幻灯片类型说明
-- cover: 封面页（仅标题页使用）
+- cover: 封面页（仅标题页使用，一个section最多一张）
 - content: 内容页（知识点讲解）
 - interactive: 互动页（提问/练习）
 - summary: 总结页
 - homework: 课后作业页
 
 ## 输出格式
-请严格按以下JSON格式输出，不要包含markdown代码块标记：
+请输出一个JSON数组，数组的每个元素是一张幻灯片，严格遵循以下schema，不要包含markdown代码块标记：
 {slide_schema_desc}"""
 
-STAGE2_USER_TEMPLATE = """请为以下教学内容生成幻灯片JSON：
+STAGE2_USER_TEMPLATE = """请为以下教学内容生成多张幻灯片JSON数组：
 
 ## 教学内容
 {section_json}
@@ -163,14 +172,16 @@ STAGE2_USER_TEMPLATE = """请为以下教学内容生成幻灯片JSON：
 ## 学生特点
 {student_profile}
 
-请输出一个JSON对象，严格遵循schema格式。"""
+请根据教学内容的完整教学流程，输出一个JSON数组（包含多张幻灯片），
+按"导入→讲解→练习→总结→作业"的结构拆分，不要只输出一页。
+数组的每个元素严格遵循schema格式。"""
 
 
 def build_stage2_messages(
     section_json: str,
     user_profile_summary: Optional[str] = None,
 ) -> list:
-    """Build messages for Stage 2: Single PPT slide generation."""
+    """Build messages for Stage 2: Multi-page PPT slide generation."""
     from ...ai import AIMessage, MessageRole
 
     system = STAGE2_SYSTEM_TEMPLATE.format(slide_schema_desc=SLIDE_SCHEMA_DESC)
@@ -257,4 +268,156 @@ def build_stage3_messages(
     return [
         AIMessage(role=MessageRole.SYSTEM, content=system),
         AIMessage(role=MessageRole.USER, content=user),
+    ]
+
+
+# ─── Aux 1: Generate Teaching Goals ───
+
+GOALS_SYSTEM_TEMPLATE = """你是一位经验丰富的{subject}教师，正在为{grade}年级学生撰写教学目标。
+
+## 知识点
+{knowledge_points}
+
+## 教学方向
+{goal_direction}
+
+## 风格要求
+{style_description}
+
+## 输出格式
+请输出严格的JSON对象，不要包含markdown代码块标记，不要包含任何额外的说明文字。
+{{
+  "goals": ["目标1", "目标2", "目标3", "目标4"]
+}}
+
+## 质量要求
+✅ 生成 3-5 条教学目标
+✅ 每条目标必须可衡量、可达成
+✅ 目标应覆盖：知识理解、方法掌握、灵活应用三个层次
+✅ 语言简洁清晰，每条 15-30 字
+❌ 不要生成空目标或占位符"""
+
+GOALS_USER_PROMPT = """请根据以上信息，生成 3-5 条具体的教学目标。
+目标应层次分明：从"理解"到"掌握"再到"应用"。"""
+
+
+def build_goals_messages(
+    subject: str,
+    grade: str,
+    knowledge_point_ids: list[int],
+    knowledge_point_names: Optional[list[str]] = None,
+    goal_direction: Optional[str] = None,
+    weak_point_ids: Optional[list[int]] = None,
+) -> list:
+    """Build messages for generating teaching goals."""
+    from ...ai import AIMessage, MessageRole
+
+    # 有名称时用"名称（ID: x）"
+    if knowledge_point_names and len(knowledge_point_names) == len(knowledge_point_ids):
+        kp_str = "\n".join(
+            f"- {name}（ID: {kp_id}）"
+            for kp_id, name in zip(knowledge_point_ids, knowledge_point_names)
+        )
+    else:
+        kp_str = "\n".join(f"- 知识点ID: {id}" for id in knowledge_point_ids)
+
+    direction = goal_direction or "根据知识点特点确定教学方向"
+    style_desc = "目标应层次分明，覆盖知识、方法、应用三个层次"
+
+    if weak_point_ids:
+        kp_str += f"\n\n## 薄弱知识点（重点关注）\n"
+        kp_str += "\n".join(f"- 薄弱知识点ID: {id}" for id in weak_point_ids)
+
+    system = GOALS_SYSTEM_TEMPLATE.format(
+        subject=subject,
+        grade=grade,
+        knowledge_points=kp_str,
+        goal_direction=direction,
+        style_description=style_desc,
+    )
+
+    return [
+        AIMessage(role=MessageRole.SYSTEM, content=system),
+        AIMessage(role=MessageRole.USER, content=GOALS_USER_PROMPT),
+    ]
+
+
+# ─── Aux 2: Generate Teaching Process ───
+
+PROCESS_SYSTEM_TEMPLATE = """你是一位经验丰富的{subject}教师，正在为{grade}年级学生设计"{section_title}"的教学过程。
+
+## 知识点
+{knowledge_points}
+
+## 教学目标（必须围绕这些目标设计过程）
+{teaching_goals}
+
+## 课时
+{total_hours}课时，当前为第{section_index}课时
+
+## 输出格式
+请输出严格的JSON对象，不要包含markdown代码块标记，不要包含任何额外的说明文字。
+{{
+  "teaching_process": [
+    {{
+      "step": "环节名称",
+      "duration": "时长（如5min）",
+      "teacher_activity": "教师活动描述（≥10字）",
+      "student_activity": "学生活动描述（≥10字）",
+      "design_intent": "设计意图说明（≥10字）"
+    }}
+  ]
+}}
+
+## 质量要求
+✅ 生成 4-6 个教学环节
+✅ 环节顺序符合认知规律：导入→讲授→练习→小结
+✅ 每个环节的活动描述≥10字，设计意图≥10字
+✅ 每个环节紧扣教学目标
+✅ 时长分配合理（总时长约45min）
+❌ 不要输出空字段或占位符
+❌ 不要让 teacher_activity 和 student_activity 内容重复"""
+
+PROCESS_USER_PROMPT = """请根据以上教学目标，设计完整的教学过程。
+环节应完整覆盖"导入→讲授→练习→小结"四个阶段，并可根据需要增加互动环节。"""
+
+
+def build_process_messages(
+    subject: str,
+    grade: str,
+    knowledge_point_ids: list[int],
+    teaching_goals: list[str],
+    knowledge_point_names: Optional[list[str]] = None,
+    total_hours: int = 1,
+    section_index: int = 1,
+    section_title: Optional[str] = None,
+) -> list:
+    """Build messages for generating teaching process."""
+    from ...ai import AIMessage, MessageRole
+
+    # 有名称时用"名称（ID: x）"
+    if knowledge_point_names and len(knowledge_point_names) == len(knowledge_point_ids):
+        kp_str = "\n".join(
+            f"- {name}（ID: {kp_id}）"
+            for kp_id, name in zip(knowledge_point_ids, knowledge_point_names)
+        )
+    else:
+        kp_str = "\n".join(f"- 知识点ID: {id}" for id in knowledge_point_ids)
+
+    goals_str = "\n".join(f"- {g}" for g in teaching_goals) if teaching_goals else "- 无特定教学目标"
+    section_title_display = section_title or f"第{section_index}课时"
+
+    system = PROCESS_SYSTEM_TEMPLATE.format(
+        subject=subject,
+        grade=grade,
+        knowledge_points=kp_str,
+        teaching_goals=goals_str,
+        total_hours=total_hours,
+        section_index=section_index,
+        section_title=section_title_display,
+    )
+
+    return [
+        AIMessage(role=MessageRole.SYSTEM, content=system),
+        AIMessage(role=MessageRole.USER, content=PROCESS_USER_PROMPT),
     ]

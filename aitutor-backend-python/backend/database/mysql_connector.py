@@ -106,20 +106,43 @@ class Database:
             conn.close()
 
     def fetch_questions_by_kp(self, kp_id: int) -> list[dict]:
-        """获取某个知识点下的所有题目"""
+        """获取某个知识点下的所有题目（适配 Flyway V5 表结构：content_json + difficulty TINYINT 1-5）"""
         sql = """
-            SELECT id, kp_id, content, difficulty
+            SELECT id, kp_id, content_json, difficulty
             FROM questions
-            WHERE kp_id = %s
+            WHERE kp_id = %s AND status = 1
             ORDER BY difficulty ASC
         """
         conn = self._get_conn()
         try:
             with conn.cursor() as cur:
                 cur.execute(sql, (kp_id,))
-                return cur.fetchall()
+                rows = cur.fetchall()
+                # 将 content_json 解析为可读文本，保持与旧接口兼容
+                import json
+                for row in rows:
+                    raw = row.pop("content_json")
+                    row["content"] = self._parse_question_content(raw)
+                return rows
         finally:
             conn.close()
+
+    @staticmethod
+    def _parse_question_content(content_json: str) -> str:
+        """将 V5 content_json 解析为可读题目文本"""
+        if not content_json:
+            return ""
+        try:
+            import json
+            obj = json.loads(content_json)
+            stem = obj.get("stem", "")
+            options = obj.get("options", [])
+            if options:
+                return stem + " " + " ".join(options)
+            return stem
+        except (json.JSONDecodeError, TypeError):
+            # 兼容纯文本内容（旧数据或手动录入）
+            return content_json
 
     def fetch_answered_question_ids(self, user_id: int, kp_id: int) -> list[int]:
         """获取用户在某知识点下已做过的题目 ID"""
@@ -210,23 +233,25 @@ class Database:
         """写入或更新用户薄弱点记录"""
         sql = """
             INSERT INTO user_weak_points
-                (user_id, kp_id, weakness_score, error_count, total_attempts,
+                (user_id, kp_id, knowledge_point, weakness_score, error_count, total_attempts,
                  error_rate, recent_correct_rate, confusion_count, trend,
                  last_error_at, calculated_at)
             VALUES
-                (%(user_id)s, %(kp_id)s, %(weakness_score)s, %(error_count)s, %(total_attempts)s,
+                (%(user_id)s, %(kp_id)s, %(knowledge_point)s, %(weakness_score)s, %(error_count)s, %(total_attempts)s,
                  %(error_rate)s, %(recent_correct_rate)s, %(confusion_count)s, %(trend)s,
                  %(last_error_at)s, %(calculated_at)s)
             ON DUPLICATE KEY UPDATE
-                weakness_score     = VALUES(weakness_score),
-                error_count        = VALUES(error_count),
-                total_attempts     = VALUES(total_attempts),
-                error_rate         = VALUES(error_rate),
+                kp_id             = VALUES(kp_id),
+                knowledge_point   = VALUES(knowledge_point),
+                weakness_score    = VALUES(weakness_score),
+                error_count       = VALUES(error_count),
+                total_attempts    = VALUES(total_attempts),
+                error_rate        = VALUES(error_rate),
                 recent_correct_rate = VALUES(recent_correct_rate),
-                confusion_count    = VALUES(confusion_count),
-                trend              = VALUES(trend),
-                last_error_at      = VALUES(last_error_at),
-                calculated_at      = VALUES(calculated_at)
+                confusion_count   = VALUES(confusion_count),
+                trend             = VALUES(trend),
+                last_error_at     = VALUES(last_error_at),
+                calculated_at     = VALUES(calculated_at)
         """
         conn = self._get_conn()
         try:

@@ -20,11 +20,13 @@ public final class LearningEventPolicy {
             Map.entry("request_explanation", "M2"), Map.entry("explanation_feedback", "M2"),
             Map.entry("weak_point_changed", "M3"), Map.entry("lecture_interact", "M4"),
             Map.entry("lesson_material_used", "M5"), Map.entry("ask_doubt", "M7"),
-            Map.entry("mark_reviewed", "M6"), Map.entry("preference_changed", "M6"));
+            Map.entry("mark_reviewed", "M6"), Map.entry("preference_changed", "M6"),
+            Map.entry("wrong_question_changed", "M1"));
     private static final Pattern ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}");
     private static final Set<String> SENSITIVE_KEYS = Set.of("password", "passwd", "pwd", "token", "accesstoken",
             "refreshtoken", "authorization", "idcard", "nationalid", "identitynumber", "privatekey",
-            "secret", "clientsecret", "apikey", "credential", "credentials");
+            "secret", "clientsecret", "apikey", "credential", "credentials",
+            "phone", "mobile", "phonenumber");
     private static final Pattern AUTHORIZATION_CREDENTIAL = Pattern.compile(
             "(?i)\\b(?:bearer|basic)[ \\t]+[A-Za-z0-9._~+/=-]{8,}\\b");
     private static final Pattern JWT = Pattern.compile("\\beyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b");
@@ -118,6 +120,12 @@ public final class LearningEventPolicy {
                 invalid(values.isEmpty(), "PROFILE_EVENT_INVALID", "data.preferenceKey", "INVALID");
                 enumeration(d, "preferenceValue", values, true);
             }
+            case "wrong_question_changed" -> {
+                keys(d, Set.of("questionId", "status", "wrongCount"));
+                integer(d, "questionId", 1, Integer.MAX_VALUE, true);
+                enumeration(d, "status", Set.of("UNRESOLVED", "REVIEWING", "RESOLVED"), true);
+                integer(d, "wrongCount", 1, 9999, true);
+            }
             default -> throw new IllegalStateException("validated event type missing schema");
         }
     }
@@ -135,7 +143,7 @@ public final class LearningEventPolicy {
     private static String text(JsonNode d,String n,boolean required,int maxCodePoints){JsonNode v=value(d,n,required);if(v==null)return null;invalid(!v.isTextual()||v.textValue().codePointCount(0,v.textValue().length())>maxCodePoints,"PROFILE_EVENT_INVALID","data."+n,"INVALID");return v.textValue();}
     private static JsonNode value(JsonNode d,String n,boolean required){JsonNode v=d.get(n);invalid(v!=null&&v.isNull(),"PROFILE_EVENT_INVALID","data."+n,"INVALID");invalid(required&&v==null,"PROFILE_EVENT_INVALID","data."+n,"REQUIRED");return v;}
     private static void scan(JsonNode n,String path,String eventType,int depth,int[] count){invalid(depth>8||++count[0]>256,"PROFILE_EVENT_INVALID",path,"INVALID");if(n.isObject()){Iterator<Map.Entry<String,JsonNode>> it=n.fields();while(it.hasNext()){Map.Entry<String,JsonNode> f=it.next();String child=depth==0?trustedDataPath(eventType,f.getKey()):path;invalid(sensitiveKey(f.getKey()),"PROFILE_EVENT_INVALID",child,"INVALID");scan(f.getValue(),child,eventType,depth+1,count);}}else if(n.isArray()){for(JsonNode item:n)scan(item,path+"[item]",eventType,depth+1,count);}else if(n.isTextual()){String v=n.textValue();invalid(v.getBytes(StandardCharsets.UTF_8).length>2048||sensitiveValue(v),"PROFILE_EVENT_INVALID",path,"INVALID");}}
-    private static String trustedDataPath(String eventType,String field){Set<String> allowed=switch(eventType){case "answer_question"->Set.of("isCorrect","difficulty","timeSpentSec","hintCount","confusionTag");case "finish_practice"->Set.of("questionCount","accuracy","durationSec");case "request_explanation"->Set.of("explainId","reasonTag");case "explanation_feedback"->Set.of("explainId","feedback","repeatCount");case "weak_point_changed"->Set.of("oldScore","newScore","reason");case "lecture_interact"->Set.of("lectureId","chapterId","action");case "lesson_material_used"->Set.of("contentId","materialType","result");case "ask_doubt"->Set.of("topic","confusionTag","isFollowUp");case "mark_reviewed"->Set.of("result","timeSpentSec","hintCount");case "preference_changed"->Set.of("preferenceKey","preferenceValue");default->Set.of();};return allowed.contains(field)?"data."+field:"data";}
+    private static String trustedDataPath(String eventType,String field){Set<String> allowed=switch(eventType){case "answer_question"->Set.of("isCorrect","difficulty","timeSpentSec","hintCount","confusionTag");case "finish_practice"->Set.of("questionCount","accuracy","durationSec");case "request_explanation"->Set.of("explainId","reasonTag");case "explanation_feedback"->Set.of("explainId","feedback","repeatCount");case "weak_point_changed"->Set.of("oldScore","newScore","reason");case "lecture_interact"->Set.of("lectureId","chapterId","action");case "lesson_material_used"->Set.of("contentId","materialType","result");case "ask_doubt"->Set.of("topic","confusionTag","isFollowUp");case "mark_reviewed"->Set.of("result","timeSpentSec","hintCount");case "preference_changed"->Set.of("preferenceKey","preferenceValue");case "wrong_question_changed"->Set.of("questionId","status","wrongCount");default->Set.of();};return allowed.contains(field)?"data."+field:"data";}
     private static void checkIdentifier(String v,String field){invalid(v==null||!ID.matcher(v).matches(),"PROFILE_EVENT_INVALID",field,"INVALID");}
     private static void checkOptionalIdentifier(String v,String field){if(v!=null)checkIdentifier(v,field);}
     private static void checkEnvelopeValue(String value,String field){if(value!=null)invalid(obviousCredential(value),"PROFILE_EVENT_INVALID",field,"INVALID");}

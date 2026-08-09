@@ -1,4 +1,4 @@
-package com.treepeople.leapmindtts.controller.admin;
+package com.treepeople.leapmindtts.controller.Admin;
 
 import com.treepeople.leapmindtts.annotation.AdminRequired;
 import com.treepeople.leapmindtts.pojo.dto.CreateEducationStageDTO;

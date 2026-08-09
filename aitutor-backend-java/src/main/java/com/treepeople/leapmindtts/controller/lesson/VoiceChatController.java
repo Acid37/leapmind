@@ -38,8 +38,8 @@ package com.treepeople.leapmindtts.controller.lesson;
       *增加了Resilience4j限流
       */
      @PostMapping("/ask")
-    @RateLimiter(name = "default", fallbackMethod = "rateLimitFallback")
-    public ResponseEntity<VoiceChatResponse> handleVoiceChat(
+   @RateLimiter(name = "userQuestionLimiter", fallbackMethod = "rateLimitFallback")
+   public ResponseEntity<VoiceChatResponse> handleVoiceChat(
              @RequestBody @Valid VoiceChatRequest request) {
          log.info("接收到语音对话请求，会话ID: {}, 问题: {}",
                  request.getCourseId(), request.getQuestion());

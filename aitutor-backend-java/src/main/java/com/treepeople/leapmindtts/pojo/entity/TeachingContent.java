@@ -61,6 +61,42 @@ public class TeachingContent {
     private Long templateId;
 
     /**
+     * PPT导出下载链接
+     */
+    @TableField("ppt_download_url")
+    private String pptDownloadUrl;
+
+    /**
+     * 完整备课生成内容（含大纲、PPT、讲稿），供 generate-ppt 接口读取 syllabus
+     */
+    @TableField("generated_content_json")
+    private String generatedContentJson;
+
+    /**
+     * 内容类型（ppt/doc/text），默认 ppt
+     */
+    @TableField("type")
+    private String type;
+
+    /**
+     * 学科（math/chinese/english/...）
+     */
+    @TableField("subject")
+    private String subject;
+
+    /**
+     * 年级（grade_7/grade_8/...）
+     */
+    @TableField("grade")
+    private String grade;
+
+    /**
+     * 知识点列表 JSON 字符串 [{id, name}]
+     */
+    @TableField("knowledge_points")
+    private String knowledgePoints;
+
+    /**
      * 创建时间
      */
     @TableField(value = "created_at", fill = FieldFill.INSERT)

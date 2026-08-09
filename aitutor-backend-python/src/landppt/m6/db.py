@@ -30,26 +30,6 @@ CREATE TABLE IF NOT EXISTS review_schedules (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
-# user_profiles：用户画像表（每用户一行）
-# 存储聚合后的擅长点、薄弱点、学习风格、画像摘要等
-# 由 Java UserProfileController 读取，供前端展示和 AI Prompt 注入
-CREATE_USER_PROFILES = """
-CREATE TABLE IF NOT EXISTS user_profiles (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    strengths_json TEXT,
-    weakness_json TEXT,
-    learning_style VARCHAR(50),
-    confusion_history_json TEXT,
-    summary_text TEXT,
-    avg_accuracy DECIMAL(5,2),
-    total_questions INT DEFAULT 0,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-"""
-
-
 def get_conn():
     """获取 MySQL 数据库连接（返回 DictCursor，查询结果以字典形式返回）"""
     return pymysql.connect(
@@ -64,12 +44,11 @@ def get_conn():
 
 
 def init_tables():
-    """应用启动时调用，CREATE TABLE IF NOT EXISTS 确保 2 张表存在（幂等安全）"""
+    """应用启动时调用，CREATE TABLE IF NOT EXISTS 确保 review_schedules 表存在（幂等安全）"""
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(CREATE_REVIEW_SCHEDULES)
-            cur.execute(CREATE_USER_PROFILES)
         conn.commit()
     finally:
         conn.close()

@@ -3,12 +3,19 @@ package com.treepeople.leapmindtts.controller;
 import com.treepeople.leapmindtts.pojo.entity.EventCollection;
 import com.treepeople.leapmindtts.pojo.result.ApiResponse;
 import com.treepeople.leapmindtts.service.EventCollectionService;
+import com.treepeople.leapmindtts.service.profile.security.ProfileActorResolver;
+import com.treepeople.leapmindtts.exception.M6ApiException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataAccessException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 事件采集控制器
@@ -40,9 +47,12 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/events")
 @RequiredArgsConstructor
+@Deprecated(since = "2026-07", forRemoval = false)
+@Tag(name = "Event Collection - 事件采集", description = "为 M1/M2/M4/M7 提供统一的事件采集上报接口")
 public class EventCollectionController {
 
     private final EventCollectionService eventCollectionService;
+    private final ProfileActorResolver profileActorResolver;
 
     /**
      * 采集单条事件
@@ -74,13 +84,18 @@ public class EventCollectionController {
      * @param event 事件数据
      * @return HTTP 200 + 保存后的事件（含数据库生成的 ID）
      */
+    @Operation(summary = "采集单条事件", description = "M1/M2/M4/M7 各模块在用户完成学习行为后调用，上报一条事件数据。"
+            + " module、eventType、userId 为必填，eventData 为 JSON 字符串自由格式，eventTime 不填则默认当前时间。"
+            + " 调用成功返回 HTTP 200 + 保存后的事件（含数据库自动生成的 id 和 createdAt）。")
     @PostMapping("/collect")
-    public ResponseEntity<ApiResponse<EventCollection>> collectEvent(@RequestBody EventCollection event) {
+    public ResponseEntity<ApiResponse<EventCollection>> collectEvent(@RequestBody EventCollection event, HttpServletRequest servletRequest) {
+        requireUserActor(servletRequest, event == null ? null : event.getUserId());
         log.info("采集事件，模块: {}, 类型: {}", event.getModule(), event.getEventType());
 
         try {
             EventCollection saved = eventCollectionService.collectEvent(event);
             return ResponseEntity.ok(ApiResponse.success(saved, "事件采集成功"));
+        } catch (DataAccessException e) { throw e;
         } catch (Exception e) {
             log.error("事件采集失败: {}", e.getMessage());
             return ResponseEntity.badRequest()
@@ -97,13 +112,22 @@ public class EventCollectionController {
      * @param events 事件列表（JSON 数组）
      * @return HTTP 200 + 保存后的事件列表
      */
+    @Operation(summary = "批量采集事件", description = "模块同步历史数据或定时批量上报，请求体为事件对象数组。"
+            + " 单次最多 100 条，超出可能超时。每条事件的字段规则同单条采集接口。")
     @PostMapping("/collect/batch")
-    public ResponseEntity<ApiResponse<List<EventCollection>>> collectEvents(@RequestBody List<EventCollection> events) {
+    public ResponseEntity<ApiResponse<List<EventCollection>>> collectEvents(@RequestBody List<EventCollection> events, HttpServletRequest servletRequest) {
+        if (events == null || events.isEmpty() || events.size() > 100) throw new IllegalArgumentException("events batch size must be 1..100");
+        EventCollection first = events.get(0);
+        Long userId = first == null ? null : first.getUserId();
+        requireUserActor(servletRequest, userId);
+        if (events.stream().anyMatch(event -> event == null || !userId.equals(event.getUserId())))
+            throw new IllegalArgumentException("all batch events must belong to the authenticated user");
         log.info("批量采集事件，共 {} 条", events.size());
 
         try {
             List<EventCollection> saved = eventCollectionService.collectEvents(events);
             return ResponseEntity.ok(ApiResponse.success(saved, "批量事件采集成功"));
+        } catch (DataAccessException e) { throw e;
         } catch (Exception e) {
             log.error("批量事件采集失败: {}", e.getMessage());
             return ResponseEntity.badRequest()
@@ -118,18 +142,10 @@ public class EventCollectionController {
      * @param module 模块标识（M1/M2/M4/M7）
      * @return HTTP 200 + 未处理事件列表，按发生时间升序
      */
+    @Operation(summary = "查询未处理事件", description = "按模块标识返回该模块所有 processed=0 的事件，按发生时间升序排列。供定时任务和管理后台使用。")
     @GetMapping("/unprocessed/{module}")
     public ResponseEntity<ApiResponse<List<EventCollection>>> getUnprocessedEvents(@PathVariable String module) {
-        log.info("查询模块 {} 未处理的事件", module);
-
-        try {
-            List<EventCollection> events = eventCollectionService.getUnprocessedEvents(module);
-            return ResponseEntity.ok(ApiResponse.success(events, "查询未处理事件成功"));
-        } catch (Exception e) {
-            log.error("查询模块 {} 未处理事件失败: {}", module, e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(400, e.getMessage()));
-        }
+        throw legacyServiceIdentityMissing();
     }
 
     /**
@@ -139,13 +155,18 @@ public class EventCollectionController {
      * @param userId 用户ID
      * @return HTTP 200 + 用户事件列表
      */
+    @Operation(summary = "查询用户事件", description = "查询指定用户的所有学习行为事件，按时间降序排列。用于查看用户学习时间线。")
     @GetMapping("/user/{userId}")
-    public ResponseEntity<ApiResponse<List<EventCollection>>> getUserEvents(@PathVariable Long userId) {
+    public ResponseEntity<ApiResponse<List<EventCollection>>> getUserEvents(
+            @Parameter(description = "用户ID，必填", example = "10086", required = true) @PathVariable Long userId,
+            HttpServletRequest servletRequest) {
+        profileActorResolver.authorizeSelf(servletRequest, userId);
         log.info("查询用户 {} 的事件数据", userId);
 
         try {
             List<EventCollection> events = eventCollectionService.getUserEvents(userId);
             return ResponseEntity.ok(ApiResponse.success(events, "查询用户事件成功"));
+        } catch (DataAccessException e) { throw e;
         } catch (Exception e) {
             log.error("查询用户 {} 事件失败: {}", userId, e.getMessage());
             return ResponseEntity.badRequest()
@@ -160,17 +181,17 @@ public class EventCollectionController {
      * @param eventId 事件ID
      * @return HTTP 200 + 成功消息
      */
+    @Operation(summary = "标记事件已处理", description = "定时任务处理完某事件后调用，将 processed 置为 1，processedAt 设为当前时间。防止重复处理。")
     @PutMapping("/{eventId}/processed")
     public ResponseEntity<ApiResponse<String>> markAsProcessed(@PathVariable Long eventId) {
-        log.info("标记事件 {} 为已处理", eventId);
+        throw legacyServiceIdentityMissing();
+    }
 
-        try {
-            eventCollectionService.markAsProcessed(eventId);
-            return ResponseEntity.ok(ApiResponse.success("标记已处理成功"));
-        } catch (Exception e) {
-            log.error("标记事件 {} 已处理失败: {}", eventId, e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(400, e.getMessage()));
-        }
+    private void requireUserActor(HttpServletRequest request, Long userId) {
+        if (userId == null || userId <= 0) throw new IllegalArgumentException("userId must be positive");
+        profileActorResolver.authorizeSelf(request, userId);
+    }
+    private M6ApiException legacyServiceIdentityMissing() {
+        return new M6ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "PROFILE_ACCESS_DENIED", "Legacy service identity is not configured");
     }
 }

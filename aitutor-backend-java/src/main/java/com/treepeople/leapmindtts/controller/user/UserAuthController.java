@@ -1,12 +1,18 @@
 package com.treepeople.leapmindtts.controller.user;
 
 import com.aliyun.dysmsapi20170525.models.SendSmsResponse;
+import com.treepeople.leapmindtts.exception.AccountDisabledException;
+import com.treepeople.leapmindtts.exception.InvalidCredentialsException;
+import com.treepeople.leapmindtts.exception.UserNotFoundException;
 import com.treepeople.leapmindtts.pojo.dto.*;
 import com.treepeople.leapmindtts.pojo.entity.User;
 import com.treepeople.leapmindtts.pojo.result.ApiResponse;
 import com.treepeople.leapmindtts.pojo.vo.UserVO;
 import com.treepeople.leapmindtts.service.user.SmsVerificationCodeService;
 import com.treepeople.leapmindtts.service.user.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +34,7 @@ import java.io.IOException;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Tag(name = "Auth - 认证", description = "用户注册、登录、验证码、个人信息管理")
 public class UserAuthController {
 
     private final UserService userService;
@@ -40,9 +47,11 @@ public class UserAuthController {
      * @param request 注册请求
      * @return 注册结果
      */
+    @Operation(summary = "用户注册", description = "创建新用户账号，需提供用户名、密码、手机号等信息")
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserVO>> register(@RequestBody @Valid UserRegisterRequest request) {
-        log.info("用户注册，{}", request);
+    public ResponseEntity<ApiResponse<UserVO>> register(
+            @Parameter(description = "注册请求体", required = true) @RequestBody @Valid UserRegisterRequest request) {
+        log.info("用户注册，用户名: {}", request.getUsername());
         try {
             UserVO userVO = userService.register(request);
             return ResponseEntity.ok(ApiResponse.success(userVO, "注册成功"));
@@ -59,16 +68,21 @@ public class UserAuthController {
      * @param request 登录请求 (用户名、密码)
      * @return 登录结果
      */
+    @Operation(summary = "用户登录", description = "使用用户名和密码登录，返回 JWT Token")
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody @Valid UserLoginRequest request) {
-        log.info("用户登录，{}", request);
+        log.info("用户登录，用户名: {}", request.getUsername());
         try {
             LoginResponse loginResponse = userService.login(request);
             return ResponseEntity.ok(ApiResponse.success(loginResponse, "登录成功"));
+        } catch (UserNotFoundException | AccountDisabledException | InvalidCredentialsException e) {
+            log.warn("用户登录被拒绝，用户名: {}, 原因类型: {}", request.getUsername(), e.getClass().getSimpleName());
+            return ResponseEntity.status(401)
+                    .body(ApiResponse.error(401, "用户名或密码错误"));
         } catch (Exception e) {
-            log.error("用户登录失败: {}", e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(401, e.getMessage()));
+            log.error("登录服务异常，用户名: {}", request.getUsername(), e);
+            return ResponseEntity.status(500)
+                    .body(ApiResponse.error(500, "登录服务暂不可用"));
         }
     }
 
@@ -78,8 +92,10 @@ public class UserAuthController {
      * @param phoneNumber
      * @return
      */
+    @Operation(summary = "发送验证码", description = "向指定手机号发送短信验证码，用于验证码登录")
     @GetMapping("/login/sendCode")
-    public ResponseEntity<ApiResponse<String>> sendCode(@RequestParam String phoneNumber) {
+    public ResponseEntity<ApiResponse<String>> sendCode(
+            @Parameter(description = "手机号", required = true) @RequestParam String phoneNumber) {
         log.info("短信服务发送短信验证码成功：{}", phoneNumber);
         // 查询手机号是否存在
         User user = userService.existsByPhoneNumber(phoneNumber);
@@ -99,20 +115,17 @@ public class UserAuthController {
                     log.error("短信验证码发送失败，错误码: {}, 错误信息: {}",
                             sendSmsResponse.getBody().getCode(),
                             sendSmsResponse.getBody().getMessage());
-                    // 修改第 103 行（补上 400）：
                     return ResponseEntity.badRequest()
                         .body(ApiResponse.error(400, "验证码发送失败: " + sendSmsResponse.getBody().getMessage()));
                 }
             } else {
                 log.error("短信服务响应为空");
-// 修改第 108 行（补上 500，因为这是第三方服务响应异常）：
                 return ResponseEntity.badRequest()
                     .body(ApiResponse.error(500, "短信服务响应异常"));
             }
 
         } catch (Exception e) {
             log.error("调用阿里云短信服务发送短信验证码接口失败！", e);
-// 修改第 114 行（补上 500）：
             return ResponseEntity.badRequest()
                 .body(ApiResponse.error(500, "验证码发送失败: " + e.getMessage()));
         }
@@ -124,6 +137,7 @@ public class UserAuthController {
      * @param verifyCodeDTO
      * @return
      */
+    @Operation(summary = "验证码登录", description = "使用手机号和验证码进行免密登录")
     @PostMapping("/login/verifyCode")
     public ResponseEntity<ApiResponse<UserVO>> verifyCode(@RequestBody @Valid VerifyCodeDTO verifyCodeDTO) {
         Boolean result = smsVerificationCodeService.verifyCode(verifyCodeDTO);
@@ -149,6 +163,7 @@ public class UserAuthController {
      * @param request HTTP请求对象
      * @return 用户信息
      */
+    @Operation(summary = "获取个人信息", description = "获取当前登录用户的个人信息，需携带 JWT Token")
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<UserVO>> getProfile(HttpServletRequest request) {
         try {
@@ -174,6 +189,7 @@ public class UserAuthController {
      * @param updateRequest 更新请求
      * @return 更新结果
      */
+    @Operation(summary = "更新个人信息", description = "更新当前登录用户的姓名、学段、手机号等信息")
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<UserVO>> updateProfile(HttpServletRequest request,
                                                              @RequestBody @Valid UserUpdateRequest updateRequest) {

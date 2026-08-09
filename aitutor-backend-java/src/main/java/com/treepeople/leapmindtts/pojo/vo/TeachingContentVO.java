@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 备课内容视图对象
@@ -52,6 +54,16 @@ public class TeachingContentVO {
     private Long templateId;
 
     /**
+     * PPT导出下载链接
+     */
+    private String pptDownloadUrl;
+
+    /**
+     * 完整备课生成内容（含大纲、PPT、讲稿）
+     */
+    private String generatedContentJson;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createdAt;
@@ -60,4 +72,36 @@ public class TeachingContentVO {
      * 更新时间
      */
     private LocalDateTime updatedAt;
+
+    // ===== M5→M4 接口契约字段 =====
+
+    /**
+     * 备课类型（ppt）
+     */
+    private String type;
+
+    /**
+     * 科目（math/chinese/...）
+     */
+    private String subject;
+
+    /**
+     * 年级（grade_8/...）
+     */
+    private String grade;
+
+    /**
+     * 幻灯片页数
+     */
+    private Integer slideCount;
+
+    /**
+     * 风格模板标识
+     */
+    private String styleTemplate;
+
+    /**
+     * 知识点列表 [{id, name}]
+     */
+    private List<Map<String, Object>> knowledgePoints;
 }

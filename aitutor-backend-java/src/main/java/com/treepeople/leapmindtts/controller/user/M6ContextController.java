@@ -31,16 +31,20 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/user-profile")
 @RequiredArgsConstructor
+@Tag(name = "M6 Context - 上下文事件", description = "M6 学习事件记录、批量事件、画像查询、知识状态")
 public class M6ContextController {
     private final UserEventService events;
     private final UserProfileQueryService queries;
     private final M6EventJsonCodec codec;
     private final Validator validator;
 
+    @Operation(summary = "记录学习事件 (M6)", description = "上报单条学习行为事件用于用户画像分析，仅限 Content-Type: application/json")
     @PostMapping(value = "/{userId}/record-event", consumes = {MediaType.APPLICATION_JSON_VALUE, "application/*+json"})
     public ResponseEntity<ApiResponse<EventAck>> record(@PathVariable Long userId, @RequestBody JsonNode body,
                                                          HttpServletRequest request) throws Exception {
@@ -56,6 +60,7 @@ public class M6ContextController {
         return ok(events.record(userId, event, request), request);
     }
 
+    @Operation(summary = "批量学习事件 (M6)", description = "批量上报学习行为事件，单次 1-100 条")
     @PostMapping(value = "/{userId}/batch-events", consumes = {MediaType.APPLICATION_JSON_VALUE, "application/*+json"})
     public ResponseEntity<ApiResponse<List<EventResult>>> batch(@PathVariable Long userId, @RequestBody JsonNode body,
                                                                  HttpServletRequest request) {
@@ -78,12 +83,14 @@ public class M6ContextController {
         throw new HttpMediaTypeNotSupportedException(request.getContentType());
     }
 
+    @Operation(summary = "查询用户画像 (M6)", description = "获取用户完整学习画像数据")
     @GetMapping("/{userId}")
     public ResponseEntity<ApiResponse<ProfileView>> profile(@PathVariable Long userId, HttpServletRequest request) {
         requirePositiveUserId(userId);
         return ok(queries.profile(userId, request), request);
     }
 
+    @Operation(summary = "查询学习总结 (M6)", description = "按场景类型获取用户学习总结")
     @GetMapping("/{userId}/summary")
     public ResponseEntity<ApiResponse<SummaryView>> summary(@PathVariable Long userId, @RequestParam String sceneType,
                                                              @RequestParam(required = false) Long kpId,
@@ -97,8 +104,10 @@ public class M6ContextController {
                 .body(response.getBody());
     }
 
+    @Operation(summary = "查询知识点状态 (M6)", description = "批量查询用户对指定知识点的掌握程度")
     @GetMapping("/{userId}/knowledge-status")
-    public ResponseEntity<ApiResponse<KnowledgeStatusResponse>> knowledge(@PathVariable Long userId, @RequestParam List<Long> kpId,
+    public ResponseEntity<ApiResponse<KnowledgeStatusResponse>> knowledge(@PathVariable Long userId,
+                                                                           @RequestParam(required = false) List<Long> kpId,
                                                                            HttpServletRequest request) {
         requirePositiveUserId(userId);
         return ok(queries.knowledge(userId, kpId, request), request);

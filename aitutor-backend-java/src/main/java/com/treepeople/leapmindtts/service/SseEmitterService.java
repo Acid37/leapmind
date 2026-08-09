@@ -1,7 +1,6 @@
 package com.treepeople.leapmindtts.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -14,9 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class SseEmitterService {
     private final Map<Long, SseEmitter> emitterMap = new ConcurrentHashMap<>();
-    @Lazy
-    @Autowired
-    private TtsPreGenerateService ttsPreGenerateService;
+    private final TtsPreGenerateService ttsPreGenerateService;
+
+    public SseEmitterService(@Lazy TtsPreGenerateService ttsPreGenerateService) {
+        this.ttsPreGenerateService = ttsPreGenerateService;
+    }
 
     public SseEmitter createEmitter(Long prepId) {
         // 5分钟超时，单位毫秒

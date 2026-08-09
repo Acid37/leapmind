@@ -117,6 +117,15 @@ public class SpringDocConfig {
      * M6 用户画像接口
      */
     @Bean
+    public GroupedOpenApi eventApi() {
+        return GroupedOpenApi.builder()
+                .group("5-事件采集")
+                .displayName("事件采集接口 (M1/M2/M4/M7)")
+                .pathsToMatch("/api/events/**")
+                .build();
+    }
+
+    @Bean
     public GroupedOpenApi m6ProfileApi() {
         return GroupedOpenApi.builder()
                 .group("m6-user-profile")

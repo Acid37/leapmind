@@ -913,3 +913,63 @@ POST /api/practice/checkin
 - `POST /api/practice/questions/import`：Excel/CSV 批量导入
 - `PATCH /api/practice/mistake-book/{mistakeId}`：重点标记/状态修改前端逻辑未完全接好
 - `DELETE` 错题删除：后端目前没有独立错题删除接口，前端是 Mock
+
+## 10. M6 上下文记忆/用户画像接口
+
+M6 为用户学习行为采集与画像服务，是做题、讲题、讲课、备课、问答等模块的底座。完整契约见
+`aitutor-backend-java/docs/m6/`（user-profile-openapi.yaml、profile-engine-contract.yaml、learning-event-contract.md）。
+
+### 10.1 认证与权限
+
+- 用户只能访问自己的画像：路径中的 `userId` 必须等于当前登录用户（`Authorization: Bearer <token>`）。
+- 内部 Java 模块应使用 `LearningEventPublisher` / `ProfileContextProvider`（同进程，不通过 HTTP 回调自身）；
+  Python 服务走 `http://localhost:8001` 的 `/api/internal/ai/build-profile`（免认证内部端口）。
+
+### 10.2 事件采集（学习行为 → M6）
+
+```http
+POST /api/user-profile/{userId}/record-event    # 单条事件，200/400/409/415/503
+POST /api/user-profile/{userId}/batch-events    # 批量，maxItems=100，部分成功返回逐条结果
+```
+
+事件信封：`eventId`（全局幂等，重试不重复写入，同 ID 不同内容返回 409）、`userId`、`eventType`、
+`sourceModule`、`occurredAt`、`schemaVersion`（当前 `"1.0"`）、`sessionId`、`kpId`、`traceId`、`data`。
+
+十种事件：`answer_question`(M1)、`finish_practice`(M1)、`request_explanation`(M2)、
+`explanation_feedback`(M2)、`weak_point_changed`(M3)、`lecture_interact`(M4)、
+`lesson_material_used`(M5)、`ask_doubt`(M7)、`mark_reviewed`(M6)、`preference_changed`(M6)。
+
+安全约束：`sourceModule` 与 `eventType` 强绑定，伪造拒绝；敏感字段（密码、Token、手机号、身份证等）
+与敏感值（JWT、私钥、高熵凭证）拒绝；事件体 ≤16KB；未知字段拒绝（不静默规范化）。
+
+### 10.3 画像查询（M6 → 其他模块）
+
+```http
+GET /api/user-profile/{userId}                # 完整画像
+GET /api/user-profile/{userId}/summary        # 汇总（含 profileStatus/confidence）
+GET /api/user-profile/{userId}/knowledge-status   # 知识点掌握度（kpId 数组）
+```
+
+返回核心字段：`profileStatus`（READY/INSUFFICIENT_DATA/NO_CHANGE）、`profileVersion`、`grade`、
+`preferredContentModes`、`preferredExplanationStyle`、`learningPace`、`recentFocus`、`recentConfusions`、
+`summaryProfile`、`confidence`、`algorithmVersion`，以及 knowledge mastery（掌握度、趋势、证据数）。
+
+### 10.4 错误码
+
+| 错误码 | 含义 |
+|---|---|
+| 400 PROFILE_EVENT_INVALID | 事件字段/类型/来源不合法 |
+| 400 PROFILE_EVENT_VERSION_UNSUPPORTED | schemaVersion 不受支持 |
+| 400 PROFILE_EVENT_TYPE_UNSUPPORTED | eventType 不在白名单 |
+| 409 PROFILE_EVENT_CONFLICT | eventId 已存在且内容不同 |
+| 415 | 非 application/json |
+| 503 PROFILE_ENGINE_UNAVAILABLE | 画像引擎不可用（降级返回结构化画像） |
+
+### 10.5 Java—Python 画像引擎桥
+
+- Java 侧客户端：`HttpProfileEngineAdapter`（WebClient），通过 `m6.profile-engine.enabled=true` 启用，
+  默认地址 `http://localhost:8001/api/internal/ai/build-profile`，默认禁用（Disabled 兜底 NOT_CONNECTED）。
+- 请求顶层字段用 `user_id`（下划线）；响应严格校验（回显 requestId/userId/baseProfileVersion/watermark、
+  target=base+1、枚举、精度），非法结果不覆盖旧画像。
+- Python 联调清单：`aitutor-backend-java/docs/m6/python-build-profile-integration-checklist.md`；
+  本地 stub：`aitutor-backend-java/docs/m6/build-profile-local-stub.md`。

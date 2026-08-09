@@ -38,4 +38,10 @@ public interface UserExerciseMapper extends BaseMapper<UserExercise> {
      */
     @Select("SELECT * FROM user_exercises WHERE user_id = #{userId} AND completed_at BETWEEN #{startTime} AND #{endTime} ORDER BY completed_at DESC")
     List<UserExercise> selectByTimeRange(@Param("userId") Long userId, @Param("startTime") LocalDateTime startTime, @Param("endTime") LocalDateTime endTime);
+
+    /**
+     * 根据用户ID和知识点查询练习记录（按时间降序）
+     */
+    @Select("SELECT * FROM user_exercises WHERE user_id = #{userId} AND knowledge_point = #{knowledgePoint} ORDER BY completed_at DESC")
+    List<UserExercise> selectByUserIdAndKp(@Param("userId") Long userId, @Param("knowledgePoint") String knowledgePoint);
 }

@@ -1,10 +1,8 @@
 spring:
-  main:
-    allow-circular-references: true
   datasource:
-    url: jdbc:mysql://localhost:3306/leapmind-voice?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/leapmind?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
-    password: 1234
+    password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 10
@@ -13,10 +11,7 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
   flyway:
-    clean-disabled: false
-    clean-on-validation-error: true
-    out-of-order: false
-    encoding: UTF-8
+    enabled: false
   # ===================================================================
   # 缓存配置 (Caffeine & Redis) -> 合并到 spring 根节点下
   # ===================================================================

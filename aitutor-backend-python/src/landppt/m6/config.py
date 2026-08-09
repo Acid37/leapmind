@@ -1,11 +1,12 @@
-# MySQL 连接配置（与 Java 后端共享 leapmind-voice 数据库）
-# Python M6 模块通过此连接直接读写 MySQL
+# MySQL 连接配置（与 Java 后端共享数据库）
+# 生产环境通过环境变量注入，开发环境可在 .env 中配置
+import os
 MYSQL = {
-    "host": "localhost",
-    "port": 3306,
-    "user": "root",
-    "password": "1234",
-    "database": "leapmind-voice",
+    "host": os.getenv("MYSQL_HOST", "localhost"),
+    "port": int(os.getenv("MYSQL_PORT", "3306")),
+    "user": os.getenv("MYSQL_USER", "root"),
+    "password": os.getenv("MYSQL_PASSWORD", ""),
+    "database": os.getenv("MYSQL_DATABASE", "leapmind"),
     "charset": "utf8mb4",
 }
 

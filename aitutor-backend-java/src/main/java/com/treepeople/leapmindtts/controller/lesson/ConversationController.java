@@ -25,12 +25,24 @@ public class ConversationController {
     private final ConversationService conversationService;
 
     @PostMapping(value = "/ask", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @io.github.resilience4j.ratelimiter.annotation.RateLimiter(name = "userQuestionLimiter", fallbackMethod = "askRateLimitFallback")
     public Flux<ServerSentEvent<?>> ask(@RequestBody @Valid ConversationRequest request) {
         log.info("Conversation ask: userId={}, sessionId={}, sceneType={}, question={}",
                 request.getUserId(), request.getSessionId(), request.getSceneType(),
                 request.getQuestion() != null ? request.getQuestion().substring(0, Math.min(50, request.getQuestion().length())) : "");
 
         return conversationService.streamResponse(request);
+    }
+
+    /**
+     * Rate Limiter的降级方法
+     */
+    public Flux<ServerSentEvent<?>> askRateLimitFallback(ConversationRequest request, Throwable t) {
+        log.warn("Conversation API Rate limit triggered for user: {}", request.getUserId());
+        return Flux.just(ServerSentEvent.<Object>builder()
+                .event("message")
+                .data("{\"type\":\"error\",\"message\":\"请求过于频繁，请稍后再试\"}")
+                .build());
     }
 
     @PostMapping("/interrupt")

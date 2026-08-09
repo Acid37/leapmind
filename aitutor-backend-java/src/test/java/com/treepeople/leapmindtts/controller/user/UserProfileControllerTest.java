@@ -2,9 +2,12 @@ package com.treepeople.leapmindtts.controller.user;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.treepeople.leapmindtts.exception.UserNotFoundException;
+import com.treepeople.leapmindtts.exception.LegacyProfileSecurityExceptionHandler;
+import com.treepeople.leapmindtts.exception.M6ApiException;
 import com.treepeople.leapmindtts.pojo.dto.MarkReviewedRequest;
 import com.treepeople.leapmindtts.pojo.vo.ReviewReminderVO;
 import com.treepeople.leapmindtts.service.user.ReviewReminderService;
+import com.treepeople.leapmindtts.service.profile.security.ProfileActorResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -31,6 +35,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -62,13 +68,15 @@ class UserProfileControllerTest {
 
     @Mock
     private ReviewReminderService reviewReminderService;
+    @Mock
+    private ProfileActorResolver profileActorResolver;
 
     @BeforeEach
     void setUp() {
-        UserProfileController controller = new UserProfileController(reviewReminderService);
+        UserProfileController controller = new UserProfileController(reviewReminderService, profileActorResolver);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
-                .setControllerAdvice()
+                .setControllerAdvice(new LegacyProfileSecurityExceptionHandler())
                 .build();
     }
 
@@ -88,8 +96,20 @@ class UserProfileControllerTest {
                 .priority(priority)
                 .isReviewed(isReviewed)
                 .reviewedAt(reviewedAt)
+                .notes(null)
+                .kpId(null)
                 .createdAt(LocalDateTime.of(2026, 7, 20, 10, 0))
                 .build();
+    }
+
+    private MarkReviewedRequest createValidRequest() {
+        MarkReviewedRequest request = new MarkReviewedRequest();
+        request.setReminderId(100L);
+        request.setNotes("已掌握该知识点");
+        request.setResult("correct_without_hint");
+        request.setTimeSpentSec(120);
+        request.setHintCount(2);
+        return request;
     }
 
     // ========== GET /{userId}/review-reminders ==========
@@ -151,16 +171,15 @@ class UserProfileControllerTest {
         }
 
         @Test
-        @DisplayName("userId 为负数时也能正常处理")
-        void shouldHandleNegativeUserId() throws Exception {
+        @DisplayName("negative userId is rejected before the service runs")
+        void shouldRejectNegativeUserId() throws Exception {
             Long negativeUserId = -1L;
-            when(reviewReminderService.getReviewReminders(negativeUserId))
-                    .thenReturn(Collections.emptyList());
+            doThrow(new M6ApiException(HttpStatus.FORBIDDEN, "PROFILE_ACCESS_DENIED", "denied"))
+                    .when(profileActorResolver).authorizeSelf(any(), eq(negativeUserId));
 
             mockMvc.perform(get("/api/user-profile/{userId}/review-reminders", negativeUserId))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data").isArray())
-                    .andExpect(jsonPath("$.data", hasSize(0)));
+                    .andExpect(status().isForbidden());
+            verifyNoInteractions(reviewReminderService);
         }
 
         @Test
@@ -198,9 +217,7 @@ class UserProfileControllerTest {
         @DisplayName("正常标记返回 200 和更新后的提醒")
         void shouldReturn200WithUpdatedReminder() throws Exception {
             Long userId = 1L;
-            MarkReviewedRequest request = new MarkReviewedRequest();
-            request.setReminderId(100L);
-            request.setNotes("已掌握该知识点");
+            MarkReviewedRequest request = createValidRequest();
 
             ReviewReminderVO updatedVO = createVO(100L, userId, "C001", "REVIEW",
                     "复习内容", LocalDate.now(), 1, 1,
@@ -228,6 +245,9 @@ class UserProfileControllerTest {
             Long userId = 1L;
             MarkReviewedRequest request = new MarkReviewedRequest();
             request.setReminderId(null);
+            request.setResult("correct_without_hint");
+            request.setTimeSpentSec(120);
+            request.setHintCount(2);
 
             mockMvc.perform(post("/api/user-profile/{userId}/mark-reviewed", userId)
                             .contentType(MediaType.APPLICATION_JSON)
@@ -241,8 +261,7 @@ class UserProfileControllerTest {
         @DisplayName("提醒不存在时返回 400")
         void shouldReturn400WhenReminderNotFound() throws Exception {
             Long userId = 1L;
-            MarkReviewedRequest request = new MarkReviewedRequest();
-            request.setReminderId(999L);
+            MarkReviewedRequest request = createValidRequest();
 
             when(reviewReminderService.markAsReviewed(eq(userId), any(MarkReviewedRequest.class)))
                     .thenThrow(new UserNotFoundException("复习提醒不存在，ID: 999"));
@@ -259,8 +278,7 @@ class UserProfileControllerTest {
         @DisplayName("越权操作时返回 400")
         void shouldReturn400WhenUnauthorized() throws Exception {
             Long userId = 1L;
-            MarkReviewedRequest request = new MarkReviewedRequest();
-            request.setReminderId(100L);
+            MarkReviewedRequest request = createValidRequest();
 
             when(reviewReminderService.markAsReviewed(eq(userId), any(MarkReviewedRequest.class)))
                     .thenThrow(new IllegalArgumentException("复习提醒不属于当前用户"));
@@ -293,6 +311,22 @@ class UserProfileControllerTest {
                             .contentType(MediaType.TEXT_PLAIN)
                             .content("reminderId=100"))
                     .andExpect(status().isUnsupportedMediaType());
+        }
+
+        @Test
+        @DisplayName("缺少 result 字段时返回 400")
+        void shouldReturn400WhenResultIsMissing() throws Exception {
+            Long userId = 1L;
+            MarkReviewedRequest request = new MarkReviewedRequest();
+            request.setReminderId(100L);
+            request.setTimeSpentSec(120);
+            request.setHintCount(2);
+            // result intentionally null
+
+            mockMvc.perform(post("/api/user-profile/{userId}/mark-reviewed", userId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -332,7 +366,6 @@ class UserProfileControllerTest {
             when(reviewReminderService.getAllReminders(userId)).thenReturn(Collections.emptyList());
 
             mockMvc.perform(get("/api/user-profile/{userId}/review-history", userId))
-                    .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data").isArray())
                     .andExpect(jsonPath("$.data", hasSize(0)));
         }

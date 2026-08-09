@@ -40,6 +40,8 @@ class AuthMiddleware:
             "/temp/",  # 添加temp目录用于图片缓存访问
             "/api/image/view/",  # 图床图片访问无需认证
             "/api/image/thumbnail/",  # 图片缩略图访问无需认证
+            "/api/internal/",  # M6 画像引擎等内部接口，由 Java 网关调用无需前端认证
+            "/api/user-profile/",  # M6 知识状态、时间线等查询接口
             "/docs",
             "/redoc",
             "/openapi.json"

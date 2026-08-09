@@ -185,10 +185,55 @@ class ImageCacheManager:
             raise
     
     def _save_image_file(self, file_path: Path, image_data: bytes):
-        """保存图片文件"""
+        """保存图片文件（确保父目录存在）"""
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(file_path, 'wb') as f:
             f.write(image_data)
     
+    async def get_image_by_reference(self, image_id: str) -> Optional[ImageInfo]:
+        """按 image_id 从 references 目录恢复图片元数据。
+
+        内容去重后，同内容的不同 image_id 只存在于 references（{hash}_{image_id}.json），
+        索引里只有第一个。此处按 image_id 精确匹配 references 文件，并指向实际缓存文件。
+        """
+        try:
+            references_dir = self.metadata_dir / 'references'
+            if not references_dir.exists():
+                return None
+
+            matched = None
+            for ref_path in references_dir.glob(f"*_{image_id}.json"):
+                try:
+                    with open(ref_path, 'r', encoding='utf-8') as f:
+                        matched = (ref_path, json.load(f))
+                except Exception as e:
+                    logger.warning(f"Failed to read reference {ref_path}: {e}")
+                break
+            if not matched:
+                return None
+            ref_path, metadata = matched
+
+            from ..models import ImageInfo
+            image_info = ImageInfo(**metadata)
+
+            # 引用文件名形如 {content_hash}_{image_id}.json，从中恢复内容哈希
+            content_hash = ref_path.name.rsplit(f"_{image_id}.json", 1)[0]
+            cache_info = self._cache_index.get(content_hash) if content_hash else None
+            if cache_info and Path(cache_info.file_path).exists():
+                image_info.local_path = cache_info.file_path
+            else:
+                # 索引缺失（如重启后未重建）：从 metadata 主文件恢复路径
+                main_meta = await self._load_image_metadata(content_hash or '')
+                if main_meta and Path(main_meta.local_path).exists():
+                    image_info.local_path = main_meta.local_path
+
+            logger.debug(f"Restored image {image_id} from reference (content {content_hash})")
+            return image_info
+
+        except Exception as e:
+            logger.error(f"Failed to restore image by reference {image_id}: {e}")
+            return None
+
     async def get_cached_image(self, cache_key: str) -> Optional[Tuple[ImageInfo, Path]]:
         """获取缓存的图片"""
         try:

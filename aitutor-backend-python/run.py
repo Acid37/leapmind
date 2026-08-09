@@ -28,7 +28,7 @@ def main():
 
     # Get configuration from environment variables with defaults
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
+    port = int(os.getenv("PORT", "8001"))
     reload = os.getenv("RELOAD", "true").lower() in ("true", "1", "yes", "on")
     log_level = os.getenv("LOG_LEVEL", "info").lower()
 

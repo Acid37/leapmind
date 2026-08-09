@@ -23,7 +23,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -44,10 +47,12 @@ public class UserProfileQueryServiceImpl implements UserProfileQueryService {
     private final ObjectMapper cacheJson;
     private final M6ProfileCache cache;
     private final SceneSummaryAssembler summaries;
+    private final DataSource dataSource;
 
     public UserProfileQueryServiceImpl(ProfileActorResolver actors, UserProfileMapper profiles,
                                        ProfileSnapshotReader snapshots, ObjectMapper json,
-                                       M6ProfileCache cache, SceneSummaryAssembler summaries) {
+                                       M6ProfileCache cache, SceneSummaryAssembler summaries,
+                                       DataSource dataSource) {
         this.actors = actors;
         this.profiles = profiles;
         this.snapshots = snapshots;
@@ -66,12 +71,34 @@ public class UserProfileQueryServiceImpl implements UserProfileQueryService {
                 .setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail);
         this.cache = cache;
         this.summaries = summaries;
+        this.dataSource = dataSource;
+    }
+
+    private Map<Long, String> lookupKpNames(Set<Long> kpIds) {
+        if (kpIds.isEmpty()) return Map.of();
+        try (var conn = dataSource.getConnection();
+             var ps = conn.prepareStatement(
+                 "SELECT id, name FROM knowledge_points WHERE id IN (" +
+                 kpIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + ")")) {
+            try (var rs = ps.executeQuery()) {
+                Map<Long, String> map = new java.util.HashMap<>();
+                while (rs.next()) map.put(rs.getLong("id"), rs.getString("name"));
+                return map;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to lookup knowledge point names: {}", e.getMessage());
+            return Map.of();
+        }
     }
 
     @Override
     public ProfileView profile(Long userId, HttpServletRequest request) {
         actors.authorizeSelf(request, userId);
         audit(request, userId, userId, "PROFILE_READ", "ALLOWED");
+        return readFull(userId);
+    }
+
+    ProfileView readFull(Long userId) {
         UserProfile stamp = profiles.selectVersionStamp(userId);
         String key = M6ProfileCache.profileKey(userId);
         if (notReady(stamp)) {
@@ -109,6 +136,10 @@ public class UserProfileQueryServiceImpl implements UserProfileQueryService {
         }
         actors.authorizeSelf(request, userId);
         audit(request, userId, userId, "SUMMARY_" + scene.toUpperCase(java.util.Locale.ROOT), "ALLOWED");
+        return readSummary(userId, scene, kpId);
+    }
+
+    SummaryView readSummary(Long userId, String scene, Long kpId) {
         UserProfile stamp = profiles.selectVersionStamp(userId);
         String key = M6ProfileCache.summaryKey(userId, scene, kpId);
         if (notReady(stamp)) {
@@ -137,24 +168,48 @@ public class UserProfileQueryServiceImpl implements UserProfileQueryService {
     public KnowledgeStatusResponse knowledge(Long userId, List<Long> requested, HttpServletRequest request) {
         actors.authorizeSelf(request, userId);
         audit(request, userId, userId, "KNOWLEDGE_READ", "ALLOWED");
-        if (requested == null || requested.isEmpty() || requested.size() > 100
-                || requested.stream().anyMatch(k -> k == null || k < 1)) {
+        return readKnowledge(userId, requested);
+    }
+
+    KnowledgeStatusResponse readKnowledge(Long userId, List<Long> requested) {
+        // 未指定 kpId 时返回全部知识点
+        boolean returnAll = requested == null || requested.isEmpty();
+        if (!returnAll && (requested.size() > 100
+                || requested.stream().anyMatch(k -> k == null || k < 1))) {
             throw invalid();
         }
-        if (new HashSet<>(requested).size() != requested.size()) {
+        if (!returnAll && new HashSet<>(requested).size() != requested.size()) {
             throw invalid();
         }
-        List<Long> ordered = List.copyOf(requested);
         ProfileSnapshot snapshot = snapshots.read(userId);
         if (snapshot == null || notReady(snapshot.profile())) {
             UserProfile p = snapshot == null ? null : snapshot.profile();
-            List<KnowledgeContext> rows = ordered.stream().map(k -> new KnowledgeContext(k, "NOT_READY", null, null, null, null, null)).toList();
+            List<KnowledgeContext> rows;
+            if (returnAll) {
+                rows = List.of();
+            } else {
+                List<Long> ordered = List.copyOf(requested);
+                rows = ordered.stream().map(k -> new KnowledgeContext(k, null, "NOT_READY", null, null, null, null, null)).toList();
+            }
             return new KnowledgeStatusResponse(userId, "NOT_READY", p == null ? "NO_PROFILE" : p.getStatusReason(),
                     p == null ? 0L : p.getProfileVersion(), rows);
         }
         List<KnowledgeContext> existing = knowledge(snapshot.knowledge());
-        List<KnowledgeContext> rows = ordered.stream().map(k -> existing.stream().filter(v -> k.equals(v.kpId())).findFirst()
-                .orElse(new KnowledgeContext(k, "EMPTY", null, null, null, null, 0L))).toList();
+        List<KnowledgeContext> rows;
+        if (returnAll) {
+            rows = existing;
+        } else {
+            List<Long> ordered = List.copyOf(requested);
+            rows = ordered.stream().map(k -> existing.stream().filter(v -> k.equals(v.kpId())).findFirst()
+                    .orElse(new KnowledgeContext(k, null, "EMPTY", null, null, null, null, 0L))).toList();
+        }
+        // 填充知识点名称
+        Set<Long> kpIds = rows.stream().map(KnowledgeContext::kpId).collect(Collectors.toSet());
+        Map<Long, String> names = lookupKpNames(kpIds);
+        rows = rows.stream().map(r ->
+            new KnowledgeContext(r.kpId(), names.getOrDefault(r.kpId(), null),
+                r.status(), r.masteryScore(), r.masteryStatus(), r.confidence(), r.trend(), r.evidenceCount())
+        ).toList();
         UserProfile p = snapshot.profile();
         return new KnowledgeStatusResponse(userId, p.getProfileStatus(), p.getStatusReason(), p.getProfileVersion(), rows);
     }
@@ -162,10 +217,17 @@ public class UserProfileQueryServiceImpl implements UserProfileQueryService {
     private FullProfile full(Long userId, ProfileSnapshot snapshot) {
         ParsedProfile parsed = parse(snapshot);
         UserProfile p = snapshot.profile();
+        List<KnowledgeContext> kRows = knowledge(snapshot.knowledge());
+        Set<Long> kpIds = kRows.stream().map(KnowledgeContext::kpId).collect(Collectors.toSet());
+        Map<Long, String> kpNames = lookupKpNames(kpIds);
+        kRows = kRows.stream().map(r ->
+            new KnowledgeContext(r.kpId(), kpNames.getOrDefault(r.kpId(), null),
+                r.status(), r.masteryScore(), r.masteryStatus(), r.confidence(), r.trend(), r.evidenceCount())
+        ).toList();
         FullProfile response = new FullProfile(userId, p.getProfileStatus(), p.getStatusReason(), p.getProfileVersion(), p.getGrade(),
                 parsed.modes(), p.getPreferredExplanationStyle(), p.getLearningPace(), parsed.focus(), parsed.confusions(),
                 p.getSummaryProfile(), p.getConfidence(), p.getAlgorithmVersion(), instant(p.getLastEventAt()),
-                instant(p.getComputedAt()), knowledge(snapshot.knowledge()));
+                instant(p.getComputedAt()), kRows);
         validateTypedProfileContract(response.preferredContentModes(), response.recentFocus(), response.recentConfusions());
         return response;
     }
@@ -270,7 +332,7 @@ public class UserProfileQueryServiceImpl implements UserProfileQueryService {
                     String availability = "INSUFFICIENT_EVIDENCE".equals(row.getMasteryStatus())
                             ? "INSUFFICIENT_EVIDENCE"
                             : "AVAILABLE";
-                    return new KnowledgeContext(row.getKpId(), availability, row.getMasteryScore(),
+                    return new KnowledgeContext(row.getKpId(), null, availability, row.getMasteryScore(),
                             row.getMasteryStatus(), row.getConfidence(), row.getTrend(), row.getEvidenceCount());
                 })
                 .toList();

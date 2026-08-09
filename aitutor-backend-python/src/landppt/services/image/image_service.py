@@ -481,7 +481,7 @@ class ImageService:
         """获取图片信息"""
         if not self.initialized:
             await self.initialize()
-        
+
         try:
             # 首先尝试从缓存获取
             for cache_key, cache_info in self.cache_manager._cache_index.items():
@@ -490,16 +490,24 @@ class ImageService:
                     image_info, _ = cached_result
                     if image_info.image_id == image_id:
                         return image_info
-            
+
+            # 缓存索引里没有该 image_id：可能是内容去重后的引用
+            # （多个 image_id 指向同一内容哈希，只有第一个进了索引）。
+            # 扫描 references 目录按 image_id 恢复元数据。
+            from .cache.image_cache import ImageCacheManager
+            ref_info = await self.cache_manager.get_image_by_reference(image_id)
+            if ref_info:
+                return ref_info
+
             # 如果缓存中没有，尝试从存储提供者获取
             storage_providers = provider_registry.get_storage_providers()
             for provider in storage_providers:
                 image_info = await provider.get_image(image_id)
                 if image_info:
                     return image_info
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to get image {image_id}: {e}")
             return None

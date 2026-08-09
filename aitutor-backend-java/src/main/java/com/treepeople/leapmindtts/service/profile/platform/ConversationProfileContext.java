@@ -1,0 +1,5 @@
+package com.treepeople.leapmindtts.service.profile.platform;
+import java.math.BigDecimal; import java.time.Instant; import java.util.List;
+public record ConversationProfileContext(Long userId, String sceneType, ProfileContextStatus profileStatus, String statusReason, Long profileVersion, Instant computedAt, Instant lastUpdated, BigDecimal confidence, ProfileAvailability availability, ProfileKnowledgeContext knowledgeContext, List<ProfileRecentConfusion> recentConfusions, String preferredExplanationStyle, String summaryText) {
+    public ConversationProfileContext { boolean facts = knowledgeContext != null || !ProfileContextFields.list(recentConfusions).isEmpty() || preferredExplanationStyle != null || summaryText != null; ProfileContextFields.envelope(userId, sceneType, "conversation", profileStatus, statusReason, profileVersion, computedAt, lastUpdated, confidence, availability, facts); recentConfusions = ProfileContextFields.list(recentConfusions, 3, "recentConfusions"); preferredExplanationStyle = ProfileContextFields.explanationStyle(preferredExplanationStyle); summaryText = ProfileContextFields.summary(summaryText); }
+}

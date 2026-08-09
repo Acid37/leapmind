@@ -15,7 +15,7 @@ Base = declarative_base()
 
 class User(Base):
     """User model for authentication"""
-    __tablename__ = "users"
+    __tablename__ = "py_users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
@@ -49,11 +49,11 @@ class User(Base):
 
 class UserSession(Base):
     """User session model"""
-    __tablename__ = "user_sessions"
+    __tablename__ = "py_user_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     session_id: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("py_users.id"), nullable=False)
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
     expires_at: Mapped[float] = mapped_column(Float, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -72,7 +72,7 @@ class UserSession(Base):
 
 class Project(Base):
     """Project model for storing PPT projects"""
-    __tablename__ = "projects"
+    __tablename__ = "py_projects"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     project_id: Mapped[str] = mapped_column(String(36), unique=True, index=True)
@@ -98,10 +98,10 @@ class Project(Base):
 
 class TodoBoard(Base):
     """TODO Board model for project workflow management"""
-    __tablename__ = "todo_boards"
+    __tablename__ = "py_todo_boards"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.project_id"), unique=True)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("py_projects.project_id"), unique=True)
     current_stage_index: Mapped[int] = mapped_column(Integer, default=0)
     overall_progress: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
@@ -114,11 +114,11 @@ class TodoBoard(Base):
 
 class TodoStage(Base):
     """TODO Stage model for individual workflow stages"""
-    __tablename__ = "todo_stages"
+    __tablename__ = "py_todo_stages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    todo_board_id: Mapped[int] = mapped_column(Integer, ForeignKey("todo_boards.id"))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.project_id"), index=True)  # Added for direct project reference
+    todo_board_id: Mapped[int] = mapped_column(Integer, ForeignKey("py_todo_boards.id"))
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("py_projects.project_id"), index=True)  # Added for direct project reference
     stage_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)  # Added index for better performance
     stage_index: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -136,10 +136,10 @@ class TodoStage(Base):
 
 class ProjectVersion(Base):
     """Project version model for version control"""
-    __tablename__ = "project_versions"
+    __tablename__ = "py_project_versions"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.project_id"))
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("py_projects.project_id"))
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     timestamp: Mapped[float] = mapped_column(Float, default=time.time)
     data: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False)
@@ -151,17 +151,17 @@ class ProjectVersion(Base):
 
 class SlideData(Base):
     """Slide data model for individual PPT slides"""
-    __tablename__ = "slide_data"
+    __tablename__ = "py_slide_data"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.project_id"))
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("py_projects.project_id"))
     slide_index: Mapped[int] = mapped_column(Integer, nullable=False)
     slide_id: Mapped[str] = mapped_column(String(100), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     content_type: Mapped[str] = mapped_column(String(50), nullable=False)
     html_content: Mapped[str] = mapped_column(Text, nullable=False)
     slide_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    template_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("ppt_templates.id"), nullable=True)
+    template_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("py_ppt_templates.id"), nullable=True)
     is_user_edited: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
     updated_at: Mapped[float] = mapped_column(Float, default=time.time, onupdate=time.time)
@@ -173,10 +173,10 @@ class SlideData(Base):
 
 class PPTTemplate(Base):
     """PPT Template model for storing master templates"""
-    __tablename__ = "ppt_templates"
+    __tablename__ = "py_ppt_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.project_id"))
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("py_projects.project_id"))
     template_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # title, content, chart, image, summary
     template_name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
@@ -194,7 +194,7 @@ class PPTTemplate(Base):
 
 class GlobalMasterTemplate(Base):
     """Global Master Template model for storing reusable master templates"""
-    __tablename__ = "global_master_templates"
+    __tablename__ = "py_global_master_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     template_name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
@@ -215,7 +215,7 @@ class TeachingContent(Base):
     """教学内容表（M4讲课、M5备课共用）。
     存储AI生成的备课内容，包含教学大纲、PPT结构和讲解词。
     """
-    __tablename__ = "teaching_contents"
+    __tablename__ = "py_teaching_contents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
@@ -225,6 +225,6 @@ class TeachingContent(Base):
     source_content_json: Mapped[str] = mapped_column(Text, default="")
     generated_content_json: Mapped[str] = mapped_column(Text, default="")
     ppt_structure_json: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String(20), default="published")
-    created_at: Mapped[float] = mapped_column(Float, default=time.time)
-    updated_at: Mapped[float] = mapped_column(Float, default=time.time)
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

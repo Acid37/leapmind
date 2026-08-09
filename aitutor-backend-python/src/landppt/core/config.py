@@ -76,8 +76,13 @@ class AIConfig(BaseSettings):
     
     # Generation Parameters
     max_tokens: int = Field(default=16384, env="MAX_TOKENS")
-    temperature: float = Field(default=0.7, env="TEMPERATURE")
+    temperature: float = Field(default=0.4, env="TEMPERATURE")  # [P0质量] 结构化JSON输出用低温度
     top_p: float = Field(default=1.0, env="TOP_P")
+
+    # [P0质量] 分 Stage 温度：不同阶段使用不同创意度
+    stage1_temperature: float = Field(default=0.4, env="STAGE1_TEMPERATURE")  # 大纲：稳定
+    stage2_temperature: float = Field(default=0.4, env="STAGE2_TEMPERATURE")  # PPT：稳定
+    stage3_temperature: float = Field(default=0.6, env="STAGE3_TEMPERATURE")  # 讲稿：创意
     
     # Feature Flags
     enable_network_mode: bool = Field(default=True, env="ENABLE_NETWORK_MODE")
@@ -238,12 +243,15 @@ class AppConfig(BaseSettings):
     
     # Server Configuration
     host: str = Field(default="0.0.0.0", env="HOST")
-    port: int = Field(default=8000, env="PORT")
+    port: int = Field(default=8001, env="PORT")
     debug: bool = Field(default=True, env="DEBUG")
     reload: bool = Field(default=True, env="RELOAD")
     
     # Database Configuration (for future use)
-    database_url: str = Field(default="sqlite:///./landppt.db", env="DATABASE_URL")
+    database_url: str = Field(
+        default="mysql+pymysql://root:1234@localhost:3306/leapmind-voice?charset=utf8mb4",
+        env="DATABASE_URL"
+    )
     
     # Security Configuration
     secret_key: str = Field(default="your-secret-key-here", env="SECRET_KEY")
