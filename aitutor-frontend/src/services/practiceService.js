@@ -8,13 +8,17 @@
  */
 
 import { request } from './api';
+import {
+  SUBJECT_MAP,
+  SUBJECT_REVERSE,
+  transformKnowledgePointOptions,
+  transformKnowledgePointsBySubject,
+  transformSubjectOptions,
+} from '../utils/practiceSubjects';
 
 // ============================================================================
 // 常量映射表
 // ============================================================================
-
-const SUBJECT_MAP = { '数学': 'math', '英语': 'english', '计算机': 'computer', '语文': 'chinese', '物理': 'physics', '化学': 'chemistry', '生物': 'biology', '通用': 'general' };
-const SUBJECT_REVERSE = Object.fromEntries(Object.entries(SUBJECT_MAP).map(([k, v]) => [v, k]));
 
 const TYPE_BE_TO_FE = { 'SINGLE_CHOICE': 'single_choice', 'MULTIPLE_CHOICE': 'multi_choice', 'FILL_BLANK': 'fill_blank', 'SHORT_ANSWER': 'short_answer' };
 const TYPE_FE_TO_BE = Object.fromEntries(Object.entries(TYPE_BE_TO_FE).map(([k, v]) => [v, k]));
@@ -97,7 +101,16 @@ function selectSessionQuestions(items, count, mixedSubjects) {
  * GET /filters → 前端 filterOptions
  */
 function transformFilterOptions(data) {
-  const subjects = (data.subjects || []).map(s => ({ value: SUBJECT_MAP[s] || 'general', label: s }));
+  const subjects = transformSubjectOptions(data.subjects);
+  const practiceSubjects = transformSubjectOptions(data.practiceSubjects || data.subjects);
+  const knowledgePoints = transformKnowledgePointOptions(data.knowledgePoints);
+  const practiceKnowledgePoints = transformKnowledgePointOptions(
+    data.practiceKnowledgePoints || data.knowledgePoints
+  );
+  const knowledgePointsBySubject = transformKnowledgePointsBySubject(data.knowledgePointsBySubject);
+  const practiceKnowledgePointsBySubject = transformKnowledgePointsBySubject(
+    data.practiceKnowledgePointsBySubject || data.knowledgePointsBySubject
+  );
   const grades = (data.gradeLevels || []).map(g => ({ value: g, label: g }));
   // 后端返回扁平章节列表，前端期望按科目分组；此处铺到所有科目 + general 兜底
   const chapterItems = (data.chapters || []).map(ch => ({ value: ch, label: ch }));
@@ -109,7 +122,18 @@ function transformFilterOptions(data) {
     return { value: fe || t.toLowerCase(), label: (fe && typeLabels[fe]) || t };
   });
   const difficulties = (data.difficulties || []).map(d => frontendDifficulty(d));
-  return { subjects, grades, chapters, types, difficulties };
+  return {
+    subjects,
+    practiceSubjects,
+    knowledgePoints,
+    practiceKnowledgePoints,
+    knowledgePointsBySubject,
+    practiceKnowledgePointsBySubject,
+    grades,
+    chapters,
+    types,
+    difficulties,
+  };
 }
 
 /**
@@ -309,6 +333,7 @@ export async function getQuestions(params = {}) {
     if (params.subject) beParams.subject = SUBJECT_REVERSE[params.subject] || params.subject;
     if (params.grade) beParams.gradeLevel = params.grade;
     if (params.chapter) beParams.chapter = params.chapter;
+    if (params.knowledgePoint) beParams.knowledgePoint = params.knowledgePoint;
     if (params.type) beParams.questionType = TYPE_FE_TO_BE[params.type] || params.type;
     if (params.difficulty) beParams.difficulty = DIFF_FE_TO_BE[params.difficulty] || params.difficulty;
     if (params.keyword) beParams.keyword = params.keyword;
@@ -325,6 +350,9 @@ export async function getQuestions(params = {}) {
     if (params.subject) list = list.filter(q => q.subject === params.subject);
     if (params.grade) list = list.filter(q => q.grade === params.grade);
     if (params.chapter) list = list.filter(q => q.chapter === params.chapter);
+    if (params.knowledgePoint) {
+      list = list.filter(q => q.knowledgePoints?.some((point) => point.name === params.knowledgePoint));
+    }
     if (params.type) list = list.filter(q => q.type === params.type);
     if (params.difficulty) list = list.filter(q => q.difficulty === Number(params.difficulty));
     if (params.keyword) list = list.filter(q => (q.content?.stem || '').includes(params.keyword) || q.chapter?.includes(params.keyword));
@@ -469,11 +497,12 @@ export async function getRanking(type = 'daily', limit = 20) {
 export async function dailyCheckin() {
   const res = await request('/api/practice/checkin', { method: 'POST', body: '{}' });
   const data = unwrap(res);
+  const status = data.status || {};
   return {
-    pointsEarned: data.points || 0,
-    totalPoints: 0,
-    streakDays: 0,
-    alreadyChecked: data.alreadyChecked || false,
+    pointsEarned: data.points ?? 0,
+    totalPoints: status.totalPoints ?? data.totalPoints ?? 0,
+    streakDays: status.streakDays ?? data.streakDays ?? 0,
+    alreadyChecked: Boolean(data.alreadyChecked),
   };
 }
 
@@ -858,10 +887,10 @@ export async function getDashboard() {
     const res = await request('/api/practice/dashboard');
     const data = unwrap(res);
     return {
-      totalPoints: data.totalPoints || 0,
-      streakDays: data.streakDays || 0,
-      todayQuestions: data.todayQuestions || 0,
-      todayCorrect: data.todayCorrect || 0,
+      totalPoints: data.totalPoints ?? 0,
+      streakDays: data.currentStreak ?? data.streakDays ?? 0,
+      todayQuestions: data.todayCount ?? data.todayQuestions ?? 0,
+      todayCorrect: data.todayCorrect ?? 0,
       rank: data.rank || null,
     };
   } catch (err) {
