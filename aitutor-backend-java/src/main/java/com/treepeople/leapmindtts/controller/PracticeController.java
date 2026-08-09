@@ -13,6 +13,7 @@ import com.treepeople.leapmindtts.service.PracticeService;
 import com.treepeople.leapmindtts.service.lesson.WeakPointsService;
 import com.treepeople.leapmindtts.service.profile.UserEventService;
 import com.treepeople.leapmindtts.service.user.ReviewReminderService;
+import com.treepeople.leapmindtts.util.PracticeKnowledgePointIds;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -414,20 +415,10 @@ public class PracticeController {
         return normalized;
     }
 
-    /**
-     * 题库当前以“学科 + 知识点名称”标识知识点，没有独立数值主键。
-     * 这里生成稳定的正整数 ID，确保同一知识点的逐题事件能被 M6 聚合。
-     */
     private Long knowledgePointId(Map<String, Object> question) {
-        String subject = stringValue(question.get("subject")).trim();
-        String knowledgePoint = stringValue(question.get("knowledgePoint")).trim();
-        if (knowledgePoint.isEmpty()) {
-            throw new IllegalArgumentException("题目缺少知识点，无法生成 M6 kpId");
-        }
-        long value = UUID.nameUUIDFromBytes(
-                (subject + "\u0000" + knowledgePoint).getBytes(StandardCharsets.UTF_8))
-                .getMostSignificantBits() & Long.MAX_VALUE;
-        return value == 0 ? 1L : value;
+        return PracticeKnowledgePointIds.from(
+                stringValue(question.get("subject")),
+                stringValue(question.get("knowledgePoint")));
     }
 
     private String normalizeConfusionTag(String value) {

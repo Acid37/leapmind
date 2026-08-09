@@ -23,6 +23,7 @@ import com.treepeople.leapmindtts.service.AIModelService;
 import com.treepeople.leapmindtts.service.EventCollectionService;
 import com.treepeople.leapmindtts.service.PracticeService;
 import com.treepeople.leapmindtts.service.importer.PracticeQuestionImportParser;
+import com.treepeople.leapmindtts.service.practice.WrongQuestionEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -81,6 +82,7 @@ public class PracticeServiceImpl implements PracticeService {
     private final UserMapper userMapper;
     private final PracticeQuestionImportParser questionImportParser;
     private final EventCollectionService eventCollectionService;
+    private final WrongQuestionEventPublisher wrongQuestionEventPublisher;
     private final ObjectMapper objectMapper;
     private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
     private final ObjectProvider<AIModelService> aiModelServiceProvider;
@@ -325,7 +327,7 @@ public class PracticeServiceImpl implements PracticeService {
         record.setReviewNote("");
         recordMapper.insert(record);
 
-        syncMistakeBook(userId, question, judge.correct());
+        syncMistakeBook(userId, question, judge.correct(), request.getSessionId());
         int dailyBonus = awardDailyBonusIfNeeded(userId, stats, points);
         refreshStatsAfterAnswer(userId, stats, judge.correct(), points + dailyBonus, conquered, question.getTrack());
         refreshRedisRank(userId);
@@ -477,12 +479,16 @@ public class PracticeServiceImpl implements PracticeService {
             throw new IllegalArgumentException("错题不存在");
         }
         PracticeMistake update = new PracticeMistake();
+        String changedStatus = null;
         if (StringUtils.hasText(request.getStatus())) {
             String status = request.getStatus().toUpperCase(Locale.ROOT);
             if (!List.of(STATUS_UNRESOLVED, STATUS_REVIEWING, STATUS_RESOLVED).contains(status)) {
                 throw new IllegalArgumentException("错题状态不合法");
             }
             update.setStatus(status);
+            if (!status.equalsIgnoreCase(nvl(mistake.getStatus(), ""))) {
+                changedStatus = status;
+            }
             update.setLastReviewAt(LocalDateTime.now());
             if (STATUS_RESOLVED.equals(status)) {
                 update.setResolvedAt(LocalDateTime.now());
@@ -490,10 +496,21 @@ public class PracticeServiceImpl implements PracticeService {
         }
         update.setDoubtful(request.getDoubtful());
         update.setReviewNote(request.getReviewNote());
-        mistakeMapper.update(update, new UpdateWrapper<PracticeMistake>().eq("id", mistakeId).eq("user_id", userId));
+        int updated = mistakeMapper.update(update,
+                new UpdateWrapper<PracticeMistake>().eq("id", mistakeId).eq("user_id", userId));
 
-        if (STATUS_RESOLVED.equals(update.getStatus()) && !STATUS_RESOLVED.equals(mistake.getStatus())) {
-            PracticeQuestion question = questionMapper.selectById(mistake.getQuestionId());
+        PracticeQuestion question = null;
+        if (changedStatus != null && updated > 0) {
+            question = questionMapper.selectById(mistake.getQuestionId());
+            wrongQuestionEventPublisher.publishBestEffort(
+                    userId,
+                    question,
+                    changedStatus,
+                    Math.max(1, nvl(mistake.getWrongCount())),
+                    null);
+        }
+
+        if (STATUS_RESOLVED.equals(changedStatus) && updated > 0) {
             Map<String, Object> eventData = new LinkedHashMap<>();
             eventData.put("mistakeId", mistakeId);
             eventData.put("questionId", mistake.getQuestionId());
@@ -997,7 +1014,7 @@ public class PracticeServiceImpl implements PracticeService {
         return new JudgeResult(correct, Math.round(keywordScore * 1000.0) / 10.0, feedback);
     }
 
-    private void syncMistakeBook(Long userId, PracticeQuestion question, boolean correct) {
+    private void syncMistakeBook(Long userId, PracticeQuestion question, boolean correct, String sessionId) {
         PracticeMistake mistake = mistakeMapper.selectOne(new QueryWrapper<PracticeMistake>()
                 .eq("user_id", userId)
                 .eq("question_id", question.getId()));
@@ -1011,13 +1028,22 @@ public class PracticeServiceImpl implements PracticeService {
                 mistake.setReviewCount(0);
                 mistake.setDoubtful(false);
                 mistake.setLastWrongAt(LocalDateTime.now());
-                mistakeMapper.insert(mistake);
+                int inserted = mistakeMapper.insert(mistake);
+                if (inserted > 0) {
+                    wrongQuestionEventPublisher.publishBestEffort(
+                            userId, question, STATUS_UNRESOLVED, 1, sessionId);
+                }
             } else {
+                int wrongCount = nvl(mistake.getWrongCount()) + 1;
                 PracticeMistake update = new PracticeMistake();
-                update.setWrongCount(nvl(mistake.getWrongCount()) + 1);
+                update.setWrongCount(wrongCount);
                 update.setStatus(STATUS_UNRESOLVED);
                 update.setLastWrongAt(LocalDateTime.now());
-                mistakeMapper.update(update, new UpdateWrapper<PracticeMistake>().eq("id", mistake.getId()));
+                int updated = mistakeMapper.update(update, new UpdateWrapper<PracticeMistake>().eq("id", mistake.getId()));
+                if (updated > 0 && !STATUS_UNRESOLVED.equalsIgnoreCase(nvl(mistake.getStatus(), ""))) {
+                    wrongQuestionEventPublisher.publishBestEffort(
+                            userId, question, STATUS_UNRESOLVED, Math.max(1, wrongCount), sessionId);
+                }
             }
         } else if (mistake != null) {
             PracticeMistake update = new PracticeMistake();
@@ -1025,7 +1051,15 @@ public class PracticeServiceImpl implements PracticeService {
             update.setReviewCount(nvl(mistake.getReviewCount()) + 1);
             update.setLastReviewAt(LocalDateTime.now());
             update.setResolvedAt(LocalDateTime.now());
-            mistakeMapper.update(update, new UpdateWrapper<PracticeMistake>().eq("id", mistake.getId()));
+            int updated = mistakeMapper.update(update, new UpdateWrapper<PracticeMistake>().eq("id", mistake.getId()));
+            if (updated > 0 && !STATUS_RESOLVED.equalsIgnoreCase(nvl(mistake.getStatus(), ""))) {
+                wrongQuestionEventPublisher.publishBestEffort(
+                        userId,
+                        question,
+                        STATUS_RESOLVED,
+                        Math.max(1, nvl(mistake.getWrongCount())),
+                        sessionId);
+            }
         }
     }
 
