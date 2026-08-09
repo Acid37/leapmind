@@ -59,9 +59,12 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   const [showSetup, setShowSetup] = useState(false);
   const [setupError, setSetupError] = useState("");
   const [availableSubjects, setAvailableSubjects] = useState([]);
+  const [availableKnowledgePoints, setAvailableKnowledgePoints] = useState([]);
+  const [knowledgePointsBySubject, setKnowledgePointsBySubject] = useState({});
   const [setup, setSetup] = useState({
     questionCount: Math.max(1, Math.min(50, Number(initialParams.questionCount) || 10)),
     subject: initialParams.subject || "mixed",
+    knowledgePoint: initialParams.knowledgePoint || "",
   });
 
   // --- 持久化：每次状态变化写入 localStorage ---
@@ -121,8 +124,14 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
 
   useEffect(() => {
     getFilterOptions()
-      .then((options) => setAvailableSubjects(options.subjects || []))
-      .catch((err) => console.warn("加载科目失败:", err));
+      .then((options) => {
+        setAvailableSubjects(options.practiceSubjects || options.subjects || []);
+        setAvailableKnowledgePoints(options.practiceKnowledgePoints || options.knowledgePoints || []);
+        setKnowledgePointsBySubject(
+          options.practiceKnowledgePointsBySubject || options.knowledgePointsBySubject || {}
+        );
+      })
+      .catch((err) => console.warn("加载科目和知识点失败:", err));
   }, []);
 
   const initSession = async () => {
@@ -143,6 +152,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
         sceneType: "free_practice",
         questionCount,
         subject: setup.subject === "mixed" ? undefined : setup.subject,
+        knowledgePoint: setup.knowledgePoint || undefined,
         mode,
         lessonId: lessonId || undefined,
       });
@@ -317,11 +327,15 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
 
   // --- 新练习配置 ---
   if (showSetup || !session) {
+    const setupKnowledgePoints = setup.subject === "mixed"
+      ? availableKnowledgePoints
+      : knowledgePointsBySubject[setup.subject] || [];
     return (
       <PracticeSetup
         setup={setup}
         setSetup={setSetup}
         subjects={availableSubjects}
+        knowledgePoints={setupKnowledgePoints}
         error={setupError}
         onStart={initSession}
       />
@@ -628,7 +642,7 @@ export default function PracticePage({ onBack, onViewStatistics, embedded = fals
   );
 }
 
-function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
+function PracticeSetup({ setup, setSetup, subjects, knowledgePoints, error, onStart }) {
   const selectedSubjectLabel = setup.subject === "mixed"
     ? "混合科目"
     : subjects.find((item) => item.value === setup.subject)?.label || setup.subject;
@@ -698,7 +712,7 @@ function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
             <button
               type="button"
               aria-pressed={setup.subject === "mixed"}
-              onClick={() => setSetup((prev) => ({ ...prev, subject: "mixed" }))}
+              onClick={() => setSetup((prev) => ({ ...prev, subject: "mixed", knowledgePoint: "" }))}
               className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors cursor-pointer ${
                 setup.subject === "mixed"
                   ? "border-indigo-300 bg-indigo-50 text-indigo-600"
@@ -712,7 +726,7 @@ function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
                 key={subject.value}
                 type="button"
                 aria-pressed={setup.subject === subject.value}
-                onClick={() => setSetup((prev) => ({ ...prev, subject: subject.value }))}
+                onClick={() => setSetup((prev) => ({ ...prev, subject: subject.value, knowledgePoint: "" }))}
                 className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors cursor-pointer ${
                   setup.subject === subject.value
                     ? "border-indigo-300 bg-indigo-50 text-indigo-600"
@@ -725,10 +739,31 @@ function PracticeSetup({ setup, setSetup, subjects, error, onStart }) {
           </div>
         </section>
 
+        <section className="mb-7">
+          <div className="mb-3">
+            <h3 className="font-semibold text-slate-700">知识点范围</h3>
+            <p className="mt-0.5 text-xs text-slate-400">选项随题库同步，并根据当前科目自动更新</p>
+          </div>
+          <select
+            value={setup.knowledgePoint}
+            onChange={(event) => setSetup((prev) => ({ ...prev, knowledgePoint: event.target.value }))}
+            disabled={knowledgePoints.length === 0}
+            className="w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 outline-none transition-colors focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <option value="">{knowledgePoints.length > 0 ? "不限定（全部知识点）" : "当前科目暂无知识点"}</option>
+            {knowledgePoints.map((point) => (
+              <option key={point.value} value={point.value}>{point.label}</option>
+            ))}
+          </select>
+        </section>
+
         <div className="flex flex-col gap-4 rounded-2xl bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-xs text-slate-400">本次练习</div>
-            <div className="mt-1 font-semibold text-slate-700">{selectedSubjectLabel} · {setup.questionCount || 0} 题</div>
+            <div className="mt-1 font-semibold text-slate-700">
+              {selectedSubjectLabel} · {setup.questionCount || 0} 题
+              {setup.knowledgePoint ? ` · ${setup.knowledgePoint}` : ""}
+            </div>
           </div>
           <button
             type="button"

@@ -57,6 +57,7 @@ export default function QuestionBankPage({ onStartPractice, lessonId = "" }) {
     subject: "",
     grade: "",
     chapter: "",
+    knowledgePoint: "",
     type: "",
     difficulty: "",
     lessonId: lessonId || "",
@@ -96,6 +97,7 @@ export default function QuestionBankPage({ onStartPractice, lessonId = "" }) {
       if (filters.subject) params.subject = filters.subject;
       if (filters.grade) params.grade = filters.grade;
       if (filters.chapter) params.chapter = filters.chapter;
+      if (filters.knowledgePoint) params.knowledgePoint = filters.knowledgePoint;
       if (filters.type) params.type = filters.type;
       if (filters.difficulty) params.difficulty = filters.difficulty;
       if (searchKeyword) params.keyword = searchKeyword;
@@ -119,16 +121,19 @@ export default function QuestionBankPage({ onStartPractice, lessonId = "" }) {
     loadQuestions();
   }, [loadQuestions]);
 
-  const updateFilter = (key, value) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+  const updateFilter = useCallback((key, value) => {
+    setFilters((prev) => key === "subject"
+      ? { ...prev, subject: value, chapter: "", knowledgePoint: "" }
+      : { ...prev, [key]: value }
+    );
     setPage(1);
-  };
+  }, []);
 
-  const clearFilters = () => {
-    setFilters({ subject: "", grade: "", chapter: "", type: "", difficulty: "", lessonId: "" });
+  const clearFilters = useCallback(() => {
+    setFilters({ subject: "", grade: "", chapter: "", knowledgePoint: "", type: "", difficulty: "", lessonId: "" });
     setSearchKeyword("");
     setPage(1);
-  };
+  }, []);
 
   // 导入 Excel / Word / PDF
   const handleImportFile = async (e) => {
@@ -142,6 +147,7 @@ export default function QuestionBankPage({ onStartPractice, lessonId = "" }) {
       setPage(1);
       // 导入后的新题按创建时间排在最前面
       await loadQuestions(1);
+      await refreshFilterOptions();
     } catch (err) {
       setImportResult({ inserted: 0, failed: 1, errors: [err.message] });
     } finally {
@@ -336,6 +342,35 @@ export default function QuestionBankPage({ onStartPractice, lessonId = "" }) {
                 onClick={() => updateFilter("chapter", filters.chapter === c.value ? "" : c.value)}
               >
                 {c.label}
+              </FilterChip>
+            ))}
+          </div>
+        </FilterSection>
+      )}
+
+      {/* 知识点（与题库动态同步，可按科目收窄） */}
+      {(filters.subject
+        ? filterOptions?.knowledgePointsBySubject?.[filters.subject]?.length > 0
+        : filterOptions?.knowledgePoints?.length > 0) && (
+        <FilterSection
+          title="知识点"
+          expanded={expandedSection === "knowledgePoint"}
+          onToggle={() => setExpandedSection(expandedSection === "knowledgePoint" ? "" : "knowledgePoint")}
+        >
+          <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto pr-1">
+            {(filters.subject
+              ? filterOptions.knowledgePointsBySubject[filters.subject]
+              : filterOptions.knowledgePoints
+            ).map((point) => (
+              <FilterChip
+                key={point.value}
+                active={filters.knowledgePoint === point.value}
+                onClick={() => updateFilter(
+                  "knowledgePoint",
+                  filters.knowledgePoint === point.value ? "" : point.value
+                )}
+              >
+                {point.label}
               </FilterChip>
             ))}
           </div>
