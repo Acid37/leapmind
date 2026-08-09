@@ -11,7 +11,7 @@ public sealed interface LearningEventPayload permits LearningEventPayload.Answer
         LearningEventPayload.ExplanationFeedback, LearningEventPayload.WeakPointChanged,
         LearningEventPayload.LectureInteract, LearningEventPayload.LessonMaterialUsed,
         LearningEventPayload.AskDoubt, LearningEventPayload.MarkReviewed,
-        LearningEventPayload.PreferenceChanged {
+        LearningEventPayload.PreferenceChanged, LearningEventPayload.WrongQuestionChanged {
     Pattern IDENTIFIER = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}");
     Set<String> CONFUSION = Set.of("concept_unclear", "formula_confusion", "step_unclear", "application_difficulty", "careless_error");
     @JsonIgnore String eventType();
@@ -25,6 +25,10 @@ public sealed interface LearningEventPayload permits LearningEventPayload.Answer
     record FinishPractice(int questionCount, BigDecimal accuracy, int durationSec) implements LearningEventPayload {
         public FinishPractice { between(questionCount, 1, 10000, "questionCount"); fraction(accuracy, "accuracy"); between(durationSec, 0, 86400, "durationSec"); }
         public String eventType() { return "finish_practice"; } public String sourceModule() { return "M1"; }
+    }
+    record WrongQuestionChanged(Long questionId, String status, int wrongCount) implements LearningEventPayload {
+        public WrongQuestionChanged { if (questionId == null || questionId <= 0) throw new IllegalArgumentException("questionId is invalid"); required(status, Set.of("UNRESOLVED", "REVIEWING", "RESOLVED"), "status"); between(wrongCount, 1, 9999, "wrongCount"); }
+        public String eventType() { return "wrong_question_changed"; } public String sourceModule() { return "M1"; }
     }
     record RequestExplanation(String explainId, String reasonTag) implements LearningEventPayload {
         public RequestExplanation { identifier(explainId, "explainId"); required(reasonTag, Set.of("WRONG_ANSWER", "REPEATED_ERROR", "USER_REQUEST", "LOW_CONFIDENCE", "REVIEW_NEEDED"), "reasonTag"); }

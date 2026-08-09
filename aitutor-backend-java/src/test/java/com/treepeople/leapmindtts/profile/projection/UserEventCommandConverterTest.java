@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
+import static java.util.Map.entry;
 import org.junit.jupiter.api.Test;
 
 class UserEventCommandConverterTest {
@@ -74,18 +75,19 @@ class UserEventCommandConverterTest {
         assertThrows(IllegalArgumentException.class, () -> converter.convert(null));
     }
 
-    @Test void allTenPayloadTypesMapToTheirRecord() {
-        Map<String, String> samples = Map.of(
-                "answer_question", "{\"isCorrect\":true,\"difficulty\":2,\"timeSpentSec\":10,\"hintCount\":0}",
-                "finish_practice", "{\"questionCount\":5,\"accuracy\":0.8,\"durationSec\":120}",
-                "request_explanation", "{\"explainId\":\"e1\",\"reasonTag\":\"WRONG_ANSWER\"}",
-                "explanation_feedback", "{\"explainId\":\"e1\",\"feedback\":\"understood\",\"repeatCount\":1}",
-                "weak_point_changed", "{\"oldScore\":0.5,\"newScore\":0.3,\"reason\":\"ACCURACY_DROP\"}",
-                "lecture_interact", "{\"lectureId\":\"l1\",\"chapterId\":\"c1\",\"action\":\"pause\"}",
-                "lesson_material_used", "{\"contentId\":\"ct1\",\"materialType\":\"text\",\"result\":\"completed\"}",
-                "ask_doubt", "{\"topic\":\"topic-a\",\"confusionTag\":\"concept_unclear\",\"isFollowUp\":false}",
-                "mark_reviewed", "{\"result\":\"correct_without_hint\",\"timeSpentSec\":30,\"hintCount\":0}",
-                "preference_changed", "{\"preferenceKey\":\"content_mode\",\"preferenceValue\":\"video\"}");
+    @Test void allPayloadTypesMapToTheirRecord() {
+        Map<String, String> samples = Map.ofEntries(
+                entry("answer_question", "{\"isCorrect\":true,\"difficulty\":2,\"timeSpentSec\":10,\"hintCount\":0}"),
+                entry("finish_practice", "{\"questionCount\":5,\"accuracy\":0.8,\"durationSec\":120}"),
+                entry("wrong_question_changed", "{\"questionId\":99,\"status\":\"UNRESOLVED\",\"wrongCount\":2}"),
+                entry("request_explanation", "{\"explainId\":\"e1\",\"reasonTag\":\"WRONG_ANSWER\"}"),
+                entry("explanation_feedback", "{\"explainId\":\"e1\",\"feedback\":\"understood\",\"repeatCount\":1}"),
+                entry("weak_point_changed", "{\"oldScore\":0.5,\"newScore\":0.3,\"reason\":\"ACCURACY_DROP\"}"),
+                entry("lecture_interact", "{\"lectureId\":\"l1\",\"chapterId\":\"c1\",\"action\":\"pause\"}"),
+                entry("lesson_material_used", "{\"contentId\":\"ct1\",\"materialType\":\"text\",\"result\":\"completed\"}"),
+                entry("ask_doubt", "{\"topic\":\"topic-a\",\"confusionTag\":\"concept_unclear\",\"isFollowUp\":false}"),
+                entry("mark_reviewed", "{\"result\":\"correct_without_hint\",\"timeSpentSec\":30,\"hintCount\":0}"),
+                entry("preference_changed", "{\"preferenceKey\":\"content_mode\",\"preferenceValue\":\"video\"}"));
         for (Map.Entry<String, String> sample : samples.entrySet()) {
             LearningEventPayload payload = converter.convert(event(sample.getKey(), sample.getValue())).payload();
             assertEquals(sample.getKey(), payload.eventType());
