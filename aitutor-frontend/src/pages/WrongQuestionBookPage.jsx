@@ -17,12 +17,7 @@ import {
   CheckCircle2,
   Clock,
 } from "lucide-react";
-import {
-  deleteWrongQuestion,
-  getFilterOptions,
-  getWrongQuestions,
-  toggleFocus,
-} from "../services/practiceService";
+import { getWrongQuestions, toggleFocus, deleteWrongQuestion } from "../services/practiceService";
 
 const SUBJECT_LABELS = {
   math: "数学",
@@ -47,7 +42,6 @@ export default function WrongQuestionBookPage({ onRedo }) {
   const [kpFilter, setKpFilter] = useState("");
   const [timeFilter, setTimeFilter] = useState("all");
   const [filterSource, setFilterSource] = useState([]);
-  const [filterOptions, setFilterOptions] = useState(null);
   const [expandedIds, setExpandedIds] = useState([]);
 
   const loadData = useCallback(async () => {
@@ -86,14 +80,6 @@ export default function WrongQuestionBookPage({ onRedo }) {
     }
   }, []);
 
-  const loadFilterOptions = useCallback(async () => {
-    try {
-      setFilterOptions(await getFilterOptions());
-    } catch (err) {
-      console.error("加载题库筛选项失败:", err);
-    }
-  }, []);
-
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -101,10 +87,6 @@ export default function WrongQuestionBookPage({ onRedo }) {
   useEffect(() => {
     loadFilterSource();
   }, [loadFilterSource]);
-
-  useEffect(() => {
-    loadFilterOptions();
-  }, [loadFilterOptions]);
 
   const handleToggleFocus = async (id) => {
     const question = questions.find((item) => item.id === id);
@@ -177,19 +159,13 @@ export default function WrongQuestionBookPage({ onRedo }) {
     method_wrong: { label: "方法错误", color: "bg-purple-50 text-purple-600" },
   };
 
-  const fallbackSubjectOptions = useMemo(() => (
-    [...new Set(filterSource
-      .map((question) => question.subject)
-      .filter((subject) => subject && subject !== "general"))]
+  const subjectOptions = useMemo(() => (
+    [...new Set(filterSource.map((question) => question.subject).filter(Boolean))]
       .sort((a, b) => (SUBJECT_LABELS[a] || a).localeCompare(SUBJECT_LABELS[b] || b, "zh-CN"))
       .map((value) => ({ value, label: SUBJECT_LABELS[value] || value }))
   ), [filterSource]);
 
-  const subjectOptions = filterOptions?.subjects?.length > 0
-    ? filterOptions.subjects
-    : fallbackSubjectOptions;
-
-  const fallbackKnowledgePointOptions = useMemo(() => (
+  const knowledgePointOptions = useMemo(() => (
     [...new Set(
       filterSource
         .filter((question) => !subjectFilter || question.subject === subjectFilter)
@@ -198,13 +174,6 @@ export default function WrongQuestionBookPage({ onRedo }) {
         .filter(Boolean)
     )].sort((a, b) => a.localeCompare(b, "zh-CN"))
   ), [filterSource, subjectFilter]);
-
-  const syncedKnowledgePointOptions = subjectFilter
-    ? filterOptions?.knowledgePointsBySubject?.[subjectFilter]
-    : filterOptions?.knowledgePoints;
-  const knowledgePointOptions = syncedKnowledgePointOptions?.length > 0
-    ? syncedKnowledgePointOptions.map((point) => point.value)
-    : fallbackKnowledgePointOptions;
 
   return (
     <div className="max-w-5xl mx-auto">
