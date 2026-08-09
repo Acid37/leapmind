@@ -88,8 +88,6 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
   const [showSetup, setShowSetup] = useState(false);
   const [setupError, setSetupError] = useState("");
   const [availableSubjects, setAvailableSubjects] = useState([]);
-  const [availableKnowledgePoints, setAvailableKnowledgePoints] = useState([]);
-  const [knowledgePointsBySubject, setKnowledgePointsBySubject] = useState({});
   const [setup, setSetup] = useState({
     questionCount: Math.max(1, Math.min(50, Number(initialParams.questionCount) || 10)),
     subject: initialParams.subject || "mixed",
@@ -168,14 +166,8 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
 
   useEffect(() => {
     getFilterOptions()
-      .then((options) => {
-        setAvailableSubjects(options.practiceSubjects || options.subjects || []);
-        setAvailableKnowledgePoints(options.practiceKnowledgePoints || options.knowledgePoints || []);
-        setKnowledgePointsBySubject(
-          options.practiceKnowledgePointsBySubject || options.knowledgePointsBySubject || {}
-        );
-      })
-      .catch((err) => console.warn("加载科目和知识点失败:", err));
+      .then((options) => setAvailableSubjects(options.subjects || []))
+      .catch((err) => console.warn("加载科目失败:", err));
   }, []);
 
   useEffect(() => {
@@ -196,11 +188,15 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
       .then((items) => {
         if (!active) return;
         setWeakRecommendations(items);
+        setSetup((prev) => items.some((item) => item.knowledgePoint === prev.knowledgePoint)
+          ? prev
+          : { ...prev, knowledgePoint: "" });
       })
       .catch((err) => {
         if (!active) return;
         console.warn("加载薄弱点推荐失败:", err);
         setWeakRecommendations([]);
+        setSetup((prev) => ({ ...prev, knowledgePoint: "" }));
       })
       .finally(() => {
         if (active) setRecommendationLoading(false);
@@ -469,15 +465,11 @@ export default function PracticePage({ onBack, onViewStatistics, onResetPractice
 
   // --- 新练习配置 ---
   if (showSetup || !session) {
-    const setupKnowledgePoints = setup.subject === "mixed"
-      ? availableKnowledgePoints
-      : knowledgePointsBySubject[setup.subject] || [];
     return (
       <PracticeSetup
         setup={setup}
         setSetup={setSetup}
         subjects={availableSubjects}
-        knowledgePoints={setupKnowledgePoints}
         error={setupError}
         onStart={initSession}
         reviewReminders={reviewReminders}
@@ -803,7 +795,6 @@ function PracticeSetup({
   setup,
   setSetup,
   subjects,
-  knowledgePoints,
   error,
   onStart,
   reviewReminders,
@@ -995,24 +986,6 @@ function PracticeSetup({
               </button>
             ))}
           </div>
-        </section>
-
-        <section className="mb-7">
-          <div className="mb-3">
-            <h3 className="font-semibold text-slate-700">知识点范围</h3>
-            <p className="mt-0.5 text-xs text-slate-400">选项随题库同步，并根据当前科目自动更新</p>
-          </div>
-          <select
-            value={setup.knowledgePoint}
-            onChange={(event) => setSetup((prev) => ({ ...prev, knowledgePoint: event.target.value }))}
-            disabled={knowledgePoints.length === 0}
-            className="w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 outline-none transition-colors focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-          >
-            <option value="">{knowledgePoints.length > 0 ? "不限定（全部知识点）" : "当前科目暂无知识点"}</option>
-            {knowledgePoints.map((point) => (
-              <option key={point.value} value={point.value}>{point.label}</option>
-            ))}
-          </select>
         </section>
 
         <div className="flex flex-col gap-4 rounded-2xl bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
