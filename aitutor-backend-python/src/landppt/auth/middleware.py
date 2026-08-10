@@ -42,6 +42,7 @@ class AuthMiddleware:
             "/api/image/thumbnail/",  # 图片缩略图访问无需认证
             "/api/internal/",  # M6 画像引擎等内部接口，由 Java 网关调用无需前端认证
             "/api/user-profile/",  # M6 知识状态、时间线等查询接口
+            "/api/ai/",  # M4 Java→Python 讲课生成接口，服务间调用不走浏览器会话鉴权
             "/docs",
             "/redoc",
             "/openapi.json"
