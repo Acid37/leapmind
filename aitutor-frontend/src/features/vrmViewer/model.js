@@ -158,7 +158,7 @@ export class Model {
     this._gestureTimeouts.push(headMotionTimeout);
     this._scheduleGestures(screenplay.gestures);
 
-    await new Promise((resolve) => {
+    await new Promise((resolve, reject) => {
       this._lipSync?.playFromArrayBuffer(
         buffer,
         () => {
@@ -166,8 +166,24 @@ export class Model {
           resolve(true);
         },
         screenplay.phonemes,
-      );
+      ).catch(reject);
     });
+  }
+
+  async resumeAudio() {
+    return this._lipSync?.resumeAudioContext();
+  }
+
+  async pauseSpeaking() {
+    return this._lipSync?.pausePlayback();
+  }
+
+  async resumeSpeaking() {
+    return this._lipSync?.resumePlayback();
+  }
+
+  hasActiveSpeech() {
+    return Boolean(this._lipSync?.hasActivePlayback());
   }
 
   /**

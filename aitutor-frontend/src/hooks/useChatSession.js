@@ -3,6 +3,20 @@ import { askStream, interrupt, getSession, ChatError } from '../services/chatSer
 
 const LEGACY_STORAGE_KEY = 'chatSessionId';
 
+function normalizeStreamError(value = {}) {
+  const rawMessage = String(value.message || '生成失败');
+  if (/Arrearage|overdue-payment|account is in good standing/i.test(rawMessage)) {
+    return {
+      code: 3001,
+      message: 'AI 问答模型账户当前不可用（余额或额度状态异常），请联系管理员检查 DashScope 账户。',
+    };
+  }
+  return {
+    code: value.code || undefined,
+    message: rawMessage,
+  };
+}
+
 /**
  * 每个学习场景拥有独立会话：同一题/同一堂课可在刷新后恢复，
  * 但做题、讲题、讲课、备课之间绝不能互相复用上下文。
@@ -61,7 +75,7 @@ function isMatchingSession(session, userId, sceneType, resourceId) {
  *   clear: () => void,
  * }}
  */
-export function useChatSession({ sceneType, context, userId, autoRestore = true }) {
+export function useChatSession({ sceneType, context, userId, autoRestore = true, onAssistantComplete }) {
   const [messages, setMessages] = useState([]);
   // 对话状态机（对齐 M7 对接文档）：idle / thinking / content / error / interrupted
   const [phase, setPhase] = useState('idle');
@@ -81,6 +95,11 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
   const isGeneratingRef = useRef(false);
   // 当前正在生成的问题文本（本地智能去重：连点相同问题直接忽略，不重复调 AI）
   const pendingQuestionRef = useRef(null);
+  const onAssistantCompleteRef = useRef(onAssistantComplete);
+
+  useEffect(() => {
+    onAssistantCompleteRef.current = onAssistantComplete;
+  }, [onAssistantComplete]);
 
   // -------- 初始化：尝试恢复会话 --------
   useEffect(() => {
@@ -90,7 +109,13 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
     setSessionStorageKey(null);
     setError(null);
 
-    if (!autoRestore) return () => { cancelled = true; };
+    if (!autoRestore) {
+      // 临时会话模式：进入场景即丢弃该资源曾保存的浏览器会话引用。
+      // 后端历史仍可用于审计，但后续请求不会再携带旧 sessionId。
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      return () => { cancelled = true; };
+    }
 
     const savedSessionId = localStorage.getItem(storageKey);
     if (savedSessionId) {
@@ -119,10 +144,10 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
 
   // -------- 持久化 sessionId --------
   useEffect(() => {
-    if (sessionId && sessionStorageKey === storageKey) {
+    if (autoRestore && sessionId && sessionStorageKey === storageKey) {
       localStorage.setItem(storageKey, sessionId);
     }
-  }, [sessionId, sessionStorageKey, storageKey]);
+  }, [autoRestore, sessionId, sessionStorageKey, storageKey]);
 
   // -------- 立即切断当前 SSE 流（⚠️ 致命切断点：终端事件必须主动 cancel） --------
   // fetch 本身不会自动重连，天然安全；此处统一封装，若未来切换 @microsoft/fetch-event-source
@@ -187,6 +212,12 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
     const trimmed = (text || '').trim();
     if (!trimmed) return undefined;
 
+    // 冻结“点击发送这一刻”的场景数据。课堂可能在 SSE 返回前翻页，
+    // 但本轮问题必须始终按发问页处理，不能读取后续页面的 context。
+    const requestContext = context && typeof context === 'object'
+      ? { ...context }
+      : {};
+
     // 生成中：本地智能去重（允许连点，但不重复调 AI，省 token）
     if (isGeneratingRef.current) {
       if (pendingQuestionRef.current && pendingQuestionRef.current === trimmed) {
@@ -202,7 +233,14 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
 
     // retry 时不重复追加用户消息
     if (!isRetry) {
-      const userMsg = { role: 'user', content: trimmed };
+      const slideNumber = requestContext.currentSlide ?? requestContext.slide;
+      const userMsg = {
+        role: 'user',
+        content: trimmed,
+        contextLabel: sceneType === 'teaching' && slideNumber != null
+          ? `PPT 第 ${slideNumber} 页`
+          : undefined,
+      };
       setMessages(prev => [...prev, userMsg]);
     }
 
@@ -218,7 +256,7 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
       sessionId,
       question: trimmed,
       sceneType,
-      context,
+      context: requestContext,
     });
 
     // 通过 reader 消费流
@@ -257,6 +295,7 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
             const captured = bufferRef.current; // ⚠️ 必须捕获！下面立即清空 ref
             finishGenerating('idle');
             finalizeMessage(captured);
+            if (captured) onAssistantCompleteRef.current?.(captured);
             bufferRef.current = '';
             return; // 终端事件不再继续 read()
           } else if (value.type === 'error') {
@@ -266,10 +305,7 @@ export function useChatSession({ sceneType, context, userId, autoRestore = true 
             finishGenerating('error');
             if (!captured) dropEmptyPlaceholder();
             else finalizeMessage(captured);
-            setError({
-              message: value.message || '生成失败',
-              code: value.code || undefined,
-            });
+            setError(normalizeStreamError(value));
             bufferRef.current = '';
             return; // 终端事件不再继续 read()
           } else if (value.type === 'interrupted') {

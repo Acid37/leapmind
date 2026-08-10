@@ -12,14 +12,16 @@
  * 讲课结束时可跳转 M1 做配套练习。
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import Header from '../../components/common/Header';
 import SlideRenderer from '../../components/lecture/SlideRenderer';
 import SlideViewer from '../../components/lecture/SlideViewer';
 import M4VirtualTeacherPanel from './M4VirtualTeacherPanel';
 import { ChatPanel } from '../../components/chat';
-import { submitLectureEvent } from '../../services/lectureService';
-import { Flag, BookOpen, MessageCircle, Monitor, User, Pause, Play } from 'lucide-react';
+import { recordLectureInteraction } from '../../services/learningEventService';
+import { synthesizeVirtualTeacherSpeech } from '../../services/virtualTeacherService';
+import { sharedViewer } from '../../features/vrmViewer/viewerContext';
+import { Flag, BookOpen, House, MessageCircle, Monitor, User, Pause, Play, Mic, MicOff } from 'lucide-react';
 
 // ─── 数据类型转换：旧 mock 嵌套格式 → 统一 SlideData ───
 
@@ -40,7 +42,15 @@ function normalizeSlides(slides) {
       type: TYPE_MAP[s?.type] || 'content',
       title: c.title || s?.title || '',
       subtitle: c.subtitle || s?.subtitle || '',
-      bulletPoints: Array.isArray(c.body) ? c.body : (c.body ? [c.body] : []),
+      bulletPoints: Array.isArray(c.body)
+        ? c.body
+        : c.body
+          ? [c.body]
+          : Array.isArray(s?.bulletPoints)
+            ? s.bulletPoints
+            : Array.isArray(s?.bullet_points)
+              ? s.bullet_points
+              : [],
       imageSuggestion: c.imageSuggestion || s?.imageSuggestion || undefined,
       formula: c.formula || s?.formula || undefined,
       highlightPoints: c.highlightPoints || s?.highlightPoints || [],
@@ -57,16 +67,37 @@ const TABS = [
   { key: 'teacher', label: '老师', icon: User },
 ];
 
-const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
+const LecturePresentPage = ({ lectureData, userId, onBack, onHome, onFinish }) => {
   const { lectureId, title = '在线课堂', courseId, slides: rawSlides } = lectureData || {};
   const slides = useMemo(() => normalizeSlides(rawSlides), [rawSlides]);
   const hasSlides = slides.length > 0;
   const [currentSlide, setCurrentSlide] = useState(1);
   const currentSlideData = slides[currentSlide - 1];
+  const chatContext = useMemo(() => ({
+    lectureId,
+    slide: currentSlide,
+    currentSlide,
+    slideTitle: currentSlideData?.title || '',
+    slideContent: currentSlideData?.bulletPoints?.join('\n') || '',
+  }), [currentSlide, currentSlideData, lectureId]);
   const [showEndPanel, setShowEndPanel] = useState(false);
   const [mobileTab, setMobileTab] = useState('slides');
   const [isPaused, setIsPaused] = useState(false);
   const [, setIsTeacherSpeaking] = useState(false);
+  const [answerCaption, setAnswerCaption] = useState('');
+  const [isAnswerSpeaking, setIsAnswerSpeaking] = useState(false);
+  const [voiceInterruptEnabled, setVoiceInterruptEnabled] = useState(false);
+  const [voiceInterruptStatus, setVoiceInterruptStatus] = useState('实时打断未开启');
+  const [externalQuestion, setExternalQuestion] = useState(null);
+  const recognitionRef = useRef(null);
+  const recognitionSuspendedRef = useRef(false);
+  const interruptTriggeredRef = useRef(false);
+  const answerAudioRef = useRef(null);
+  const interactionSequenceRef = useRef(0);
+  const interactionSessionRef = useRef(
+    lectureData?.sessionId
+      || `m4-${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`,
+  );
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
   );
@@ -80,18 +111,22 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
     return () => mediaQuery.removeEventListener('change', syncViewport);
   }, []);
 
-  // M6 事件上报辅助（沿用既有 M4 契约，等待统一迁移）。
+  // M6 统一画像事件：每次页面挂载创建独立会话，序号在该会话内连续递增。
   const fireEvent = useCallback((action, extra = {}) => {
     if (!lectureId) return;
+    interactionSequenceRef.current += 1;
+    const sessionId = interactionSessionRef.current;
     const chapterId = extra.chapterId || `ch${currentSlide}`;
-    submitLectureEvent({
-      lectureId: String(lectureId),
+    recordLectureInteraction({
+      userId,
+      lectureId,
       chapterId,
       action,
-      sessionId: extra.sessionId,
-      kpId: extra.kpId,
-    });
-  }, [lectureId, currentSlide]);
+      interactionId: `${sessionId}:${interactionSequenceRef.current}`,
+      sessionId,
+      kpId: extra.kpId ?? lectureData?.knowledgePoints?.[0]?.id ?? lectureData?.knowledgePoints?.[0]?.kpId,
+    }).catch((error) => console.warn('[M4][M6] 讲课交互事件上报失败:', error.message));
+  }, [lectureData?.knowledgePoints, lectureId, currentSlide, userId]);
 
   const handleSlideChange = useCallback((pageNum) => {
     const previousPage = currentSlide;
@@ -120,7 +155,170 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
 
   const handleMessageSent = useCallback(() => {
     fireEvent('ask');
+    sharedViewer?.model?.stopSpeaking();
+    sharedViewer?.model?.resumeAudio?.().catch((error) => {
+      console.warn('[M4][M8] 音频上下文预解锁失败：', error);
+    });
+    setIsTeacherSpeaking(false);
   }, [fireEvent]);
+
+  const playNativeAudioFallback = useCallback(async (audioBlob) => {
+    if (answerAudioRef.current) {
+      answerAudioRef.current.pause();
+      answerAudioRef.current = null;
+    }
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    answerAudioRef.current = audio;
+    try {
+      await audio.play();
+      await new Promise((resolve, reject) => {
+        audio.addEventListener('ended', resolve, { once: true });
+        audio.addEventListener('error', () => reject(new Error('回答音频播放失败')), { once: true });
+      });
+    } finally {
+      if (answerAudioRef.current === audio) answerAudioRef.current = null;
+      URL.revokeObjectURL(audioUrl);
+    }
+  }, []);
+
+  const handleAssistantComplete = useCallback(async (answer) => {
+    const text = String(answer || '').trim();
+    if (!text) return;
+    setAnswerCaption(text);
+    setIsAnswerSpeaking(true);
+    setIsTeacherSpeaking(true);
+    try {
+      const result = await synthesizeVirtualTeacherSpeech({
+        courseId: courseId || lectureId ? String(courseId || lectureId) : undefined,
+        text,
+      });
+      if (!result?.audioBlob) return;
+      const audioBuffer = await result.audioBlob.arrayBuffer();
+      const model = sharedViewer?.model;
+      if (model?.speak) {
+        try {
+          await model.speak(audioBuffer, {
+            expression: result.animation?.expression || 'neutral',
+            talk: { message: text },
+            gestures: result.animation?.gestures || [],
+            phonemes: result.animation?.phonemes || [],
+          });
+        } catch (playbackError) {
+          console.warn('[M4][M8] VRM 回答音频播放失败，切换原生播放器：', playbackError);
+          await playNativeAudioFallback(result.audioBlob);
+        }
+      } else {
+        console.warn('[M4][M8] VRM 模型尚未挂载，使用原生播放器播报回答');
+        await playNativeAudioFallback(result.audioBlob);
+      }
+    } catch (error) {
+      console.warn('[M4][M7][M8] 回答语音播放失败：', error);
+    } finally {
+      setIsAnswerSpeaking(false);
+      setIsTeacherSpeaking(false);
+      if (interruptTriggeredRef.current) {
+        interruptTriggeredRef.current = false;
+        setIsPaused(false);
+        recognitionSuspendedRef.current = false;
+        setVoiceInterruptStatus('正在监听“小跃老师…”');
+        try { recognitionRef.current?.start(); } catch { /* 已在运行或尚未就绪 */ }
+      }
+    }
+  }, [courseId, lectureId, playNativeAudioFallback]);
+
+  useEffect(() => () => {
+    if (answerAudioRef.current) {
+      answerAudioRef.current.pause();
+      answerAudioRef.current = null;
+    }
+  }, []);
+
+  const handleToggleVoiceInterrupt = useCallback(() => {
+    sharedViewer?.model?.resumeAudio?.().catch((error) => {
+      console.warn('[M4][M8] 实时打断音频预解锁失败：', error);
+    });
+    setVoiceInterruptEnabled((enabled) => !enabled);
+  }, []);
+
+  useEffect(() => {
+    if (!voiceInterruptEnabled) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch { /* ignore */ }
+        recognitionRef.current = null;
+      }
+      setVoiceInterruptStatus('实时打断未开启');
+      return undefined;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceInterruptEnabled(false);
+      setVoiceInterruptStatus('当前浏览器不支持实时语音打断');
+      return undefined;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'zh-CN';
+    recognitionRef.current = recognition;
+    let active = true;
+
+    recognition.onstart = () => setVoiceInterruptStatus('正在监听“小跃老师…”');
+    recognition.onresult = (event) => {
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const transcript = String(event.results[i][0]?.transcript || '').trim();
+        if (!transcript.includes('小跃老师')) continue;
+
+        if (!interruptTriggeredRef.current) {
+          interruptTriggeredRef.current = true;
+          sharedViewer?.model?.stopSpeaking();
+          setIsPaused(true);
+          setIsTeacherSpeaking(false);
+          setVoiceInterruptStatus('已暂停讲解，请继续说完问题');
+        }
+
+        if (event.results[i].isFinal) {
+          const question = transcript
+            .replace(/^.*?小跃老师[，,。.!！?？\s]*/, '')
+            .trim();
+          if (question) {
+            recognitionSuspendedRef.current = true;
+            try { recognition.stop(); } catch { /* ignore */ }
+            setExternalQuestion({ id: Date.now(), text: question });
+            setVoiceInterruptStatus(`正在回答：${question}`);
+          } else {
+            interruptTriggeredRef.current = false;
+            setIsPaused(false);
+            setVoiceInterruptStatus('没有识别到问题，请说“小跃老师 + 问题”');
+          }
+        }
+      }
+    };
+    recognition.onerror = (event) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setVoiceInterruptEnabled(false);
+        setVoiceInterruptStatus('请允许浏览器使用麦克风');
+      } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setVoiceInterruptStatus(`语音识别暂不可用：${event.error}`);
+      }
+    };
+    recognition.onend = () => {
+      if (active && voiceInterruptEnabled && !recognitionSuspendedRef.current) {
+        try { recognition.start(); } catch { /* ignore */ }
+      }
+    };
+
+    try { recognition.start(); } catch {
+      setVoiceInterruptStatus('实时语音打断启动失败');
+    }
+    return () => {
+      active = false;
+      try { recognition.stop(); } catch { /* ignore */ }
+      recognitionRef.current = null;
+    };
+  }, [voiceInterruptEnabled]);
 
   const bgGradient = {
     backgroundImage: "linear-gradient(135deg, #861FCE 0%, #861FCE 16%, #731CCD 16%, #731CCD 32%, #6B1CCF 32%, #6B1CCF 48%, #631DCE 48%, #631DCE 64%, #5A1BCE 64%, #5A1BCE 80%, rgb(86,43,205) 80%, rgb(47,8,154) 100%)",
@@ -162,8 +360,19 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
             <p className="text-sm font-semibold">课堂追问</p>
             <p className="text-xs text-white/50 mt-0.5">正在讲解 · 第 {currentSlide} 页</p>
           </div>
-          <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium">PPT</span>
+          <button
+            type="button"
+            onClick={handleToggleVoiceInterrupt}
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+              voiceInterruptEnabled ? 'bg-emerald-400/20 text-emerald-100' : 'bg-white/10 text-white/70'
+            }`}
+            title="开启后说“小跃老师 + 问题”即可打断"
+          >
+            {voiceInterruptEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
+            {voiceInterruptEnabled ? '实时打断' : '开启打断'}
+          </button>
         </div>
+        <p className="-mt-2 px-1 text-[10px] text-white/45">{voiceInterruptStatus}</p>
         {/* 同一张课堂卡片：数字教师出镜与 M7 追问无缝衔接，避免视觉上割裂成两个组件。 */}
         <div className="flex-1 min-h-0 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-white/20 flex flex-col">
           {isDesktop && (
@@ -174,18 +383,25 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
                 courseId={courseId || lectureId}
                 isPaused={isPaused}
                 onPlaybackChange={setIsTeacherSpeaking}
+                externalCaption={answerCaption}
+                externalSpeaking={isAnswerSpeaking}
               />
             </div>
           )}
           <div className="flex-1 min-h-0 overflow-hidden">
-            <ChatPanel
-              title="向老师提问"
-              sceneType="teaching"
-              context={{ lectureId, slide: currentSlide, slideContent: currentSlideData?.bulletPoints?.join('\n') || '', title: currentSlideData?.title || '' }}
-              userId={userId}
-              visible={true}
-              onMessageSent={handleMessageSent}
-            />
+            {isDesktop && (
+              <ChatPanel
+                title="向老师提问"
+                sceneType="teaching"
+                context={chatContext}
+                userId={userId}
+                visible={true}
+                onMessageSent={handleMessageSent}
+                onAssistantComplete={handleAssistantComplete}
+                externalQuestion={externalQuestion}
+                autoRestore={false}
+              />
+            )}
           </div>
         </div>
         {/* 课堂控制：同一行左右分布，避免占用 ChatPanel 的垂直空间 */}
@@ -267,7 +483,9 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
           </div>
         </div>
         <div className="flex-1 p-3 overflow-hidden">
-          <ChatPanel sceneType="teaching" context={{ lectureId, slide: currentSlide, slideContent: currentSlideData?.bulletPoints?.join('\n') || '', title: currentSlideData?.title || '' }} userId={userId} visible={true} onMessageSent={handleMessageSent} />
+          {!isDesktop && (
+            <ChatPanel sceneType="teaching" context={chatContext} userId={userId} visible={true} onMessageSent={handleMessageSent} onAssistantComplete={handleAssistantComplete} externalQuestion={externalQuestion} autoRestore={false} />
+          )}
         </div>
       </div>
 
@@ -283,6 +501,8 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
               courseId={courseId || lectureId}
               isPaused={isPaused}
               onPlaybackChange={setIsTeacherSpeaking}
+              externalCaption={answerCaption}
+              externalSpeaking={isAnswerSpeaking}
             />
           )}
         </div>
@@ -307,13 +527,20 @@ const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
       </div>
 
       {/* 讲课结束面板 */}
-      {showEndPanel && <EndPanel title={title} onPractice={handleGoPractice} onContinue={() => setShowEndPanel(false)} />}
+      {showEndPanel && (
+        <EndPanel
+          title={title}
+          onPractice={handleGoPractice}
+          onHome={onHome}
+          onContinue={() => setShowEndPanel(false)}
+        />
+      )}
     </div>
   );
 };
 
 // ─── 结束面板（提取为模块级组件，避免每次渲染重建） ──
-function EndPanel({ title, onPractice, onContinue }) {
+function EndPanel({ title, onPractice, onHome, onContinue }) {
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
       <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full text-center">
@@ -331,6 +558,13 @@ function EndPanel({ title, onPractice, onContinue }) {
           >
             <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
             做配套练习
+          </button>
+          <button
+            onClick={onHome}
+            className="w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 border border-slate-200 text-slate-600 rounded-xl font-medium hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700 transition-colors text-sm sm:text-base"
+          >
+            <House className="w-4 h-4 sm:w-5 sm:h-5" />
+            回到首页
           </button>
           <button
             onClick={onContinue}

@@ -81,7 +81,10 @@ export class LipSync {
   async playFromArrayBuffer(buffer, onEnded, phonemes = []) {
     // 确保AudioContext处于运行状态（有些浏览器需用户交互触发后resume）
     if (this.audio.state === 'suspended') {
-      try { await this.audio.resume(); } catch (_) {}
+      await this.audio.resume();
+    }
+    if (this.audio.state !== 'running') {
+      throw new Error(`AudioContext 未进入运行状态：${this.audio.state}`);
     }
     // 停止并清理之前的音频源
     if (this.currentSource) {
@@ -113,6 +116,31 @@ export class LipSync {
         onEnded();
       }
     });
+  }
+
+  async resumeAudioContext() {
+    if (this.audio.state === 'suspended') {
+      await this.audio.resume();
+    }
+    return this.audio.state;
+  }
+
+  async pausePlayback() {
+    if (!this.currentSource || this.audio.state !== 'running') return false;
+    await this.audio.suspend();
+    return this.audio.state === 'suspended';
+  }
+
+  async resumePlayback() {
+    if (!this.currentSource) return false;
+    if (this.audio.state === 'suspended') {
+      await this.audio.resume();
+    }
+    return this.audio.state === 'running';
+  }
+
+  hasActivePlayback() {
+    return Boolean(this.currentSource);
   }
 
   async playFromURL(url, onEnded) {

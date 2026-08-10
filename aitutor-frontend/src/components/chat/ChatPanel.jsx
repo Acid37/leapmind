@@ -31,6 +31,8 @@ import { createOneShotRecognition } from '../../features/chat/pptSpeech';
  *   visible?: boolean,
  *   onClose?: () => void,
  *   onMessageSent?: (text: string) => void,  // M6 对接: 消息发送后回调
+ *   onAssistantComplete?: (text: string) => void,
+ *   autoRestore?: boolean,
  *   title?: string,
  *   className?: string,
  * }} props
@@ -42,6 +44,9 @@ const ChatPanel = ({
   visible = true,
   onClose,
   onMessageSent,
+  onAssistantComplete,
+  externalQuestion,
+  autoRestore = true,
   title = 'AI 助手',
   className = '',
 }) => {
@@ -49,7 +54,8 @@ const ChatPanel = ({
     sceneType,
     context,
     userId,
-    autoRestore: true,
+    autoRestore,
+    onAssistantComplete,
   });
 
   const [inputValue, setInputValue] = useState('');
@@ -59,6 +65,7 @@ const ChatPanel = ({
   const dedupNoticeTimerRef = useRef(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  const lastExternalQuestionRef = useRef(null);
 
   // 短暂显示去重提示（2s 后自动消失）
   const showDedupNotice = (msg) => {
@@ -85,6 +92,13 @@ const ChatPanel = ({
     }
   }, [visible]);
 
+  // 多行输入会临时增高；发送或语音提交清空后恢复为与相邻按钮一致的 36px。
+  useEffect(() => {
+    if (!inputValue && inputRef.current) {
+      inputRef.current.style.height = '36px';
+    }
+  }, [inputValue]);
+
   // -------- 发送文本 --------
   const handleSend = (e) => {
     e?.preventDefault();
@@ -102,6 +116,14 @@ const ChatPanel = ({
     setInputValue('');
     onMessageSent?.(text);
   };
+
+  useEffect(() => {
+    const text = externalQuestion?.text?.trim();
+    if (!text || externalQuestion.id === lastExternalQuestionRef.current) return;
+    lastExternalQuestionRef.current = externalQuestion.id;
+    const result = send(text);
+    if (!result) onMessageSent?.(text);
+  }, [externalQuestion, onMessageSent, send]);
 
   // -------- 语音输入 --------
   const handleVoiceInput = async () => {
@@ -240,6 +262,7 @@ const ChatPanel = ({
             key={`${msg.role}-${i}`}
             role={msg.role}
             content={msg.content}
+            contextLabel={msg.contextLabel}
             isStreaming={msg.isStreaming}
             error={msg.error}
           />
@@ -348,7 +371,7 @@ const ChatPanel = ({
             }}
             placeholder={isGenerating ? 'AI 正在回复中，可继续输入...' : '输入你的问题...'}
             rows={1}
-            className="flex-1 px-3 py-2 text-sm bg-slate-100 border border-transparent rounded-xl resize-none outline-none focus:border-indigo-300 focus:bg-white transition-colors placeholder:text-slate-400"
+            className="flex-1 h-9 px-3 py-1.5 text-sm leading-[22px] bg-slate-100 border border-transparent rounded-xl resize-none outline-none focus:border-indigo-300 focus:bg-white transition-colors placeholder:text-slate-400"
             style={{ minHeight: '36px', maxHeight: '100px' }}
             onInput={(e) => {
               e.target.style.height = 'auto';

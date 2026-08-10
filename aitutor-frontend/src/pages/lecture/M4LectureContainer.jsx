@@ -21,11 +21,14 @@ import LectureCreatePage from './LectureCreatePage';
 import LectureWaitingPage from './LectureWaitingPage';
 import LecturePresentPage from './LecturePresentPage';
 import LectureHistoryPage from './LectureHistoryPage';
+import { getUserInfo } from '../../utils/tokenManager';
 
 export default function M4LectureContainer({ onExit, onM1Practice, initialText }) {
   const [route, setRoute] = useState('create'); // create | waiting | present | history
   const [params, setParams] = useState(null);
   const [result, setResult] = useState(null);
+  const userInfo = getUserInfo();
+  const userId = userInfo?.id ?? userInfo?.userId;
 
   const handleStartGeneration = useCallback((p) => {
     if (Array.isArray(p?.importedSlides) && p.importedSlides.length > 0) {
@@ -75,7 +78,7 @@ export default function M4LectureContainer({ onExit, onM1Practice, initialText }
   if (route === 'create') {
     return (
       <LectureCreatePage
-        userId={1}
+        userId={userId}
         initialText={initialText}
         onStartGeneration={handleStartGeneration}
         onViewHistory={handleViewHistory}
@@ -96,8 +99,9 @@ export default function M4LectureContainer({ onExit, onM1Practice, initialText }
     return (
       <LecturePresentPage
         lectureData={result}
-        userId={1}
+        userId={userId}
         onBack={handleBackFromLecture}
+        onHome={onExit}
         onFinish={handleLectureFinish}
       />
     );
@@ -105,7 +109,7 @@ export default function M4LectureContainer({ onExit, onM1Practice, initialText }
   if (route === 'history') {
     return (
       <LectureHistoryPage
-        userId={1}
+        userId={userId}
         onSelectLecture={(item) => {
           setResult({ lectureId: item.lectureId, title: item.title, slides: item.slides || item.previewSlides });
           setRoute('present');
