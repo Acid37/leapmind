@@ -20,7 +20,8 @@ export async function login(username, password) {
     });
 
     if (response.code === 200 && response.data) {
-      const { token, tokenType, expiresIn, user } = response.data;
+      const { token, tokenType, expiresIn } = response.data;
+      const user = response.data.user ?? response.data.userInfo;
       
       // 保存 token 和用户信息
       saveToken(token, expiresIn);

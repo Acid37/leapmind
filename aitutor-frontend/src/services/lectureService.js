@@ -6,7 +6,7 @@
  *   - 讲课生成 SSE → POST /api/lesson-prep/contents/generate/stream（M5 完整 PPT 生成）
  *   - 讲课内容 CRUD（历史列表/详情/删除/发布）→ Java GET/PUT/DELETE /api/lesson-prep/contents（M5 备课）
  *   - 薄弱知识点查询 → GET /api/weak-points（M3 曾俊桥 / develop 分支）
- *   - M6 事件上报 → POST /api/events/collect（M6 画像引擎）
+ *   - M6 事件上报 → learningEventService.js 统一入口
  * 
  * 模式说明：
  *   - 全部默认走真实后端（设置 VITE_LECTURE_MOCK=true 回退 Mock）
@@ -14,6 +14,7 @@
 
 import { mockParseResult, mockPPTStructure, mockGenerationEvents, mockHistoryList } from '../data/mockLecture';
 import { get, request } from './api';
+import { getToken } from '../utils/tokenManager';
 
 // ─── 模式开关 ──────────────────────────────────────
 
@@ -191,9 +192,14 @@ export async function generateLecture(params, onEvent) {
     userProfile,
     selectedWeakPoints = [],
   } = params || {};
+  const token = getToken();
   const response = await fetch(`/api/teaching/${params.courseId || 'default'}/stream-generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Accept': 'text/event-stream',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({
       source_text: sourceText,
       user_profile: {
@@ -222,9 +228,9 @@ export async function generateLecture(params, onEvent) {
     for (const line of lines) {
       if (line.startsWith('event:')) {
         eventName = line.slice(6).trim() || 'message';
-      } else if (line.startsWith('data: ')) {
+      } else if (line.startsWith('data:')) {
         try {
-          const data = JSON.parse(line.slice(6));
+          const data = JSON.parse(line.slice(5).trimStart());
           const event = { ...data, type: data.type || eventName };
           if (event.type === 'slide') {
             event.slide = data.slide || {
@@ -351,38 +357,12 @@ export async function publishLecture(lectureId, userId) {
   });
 }
 
-// ─── 4. M6 画像引擎事件上报 ─────────────────────────
 
-/**
- * 向 M6 画像引擎提交讲课交互事件。
- * 当前 M4 保持既有事件契约，后续由 M6 统一迁移时再调整。
- */
-export async function submitLectureEvent({
-  lectureId,
-  chapterId,
-  action,
-  sessionId,
-  kpId,
-  traceId,
-}) {
-  const body = {
-    type: 'lecture_interact',
-    sourceModule: 'M4',
-    data: { lectureId, chapterId, action },
-    occurredAt: new Date().toISOString().replace('Z', '+08:00'),
-  };
-  if (sessionId != null) body.sessionId = sessionId;
-  if (kpId != null) body.kpId = String(kpId);
-  if (traceId != null) body.traceId = traceId;
 
-  try {
-    await request('/api/events/collect', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    console.warn('[M4][M6] 事件上报失败:', action, err);
-  }
-}
+
+
+
+
+
 
 
