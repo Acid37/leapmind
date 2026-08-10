@@ -56,7 +56,7 @@ asr:
 # AI服务配置
 ai:
   api:
-    key: sk-ead3ef8a1ef941bab04b2b530ed24a34
+    key: ${DASHSCOPE_API_KEY:}
   prompt: '你是一个聪明且体贴的老师，请简洁的回答以下这个问题，回答完后需要加入"还有其他问题欢迎继续问我呀。"'
   teaching:
     service-url: http://localhost:8000
