@@ -26,6 +26,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -227,5 +228,66 @@ class ConversationServiceTest {
 
         verify(stringRedisTemplate).delete("user:session:sess_to_delete");
         verify(sessionMapper).logicDeleteBySessionId("sess_to_delete");
+    }
+
+    @Test
+    void teachingQuestion_shouldFreezeSlideContextInHistoryMessage() throws Exception {
+        service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
+                webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, eventCollectionService);
+
+        ConversationRequest req = new ConversationRequest();
+        req.setSceneType(SceneType.teaching);
+        req.setQuestion("为什么这里要先通分？");
+        req.setContext(Map.of(
+                "lectureId", "lecture-42",
+                "currentSlide", 3,
+                "slideTitle", "异分母分数加法",
+                "slideContent", "先找最小公倍数，再统一分母"
+        ));
+
+        String message = invokePrivateString("buildContextualUserMessage", req);
+
+        assertTrue(message.contains("PPT第3页《异分母分数加法》"));
+        assertTrue(message.contains("【发问时本页内容】先找最小公倍数，再统一分母"));
+        assertTrue(message.contains("【学生问题】为什么这里要先通分？"));
+    }
+
+    @Test
+    void teachingCacheText_shouldChangeWhenSlideContentChanges() throws Exception {
+        ConversationRequest first = new ConversationRequest();
+        first.setSceneType(SceneType.teaching);
+        first.setQuestion("这一步怎么做？");
+        first.setContext(Map.of(
+                "lectureId", "lecture-42",
+                "currentSlide", 3,
+                "slideTitle", "例题",
+                "slideContent", "旧页面内容"
+        ));
+        ConversationRequest updated = new ConversationRequest();
+        updated.setSceneType(SceneType.teaching);
+        updated.setQuestion(first.getQuestion());
+        updated.setContext(Map.of(
+                "lectureId", "lecture-42",
+                "currentSlide", 3,
+                "slideTitle", "例题",
+                "slideContent", "更新后的页面内容"
+        ));
+
+        String firstCacheText = invokePrivateString("buildRequestCacheText", first);
+        String updatedCacheText = invokePrivateString("buildRequestCacheText", updated);
+
+        assertNotEquals(firstCacheText, updatedCacheText);
+        assertTrue(firstCacheText.contains("旧页面内容"));
+        assertTrue(updatedCacheText.contains("更新后的页面内容"));
+    }
+
+    private String invokePrivateString(String methodName, ConversationRequest req) throws Exception {
+        service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
+                webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, eventCollectionService);
+        Method method = ConversationService.class.getDeclaredMethod(methodName, ConversationRequest.class);
+        method.setAccessible(true);
+        return (String) method.invoke(service, req);
     }
 }
