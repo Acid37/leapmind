@@ -303,7 +303,7 @@ public class WeakPointsServiceImpl implements WeakPointsService {
                     ? "REPEATED_ERROR" : "ACCURACY_DROP";
             eventCollectionClient.reportWeakPointChanged(
                     request.getUserId(),
-                    weakPoint.getKnowledgePoint(),
+                    weakPoint.getKpId(),
                     oldScore,
                     newScore,
                     reason);

@@ -9,11 +9,12 @@ import com.treepeople.leapmindtts.pojo.dto.ConversationSession;
 import com.treepeople.leapmindtts.pojo.dto.ConversationRequest.SceneType;
 import com.treepeople.leapmindtts.pojo.entity.ConversationMessageEntity;
 import com.treepeople.leapmindtts.pojo.entity.ConversationSessionEntity;
-import com.treepeople.leapmindtts.service.EventCollectionService;
+import com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.LearningEventRequest;
 import com.treepeople.leapmindtts.service.common.ContextCompressService;
 import com.treepeople.leapmindtts.service.common.MetricsService;
 import com.treepeople.leapmindtts.service.common.RedisCacheService;
 import com.treepeople.leapmindtts.service.common.RequestMergeService;
+import com.treepeople.leapmindtts.service.profile.UserEventService;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,7 @@ class ConversationServiceTest {
     @Mock private MeterRegistry meterRegistry;
     @Mock private RequestMergeService requestMergeService;
     @Mock private ContextCompressService contextCompressService;
-    @Mock private EventCollectionService eventCollectionService;
+    @Mock private UserEventService userEventService;
 
     @Captor private ArgumentCaptor<ConversationSessionEntity> sessionEntityCaptor;
     @Captor private ArgumentCaptor<ConversationMessageEntity> messageEntityCaptor;
@@ -75,7 +76,7 @@ class ConversationServiceTest {
 
         service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
                 webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
-                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, eventCollectionService);
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, userEventService);
 
         ConversationRequest req = new ConversationRequest();
         req.setUserId(1001L);
@@ -101,7 +102,7 @@ class ConversationServiceTest {
 
         service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
                 webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
-                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, eventCollectionService);
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, userEventService);
 
         String sessionId = "sess_existing";
         String redisJson = "{\"sessionId\":\"" + sessionId + "\",\"userId\":1001,\"sceneType\":\"general_qa\","
@@ -127,7 +128,7 @@ class ConversationServiceTest {
 
         service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
                 webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
-                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, eventCollectionService);
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, userEventService);
 
         String sessionId = "sess_db_only";
         when(valueOps.get("user:session:" + sessionId)).thenReturn(null);
@@ -162,7 +163,7 @@ class ConversationServiceTest {
 
         service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
                 webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
-                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, eventCollectionService);
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, userEventService);
 
         String sessionId = "sess_redis_get";
         String redisJson = "{\"sessionId\":\"" + sessionId + "\",\"userId\":1001,\"sceneType\":\"general_qa\","
@@ -182,7 +183,7 @@ class ConversationServiceTest {
 
         service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
                 webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
-                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, eventCollectionService);
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, userEventService);
 
         when(valueOps.get("user:session:not_exist")).thenReturn(null);
         when(sessionMapper.selectBySessionId("not_exist")).thenReturn(null);
@@ -194,7 +195,7 @@ class ConversationServiceTest {
     void listSessions_shouldReturnUserSessions() {
         service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
                 webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
-                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, eventCollectionService);
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, userEventService);
 
         Long userId = 1001L;
         ConversationSessionEntity e1 = new ConversationSessionEntity();
@@ -221,11 +222,34 @@ class ConversationServiceTest {
     void deleteSession_shouldCleanRedisAndDb() {
         service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
                 webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
-                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, eventCollectionService);
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry, requestMergeService, contextCompressService, userEventService);
 
         service.deleteSession("sess_to_delete");
 
         verify(stringRedisTemplate).delete("user:session:sess_to_delete");
         verify(sessionMapper).logicDeleteBySessionId("sess_to_delete");
+    }
+
+    @Test
+    void askDoubtIsRecordedInUnifiedUserEvents() {
+        service = new ConversationService(aiModelService, aiTeacherBaiduAsrService,
+                webClientBuilder, stringRedisTemplate, sessionMapper, messageMapper,
+                properties, objectMapper, redisCacheService, metricsService, meterRegistry,
+                requestMergeService, contextCompressService, userEventService);
+        ConversationRequest request = new ConversationRequest();
+        request.setUserId(1001L);
+        request.setQuestion("为什么二次函数有两个零点？");
+
+        service.publishAskDoubtEvent("session-7", "call_12345678", request, false);
+
+        ArgumentCaptor<LearningEventRequest> captor = ArgumentCaptor.forClass(LearningEventRequest.class);
+        verify(userEventService).recordInternal(captor.capture());
+        LearningEventRequest event = captor.getValue();
+        assertEquals("m7-ask:call_12345678", event.eventId());
+        assertEquals("session-7", event.sessionId());
+        assertEquals("ask_doubt", event.eventType());
+        assertEquals("M7", event.sourceModule());
+        assertEquals("为什么二次函数有两个零点？", event.data().get("topic").textValue());
+        assertFalse(event.data().has("sessionId"));
     }
 }

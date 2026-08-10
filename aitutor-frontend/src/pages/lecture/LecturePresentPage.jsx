@@ -14,11 +14,12 @@
  *  - "做配套练习"按钮（跳转 M1 做题）
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import Header from '../../components/common/Header';
 import SlideViewer from '../../components/lecture/SlideViewer';
 import TeacherPanel from '../../components/teacher/TeacherPanel';
 import { ChatPanel } from '../../components/chat';
+import { recordLectureInteraction } from '../../services/learningEventService';
 import { Flag, BookOpen, MessageCircle, Monitor, User, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const TABS = [
@@ -172,27 +173,51 @@ const MockSlideViewer = ({ slides, currentIndex, onPrev, onNext, onSlideChange }
   );
 };
 
-const LecturePresentPage = ({ lectureData, userId = 1, onBack, onFinish }) => {
+const LecturePresentPage = ({ lectureData, userId, onBack, onFinish }) => {
   const { lectureId, title = '在线课堂', courseId, slides: mockSlides } = lectureData || {};
   const hasMockSlides = Array.isArray(mockSlides) && mockSlides.length > 0;
   const [currentSlide, setCurrentSlide] = useState(1);
   const [showEndPanel, setShowEndPanel] = useState(false);
   const [mobileTab, setMobileTab] = useState('slides');
+  const interactionSequenceRef = useRef(0);
+  const interactionSessionRef = useRef(
+    lectureData?.sessionId
+      || `lecture-${lectureId}-${globalThis.crypto?.randomUUID?.() || Date.now()}`,
+  );
+
+  const fireEvent = useCallback((action, chapterId) => {
+    if (!lectureId) return;
+    interactionSequenceRef.current += 1;
+    const sessionId = interactionSessionRef.current;
+    recordLectureInteraction({
+      userId,
+      lectureId,
+      chapterId: chapterId || `ch${currentSlide}`,
+      action,
+      interactionId: `${sessionId}:${interactionSequenceRef.current}`,
+      sessionId,
+      kpId: lectureData?.knowledgePoints?.[0]?.id,
+    }).catch(error => console.warn('[M4][M6] 讲课交互事件上报失败:', error.message));
+  }, [currentSlide, lectureData?.knowledgePoints, lectureId, userId]);
 
   // 幻灯片切换回调（由 SlideViewer 内部翻页时触发）
   const handleSlideChange = useCallback((pageNum) => {
+    if (pageNum < currentSlide) fireEvent('replay', `ch${pageNum}`);
     setCurrentSlide(pageNum);
-  }, []);
+  }, [currentSlide, fireEvent]);
 
   // mock 模式下的翻页 handler
   const handleMockPrev = useCallback(() => {
-    setCurrentSlide(prev => Math.max(1, prev - 1));
-  }, []);
+    handleSlideChange(Math.max(1, currentSlide - 1));
+  }, [currentSlide, handleSlideChange]);
   const handleMockNext = useCallback(() => {
     setCurrentSlide(prev => Math.min((mockSlides?.length || 1), prev + 1));
   }, [mockSlides]);
 
-  const handleEndLecture = () => setShowEndPanel(true);
+  const handleEndLecture = () => {
+    fireEvent('complete', `ch${currentSlide}`);
+    setShowEndPanel(true);
+  };
 
   const handleGoPractice = () => {
     onFinish?.({ lectureId, knowledgePoints: lectureData?.knowledgePoints });

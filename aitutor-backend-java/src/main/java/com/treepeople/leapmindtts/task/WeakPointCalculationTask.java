@@ -127,7 +127,7 @@ public class WeakPointCalculationTask {
         if (oldScore.compareTo(newScore) != 0) {
             eventCollectionClient.reportWeakPointChanged(
                     wp.getUserId(),
-                    wp.getKnowledgePoint(),
+                    wp.getKpId(),
                     oldScore,
                     newScore,
                     "RECALCULATED");

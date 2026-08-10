@@ -2,6 +2,7 @@ package com.treepeople.leapmindtts.service.lesson;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.treepeople.leapmindtts.config.ConversationProperties;
 import com.treepeople.leapmindtts.mapper.ConversationMessageMapper;
 import com.treepeople.leapmindtts.mapper.ConversationSessionMapper;
@@ -11,9 +12,9 @@ import com.treepeople.leapmindtts.pojo.dto.ConversationRequest.SceneType;
 import com.treepeople.leapmindtts.pojo.dto.ConversationSession;
 import com.treepeople.leapmindtts.pojo.entity.ConversationMessageEntity;
 import com.treepeople.leapmindtts.pojo.entity.ConversationSessionEntity;
-import com.treepeople.leapmindtts.pojo.entity.EventCollection;
+import com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.LearningEventRequest;
 // 【引入缺失的优化组件与工具类】
-import com.treepeople.leapmindtts.service.EventCollectionService;
+import com.treepeople.leapmindtts.service.profile.UserEventService;
 import com.treepeople.leapmindtts.service.common.RedisCacheService;
 import com.treepeople.leapmindtts.service.common.MetricsService;
 import com.treepeople.leapmindtts.service.common.ContextCompressService;
@@ -31,6 +32,8 @@ import reactor.core.publisher.Flux;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -59,7 +62,7 @@ public class ConversationService {
     private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
     private final com.treepeople.leapmindtts.service.common.RequestMergeService requestMergeService;
     private final ContextCompressService contextCompressService;
-    private final EventCollectionService eventCollectionService;
+    private final UserEventService userEventService;
 
     private final ConcurrentHashMap<String, BaseSubscriber<AIModelService.AiChunk>> activeSubscribers = new ConcurrentHashMap<>();
 
@@ -79,7 +82,7 @@ public class ConversationService {
                                io.micrometer.core.instrument.MeterRegistry meterRegistry,
                                com.treepeople.leapmindtts.service.common.RequestMergeService requestMergeService,
                                ContextCompressService contextCompressService,
-                               EventCollectionService eventCollectionService) {
+                               UserEventService userEventService) {
         this.aiModelService = aiModelService;
         this.aiTeacherBaiduAsrService = aiTeacherBaiduAsrService;
         this.webClient = webClientBuilder.build();
@@ -93,7 +96,7 @@ public class ConversationService {
         this.meterRegistry = meterRegistry;
         this.requestMergeService = requestMergeService;
         this.contextCompressService = contextCompressService;
-        this.eventCollectionService = eventCollectionService;
+        this.userEventService = userEventService;
     }
 
     @PostConstruct
@@ -205,28 +208,28 @@ public class ConversationService {
         }
     }
 
-    private void publishAskDoubtEvent(String sessionId, ConversationRequest req, boolean isFollowUp) {
+    void publishAskDoubtEvent(String sessionId, String callId, ConversationRequest req, boolean isFollowUp) {
         try {
             if (req.getUserId() == null || req.getQuestion() == null || req.getQuestion().isEmpty()) {
                 return;
             }
             String topic = truncate(req.getQuestion(), 120);
-            Map<String, Object> data = new LinkedHashMap<>();
+            ObjectNode data = objectMapper.createObjectNode();
             data.put("topic", topic);
             data.put("confusionTag", "concept_unclear");
             data.put("isFollowUp", isFollowUp);
-            if (sessionId != null) {
-                data.put("sessionId", sessionId);
-            }
-            EventCollection event = EventCollection.builder()
-                    .module("M7")
-                    .eventType("ask_doubt")
-                    .userId(req.getUserId())
-                    .eventData(objectMapper.writeValueAsString(data))
-                    .eventTime(LocalDateTime.now())
-                    .processed(0)
-                    .build();
-            eventCollectionService.collectEvent(event);
+            LearningEventRequest event = new LearningEventRequest(
+                    "m7-ask:" + callId,
+                    req.getUserId(),
+                    "ask_doubt",
+                    "M7",
+                    OffsetDateTime.now(ZoneOffset.UTC),
+                    "1.0",
+                    sessionId,
+                    null,
+                    callId,
+                    data);
+            userEventService.recordInternal(event);
             log.info("Published M7 ask_doubt event for userId={}, topicLength={}, isFollowUp={}",
                     req.getUserId(), topic.codePointCount(0, topic.length()), isFollowUp);
         } catch (Exception e) {
@@ -305,7 +308,7 @@ public class ConversationService {
         Flux<ServerSentEvent<?>> optimizedStream = isFollowUp ? null : tryServeOptimized(req, sessionId, session, callId);
         if (optimizedStream != null) {
             persistReplayedPair(sessionId, session, req, callId);
-            publishAskDoubtEvent(sessionId, req, isFollowUp);
+            publishAskDoubtEvent(sessionId, callId, req, isFollowUp);
             return optimizedStream;
         }
 
@@ -437,7 +440,7 @@ public class ConversationService {
                         saveSessionToRedis(session);
                     }
                     cacheAnswerIfNeeded(req, answer, isFollowUp);
-                    publishAskDoubtEvent(sessionId, req, isFollowUp);
+                    publishAskDoubtEvent(sessionId, callId, req, isFollowUp);
                     metricsService.incrementQuestionProcessed("full", "success");
                     streamFinished.set(true);
                     fluxSink.next(sseEvent("message",

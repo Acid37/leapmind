@@ -96,6 +96,19 @@ class UserEventCommandConverterTest {
         }
     }
 
+    @Test void convertsWrongQuestionChangedEvent() {
+        LearningEventCommand command = converter.convert(event("wrong_question_changed",
+                "{\"questionId\":1001,\"status\":\"UNRESOLVED\",\"wrongCount\":2}"));
+
+        LearningEventPayload.WrongQuestionChanged payload =
+                (LearningEventPayload.WrongQuestionChanged) command.payload();
+        assertEquals("wrong_question_changed", command.eventType());
+        assertEquals("M1", command.sourceModule());
+        assertEquals(1001L, payload.questionId());
+        assertEquals("UNRESOLVED", payload.status());
+        assertEquals(2, payload.wrongCount());
+    }
+
     @Test void occurredAtIsInterpretedAsUtc() {
         UserEvent raw = event("finish_practice", "{\"questionCount\":1,\"accuracy\":1.0,\"durationSec\":0}");
         raw.setOccurredAt(LocalDateTime.of(2026, 1, 1, 0, 0, 0));
