@@ -302,16 +302,6 @@ function ThumbnailStrip({ slides, current, onSelect, layout = 'horizontal' }) {
     }
   }, [current, layout]);
 
-  const previewColor = (type) => {
-    switch (type) {
-      case 'cover': return '#7c3aed';
-      case 'summary': return '#10b981';
-      case 'interactive': return '#f59e0b';
-      case 'homework': return '#3b82f6';
-      default: return '#94a3b8';
-    }
-  };
-
   const typeLabel = (type) => {
     switch (type) {
       case 'cover': return '封面';
@@ -346,10 +336,26 @@ function ThumbnailStrip({ slides, current, onSelect, layout = 'horizontal' }) {
           }`}
         >
           <div
-            className={`${layout === 'horizontal' ? 'h-10 sm:h-12' : 'h-8'} flex items-center justify-center text-[10px] text-white font-semibold`}
-            style={{ background: previewColor(s.type) }}
+            className={`${layout === 'horizontal' ? 'h-10 sm:h-12' : 'h-12'} relative flex flex-col justify-center overflow-hidden px-1.5 text-left`}
+            style={{ background: TYPE_STYLES[s.type]?.bg || TYPE_STYLES.content.bg }}
           >
-            {typeLabel(s.type)}
+            <span className={`absolute right-1 top-1 rounded px-1 py-0.5 text-[7px] font-bold ${
+              s.type === 'cover' || s.type === 'summary' ? 'bg-white/20 text-white' : 'bg-white/75 text-slate-600'
+            }`}>
+              {typeLabel(s.type)}
+            </span>
+            <span className={`line-clamp-2 pr-5 text-[8px] font-bold leading-tight ${
+              s.type === 'cover' || s.type === 'summary' ? 'text-white' : 'text-slate-800'
+            }`}>
+              {s.title || `第 ${i + 1} 页`}
+            </span>
+            {s.bulletPoints?.[0] && (
+              <span className={`mt-0.5 truncate text-[7px] ${
+                s.type === 'cover' || s.type === 'summary' ? 'text-white/70' : 'text-slate-500'
+              }`}>
+                {s.bulletPoints[0]}
+              </span>
+            )}
           </div>
           <div className="bg-slate-700 text-white text-[9px] text-center py-0.5">
             {i + 1}/{slides.length}

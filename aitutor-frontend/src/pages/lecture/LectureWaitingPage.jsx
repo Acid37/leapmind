@@ -10,22 +10,51 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { generateLecture } from '../../services/lectureService';
-import { Loader2, CheckCircle2, FileText, Play, ArrowLeft } from 'lucide-react';
+import SlidePreview from '../../components/shared/SlideRenderer';
+import { validateLectureSlides } from '../../utils/lectureSlideValidation';
+import { Loader2, CheckCircle2, FileText, Play, ArrowLeft, Sparkles, Layers3, WandSparkles, Clock3 } from 'lucide-react';
+
+const GENERATION_STEPS = [
+  { key: 'source', label: '分析素材', icon: FileText },
+  { key: 'outline', label: '生成大纲', icon: Sparkles },
+  { key: 'slides', label: '逐页制作', icon: Layers3 },
+  { key: 'finish', label: '整理完成', icon: WandSparkles },
+];
+
+const formatOutline = (content, fallbackTitle) => {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    const titles = content
+      .map((item) => typeof item === 'string' ? item : item?.title)
+      .filter(Boolean);
+    if (titles.length > 0) return titles.join(' · ');
+  }
+  if (content && typeof content === 'object') {
+    return content.title || content.summary || fallbackTitle || '讲课大纲已生成';
+  }
+  return fallbackTitle || '正在生成讲课大纲…';
+};
 
 // ─── 幻灯片缩略图 ──────────────────────────────────
 
-// 缩略图卡片：根据 slide.type 显示不同色彩预览
-const getPreviewStyle = (type) => {
-  if (type === 'cover') return { bg: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)', text: 'text-white' };
-  if (type === 'ending') return { bg: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', text: 'text-white' };
-  if (type === 'example') return { bg: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', text: 'text-white' };
-  return { bg: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', text: 'text-slate-600' };
-};
-
 const SlideThumbnail = ({ slide, index, isNew }) => {
-  const style = getPreviewStyle(slide.type);
   // 真实 M5 SSE 为扁平结构（title 在顶层），旧 Mock 使用 content.title。
   const title = slide.title || slide.content?.title || '未命名幻灯片';
+  const previewSlide = {
+    ...slide,
+    pageNum: slide.pageNum ?? slide.page_num ?? index + 1,
+    type: slide.type === 'example'
+      ? 'interactive'
+      : slide.type === 'ending'
+        ? 'summary'
+        : slide.type || 'content',
+    title,
+    subtitle: slide.subtitle || slide.content?.subtitle || '',
+    bulletPoints: slide.bulletPoints ?? slide.bullet_points ?? slide.content?.body ?? [],
+    formula: slide.formula || slide.content?.formula,
+    highlightPoints: slide.highlightPoints ?? slide.highlight_points ?? slide.content?.highlightPoints ?? [],
+    interaction: slide.interaction || null,
+  };
   return (
     <div
       className={`rounded-xl border-2 transition-all overflow-hidden ${
@@ -34,25 +63,12 @@ const SlideThumbnail = ({ slide, index, isNew }) => {
           : 'border-slate-200 bg-white hover:border-purple-200 hover:shadow-md'
       }`}
     >
-      {/* 顶部预览色块（PPT 缩略图占位，16:9 固定比例，不会被拉伸） */}
-      <div
-        className="w-full aspect-video flex items-center justify-center relative"
-        style={{ background: style.bg }}
-      >
-        <span className={`text-xs lg:text-sm font-semibold ${style.text} opacity-90`}>
-          {slide.type === 'cover' ? '封面' :
-           slide.type === 'ending' ? '结尾' :
-           slide.type === 'example' ? '例题' : '内容'}
-        </span>
-        <span className={`absolute top-1 right-1.5 text-[10px] font-bold px-1 py-0.5 rounded ${style.text === 'text-white' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'}`}>
+      {/* 复用 M4/M5 的共享 SlideData 渲染规则，展示真实标题、要点与公式。 */}
+      <div className="relative bg-slate-900">
+        <SlidePreview slide={previewSlide} compact />
+        <span className="absolute bottom-1 right-1.5 rounded bg-slate-950/55 px-1 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
           p.{index + 1}
         </span>
-      </div>
-      {/* 底部标题区 */}
-      <div className="p-2 lg:p-2.5">
-        <p className="text-xs lg:text-sm font-semibold text-slate-700 line-clamp-1 leading-tight" title={title}>
-          {title}
-        </p>
       </div>
     </div>
   );
@@ -68,7 +84,37 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
   const [lectureId, setLectureId] = useState(null);
   const [error, setError] = useState('');
   const [newSlideIndices, setNewSlideIndices] = useState(new Set());
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const containerRef = useRef(null);
+  const slidesRef = useRef([]);
+
+  useEffect(() => {
+    slidesRef.current = slides;
+  }, [slides]);
+
+  useEffect(() => {
+    if (status !== 'generating') return undefined;
+    const startedAt = Date.now();
+    setElapsedSeconds(0);
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [status]);
+
+  const activeStep = status === 'done'
+    ? 3
+    : progress.current > 0
+      ? 2
+      : outline
+        ? 1
+        : 0;
+
+  const currentTask = progress.current > 0
+    ? `正在生成第 ${Math.min(progress.current + 1, progress.total || progress.current + 1)} 页内容`
+    : outline
+      ? '大纲已就绪，正在准备第一页'
+      : '正在理解主题、年级与薄弱知识点';
 
   useEffect(() => {
     if (!params) return;
@@ -92,13 +138,14 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
 
           switch (event.type) {
             case 'outline':
-              setOutline(event.content || event.title || '正在生成讲课大纲…');
+              setOutline(formatOutline(event.content ?? event.outline, event.title));
               break;
             case 'slide':
               setSlides(prev => {
                 const next = [...prev];
                 const slideIndex = (event.pageNum ?? event.page_num ?? event.slide?.pageNum ?? event.slide?.page_num ?? 1) - 1;
                 next[slideIndex] = { ...next[slideIndex], ...event.slide };
+                slidesRef.current = next;
                 return next;
               });
               setProgress({ current: event.pageNum ?? event.page_num ?? 0, total: event.totalPages ?? event.total_pages ?? 0 });
@@ -126,10 +173,24 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
               });
               break;
             case 'done':
+              {
+                const totalPages = Number(event.totalPages ?? event.total_pages ?? progress.total);
+                const finalSlides = Array.isArray(event.slides) ? event.slides : slidesRef.current;
+                const validation = validateLectureSlides(finalSlides, totalPages);
+                if (!validation.valid) {
+                  setError(`第 ${validation.missingPages.join('、')} 页生成不完整，请返回后重新生成。`);
+                  setStatus('error');
+                  break;
+                }
+                if (event.prepId != null) setLectureId(event.prepId);
+                slidesRef.current = validation.slides;
+                setSlides(validation.slides);
+                setProgress({ current: totalPages, total: totalPages });
+                setStatus('done');
+              }
+              break;
             case 'saved':
               if (event.prepId != null) setLectureId(event.prepId);
-              setProgress({ current: event.totalPages, total: event.totalPages });
-              setStatus('done');
               break;
             default:
               break;
@@ -154,11 +215,17 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
 
   const handleStartLecture = () => {
     if (status === 'done') {
+      const validation = validateLectureSlides(slides, progress.total || slides.length);
+      if (!validation.valid) {
+        setError(`第 ${validation.missingPages.join('、')} 页生成不完整，请返回后重新生成。`);
+        setStatus('error');
+        return;
+      }
       onComplete?.({
         lectureId: lectureId ?? params?.lectureId,
         title: params?.textContent || '在线课堂',
-        slides,
-        totalPages: slides.length,
+        slides: validation.slides,
+        totalPages: validation.slides.length,
         knowledgePoints: params?.selectedWeakPoints || [],
       });
     }
@@ -206,6 +273,10 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
               <p className="text-xs sm:text-sm text-slate-500 mt-1 sm:mt-2">
                 已生成 {progress.current}/{progress.total || '?'} 页
               </p>
+              <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-slate-400">
+                <Clock3 className="h-3.5 w-3.5" />
+                已用时 {elapsedSeconds} 秒 · AI 生成通常需要 1–2 分钟
+              </div>
             </>
           )}
           {status === 'done' && (
@@ -225,6 +296,46 @@ const LectureWaitingPage = ({ params, onComplete, onBack }) => {
             </>
           )}
         </div>
+
+        {(status === 'generating' || status === 'done') && (
+          <div className="mb-4 sm:mb-6 rounded-2xl border border-white/80 bg-white/75 p-4 shadow-sm backdrop-blur-sm">
+            <div className="grid grid-cols-4 gap-2">
+              {GENERATION_STEPS.map((step, index) => {
+                const StepIcon = step.icon;
+                const completed = status === 'done' || index < activeStep;
+                const active = status !== 'done' && index === activeStep;
+                return (
+                  <div key={step.key} className="relative flex flex-col items-center text-center">
+                    {index < GENERATION_STEPS.length - 1 && (
+                      <div className={`absolute left-[58%] top-4 h-0.5 w-[84%] ${index < activeStep ? 'bg-purple-400' : 'bg-slate-200'}`} />
+                    )}
+                    <div className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                      completed
+                        ? 'bg-emerald-500 text-white'
+                        : active
+                          ? 'bg-purple-600 text-white shadow-md shadow-purple-200'
+                          : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      {completed ? <CheckCircle2 className="h-4 w-4" /> : <StepIcon className={`h-4 w-4 ${active ? 'animate-pulse' : ''}`} />}
+                    </div>
+                    <span className={`mt-2 text-[11px] sm:text-xs font-medium ${active ? 'text-purple-700' : completed ? 'text-emerald-700' : 'text-slate-400'}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {status === 'generating' && (
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-purple-50 px-3 py-2.5 text-xs sm:text-sm">
+                <span className="flex items-center gap-2 font-medium text-purple-700">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {currentTask}
+                </span>
+                <span className="shrink-0 text-slate-400">请保持页面开启</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 大纲预览（生成中） */}
         {outline && status === 'generating' && (
