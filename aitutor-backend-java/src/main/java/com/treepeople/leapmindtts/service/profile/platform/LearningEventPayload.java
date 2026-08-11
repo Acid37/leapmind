@@ -71,14 +71,6 @@ public sealed interface LearningEventPayload permits LearningEventPayload.Answer
         }
         public String eventType() { return "preference_changed"; } public String sourceModule() { return "M6"; }
     }
-    record WrongQuestionChanged(long questionId, String status, int wrongCount) implements LearningEventPayload {
-        public WrongQuestionChanged {
-            if (questionId < 1) throw new IllegalArgumentException("questionId is invalid");
-            required(status, Set.of("UNRESOLVED", "REVIEWING", "RESOLVED"), "status");
-            between(wrongCount, 1, 9999, "wrongCount");
-        }
-        public String eventType() { return "wrong_question_changed"; } public String sourceModule() { return "M1"; }
-    }
     private static void identifier(String value, String name) { if (value == null || !IDENTIFIER.matcher(value).matches()) throw new IllegalArgumentException(name + " is invalid"); }
     private static void required(String value, Set<String> values, String name) { if (value == null || !values.contains(value)) throw new IllegalArgumentException(name + " is invalid"); }
     private static void optional(String value, Set<String> values, String name) { if (value != null) required(value, values, name); }
