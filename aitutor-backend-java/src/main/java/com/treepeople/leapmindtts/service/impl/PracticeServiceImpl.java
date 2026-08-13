@@ -19,7 +19,7 @@ import com.treepeople.leapmindtts.pojo.entity.PracticeQuestion;
 import com.treepeople.leapmindtts.pojo.entity.PracticeUserStats;
 import com.treepeople.leapmindtts.pojo.entity.User;
 import com.treepeople.leapmindtts.pojo.entity.EventCollection;
-import com.treepeople.leapmindtts.service.AIModelService;
+import com.treepeople.leapmindtts.service.lesson.AIModelService;
 import com.treepeople.leapmindtts.service.EventCollectionService;
 import com.treepeople.leapmindtts.service.PracticeService;
 import com.treepeople.leapmindtts.service.importer.PracticeQuestionImportParser;

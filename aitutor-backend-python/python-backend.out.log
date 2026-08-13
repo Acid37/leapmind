@@ -1,0 +1,13 @@
+🚀 Starting LandPPT Server...
+📍 Host: 0.0.0.0
+🔌 Port: 8000
+🔄 Reload: False
+📊 Log Level: info
+📍 Server will be available at: http://localhost:8000
+📚 API Documentation: http://localhost:8000/docs
+🌐 Web Interface: http://localhost:8000/web
+============================================================
+INFO:     127.0.0.1:65193 - "GET /health HTTP/1.1" 302 Found
+INFO:     127.0.0.1:65193 - "GET /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56879 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50839 - "GET /docs HTTP/1.1" 200 OK

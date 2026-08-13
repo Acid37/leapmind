@@ -1,0 +1,11 @@
+INFO:landppt.main:Mounted temp directory: D:\a-TuMo\study\project\hsd\leapmind\aitutor-backend-python\temp
+INFO:     Started server process [7620]
+INFO:     Waiting for application startup.
+INFO:landppt.services.image.providers.local_storage_provider:Local storage provider initialized: temp\images_cache\local_storage
+INFO:landppt.main:Initializing database...
+INFO:landppt.database.database:SQLite 模式：表已自动创建
+INFO:landppt.main:Database initialized successfully
+INFO:landppt.main:M6 tables initialized successfully
+INFO:landppt.main:Database already exists - skipping template import
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

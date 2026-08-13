@@ -1,0 +1,650 @@
+[INFO] Scanning for projects...
+[WARNING] 
+[WARNING] Some problems were encountered while building the effective model for com.treepeople:leapmind-tts:jar:0.0.1-SNAPSHOT
+[WARNING] 'dependencies.dependency.(groupId:artifactId:type:classifier)' must be unique: org.springdoc:springdoc-openapi-starter-webmvc-ui:jar -> duplicate declaration of version 2.2.0 @ line 293, column 21
+[WARNING] 'dependencies.dependency.(groupId:artifactId:type:classifier)' must be unique: org.apache.poi:poi-ooxml:jar -> duplicate declaration of version 5.2.5 @ line 307, column 21
+[WARNING] 'dependencies.dependency.(groupId:artifactId:type:classifier)' must be unique: io.minio:minio:jar -> version 8.5.7 vs 8.5.9 @ line 314, column 21
+[WARNING] 
+[WARNING] It is highly recommended to fix these problems because they threaten the stability of your build.
+[WARNING] 
+[WARNING] For this reason, future Maven versions might no longer support building such malformed projects.
+[WARNING] 
+[INFO] 
+[INFO] --------------------< com.treepeople:leapmind-tts >---------------------
+[INFO] Building leapmind-tts 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ leapmind-tts ---
+[INFO] Copying 54 resources from src\main\resources to target\classes
+[INFO] Copying 1 resource from docs to target\classes\static\docs
+[INFO] 
+[INFO] --- compiler:3.12.1:compile (default-compile) @ leapmind-tts ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 439 source files with javac [debug parameters release 17] to target\classes
+[INFO] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/config/M6EventJsonCodec.java: 某些输入文件使用或覆盖了已过时的 API。
+[INFO] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/config/M6EventJsonCodec.java: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+[INFO] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/ConversationService.java: d:\a-TuMo\study\project\hsd\leapmind\aitutor-backend-java\src\main\java\com\treepeople\leapmindtts\service\lesson\ConversationService.java使用了未经检查或不安全的操作。
+[INFO] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/ConversationService.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] 某些消息已经过简化; 请使用 -Xdiags:verbose 重新编译以获得完整输出
+[INFO] -------------------------------------------------------------
+[WARNING] COMPILATION WARNING : 
+[INFO] -------------------------------------------------------------
+[WARNING] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/config/RedisConfig.java:[26,20] org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer 中的 setObjectMapper(com.fasterxml.jackson.databind.ObjectMapper) 已过时, 且标记为待删除
+[INFO] 1 warning
+[INFO] -------------------------------------------------------------
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/WeakPointsServiceImpl.java:[805,52] 找不到符号
+  符号:   类 WeakPointDetailVOBuilder
+  位置: 类 com.treepeople.leapmindtts.pojo.vo.WeakPointDetailVO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/impl/PracticeServiceImpl.java:[22,42] 找不到符号
+  符号:   类 AIModelService
+  位置: 程序包 com.treepeople.leapmindtts.service
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/impl/PracticeServiceImpl.java:[89,34] 找不到符号
+  符号:   类 AIModelService
+  位置: 类 com.treepeople.leapmindtts.service.impl.PracticeServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/config/WebClientConfig.java:[84,22] 已在类 com.treepeople.leapmindtts.config.WebClientConfig中定义了方法 contextCompressWebClient()
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[31,36] 找不到符号
+  符号:   方法 getSecret()
+  位置: 类型为com.treepeople.leapmindtts.config.JwtConfig的变量 jwtConfig
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[33,13] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.util.JwtUtil
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[48,61] 找不到符号
+  符号:   方法 getExpiration()
+  位置: 类型为com.treepeople.leapmindtts.config.JwtConfig的变量 jwtConfig
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[103,13] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.util.JwtUtil
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[140,66] 找不到符号
+  符号:   方法 getTokenPrefix()
+  位置: 类型为com.treepeople.leapmindtts.config.JwtConfig的变量 jwtConfig
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[141,50] 找不到符号
+  符号:   方法 getTokenPrefix()
+  位置: 类型为com.treepeople.leapmindtts.config.JwtConfig的变量 jwtConfig
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[42,9] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.service.lesson.SegmentCacheManager
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[43,27] 找不到符号
+  符号:   方法 getCache()
+  位置: 类型为com.treepeople.leapmindtts.config.SegmentedSpeechProperties的变量 properties
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[53,13] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.service.lesson.SegmentCacheManager
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[58,43] 找不到符号
+  符号:   方法 getCache()
+  位置: 类型为com.treepeople.leapmindtts.config.SegmentedSpeechProperties的变量 properties
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[60,26] 找不到符号
+  符号:   方法 getSegmentIndex()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.SpeechSegment的变量 segment
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[62,9] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.service.lesson.SegmentCacheManager
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[63,34] 找不到符号
+  符号:   方法 getSegmentIndex()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.SpeechSegment的变量 segment
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[96,31] 找不到符号
+  符号:   方法 builder()
+  位置: 类 com.treepeople.leapmindtts.service.lesson.SegmentCacheManager.CacheStatistics
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[45,13] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[49,13] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[70,36] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[71,37] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[72,37] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/config/M6StrictJsonFilter.java:[67,63] 找不到符号
+  符号:   方法 <com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.ErrorData>builder()
+  位置: 类 com.treepeople.leapmindtts.pojo.result.ApiResponse
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[31,55] 找不到符号
+  符号:   方法 getStageName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[32,47] 找不到符号
+  符号:   方法 getGradeName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[33,45] 找不到符号
+  符号:   方法 getSemester()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[34,44] 找不到符号
+  符号:   方法 getSubject()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[35,51] 找不到符号
+  符号:   方法 getChapterNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[45,43] 找不到符号
+  符号:   方法 getSubject()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[46,38] 找不到符号
+  符号:   方法 getStageName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[47,38] 找不到符号
+  符号:   方法 getGradeName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[48,36] 找不到符号
+  符号:   方法 getSemester()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[49,42] 找不到符号
+  符号:   方法 getChapterNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[50,42] 找不到符号
+  符号:   方法 getSectionNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[57,22] 找不到符号
+  符号:   方法 setCourseId(java.lang.String)
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[58,41] 找不到符号
+  符号:   方法 getSubject()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[59,43] 找不到符号
+  符号:   方法 getStageName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[60,43] 找不到符号
+  符号:   方法 getGradeName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[61,42] 找不到符号
+  符号:   方法 getSemester()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[62,47] 找不到符号
+  符号:   方法 getChapterNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[63,46] 找不到符号
+  符号:   方法 getChapterTitle()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[64,48] 找不到符号
+  符号:   方法 getSectionContent()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[65,47] 找不到符号
+  符号:   方法 getSectionNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[66,46] 找不到符号
+  符号:   方法 getSectionTitle()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[90,20] 找不到符号
+  符号:   方法 getSubject()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[91,45] 找不到符号
+  符号:   方法 getSubject()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[93,20] 找不到符号
+  符号:   方法 getStageName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[94,47] 找不到符号
+  符号:   方法 getStageName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[96,20] 找不到符号
+  符号:   方法 getGradeName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[97,47] 找不到符号
+  符号:   方法 getGradeName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[99,20] 找不到符号
+  符号:   方法 getSemester()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[100,46] 找不到符号
+  符号:   方法 getSemester()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[102,20] 找不到符号
+  符号:   方法 getChapterNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[103,51] 找不到符号
+  符号:   方法 getChapterNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[105,20] 找不到符号
+  符号:   方法 getChapterTitle()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[106,50] 找不到符号
+  符号:   方法 getChapterTitle()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[108,20] 找不到符号
+  符号:   方法 getSectionContent()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[109,52] 找不到符号
+  符号:   方法 getSectionContent()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[111,20] 找不到符号
+  符号:   方法 getSectionNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[112,51] 找不到符号
+  符号:   方法 getSectionNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[114,20] 找不到符号
+  符号:   方法 getSectionTitle()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[115,50] 找不到符号
+  符号:   方法 getSectionTitle()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[164,38] 找不到符号
+  符号:   方法 getChapterNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[163,38] 找不到符号
+  符号:   方法 getSubject()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[162,38] 找不到符号
+  符号:   方法 getSemester()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[161,38] 找不到符号
+  符号:   方法 getGradeName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[160,38] 找不到符号
+  符号:   方法 getStageName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[160,98] 找不到符号
+  符号:   方法 getStageName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[161,98] 找不到符号
+  符号:   方法 getGradeName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[162,95] 找不到符号
+  符号:   方法 getSemester()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[163,93] 找不到符号
+  符号:   方法 getSubject()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[164,106] 找不到符号
+  符号:   方法 getChapterNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[175,24] 找不到符号
+  符号:   方法 builder()
+  位置: 类 com.treepeople.leapmindtts.pojo.vo.CourseVO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[176,30] 找不到符号
+  符号:   方法 getId()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[177,36] 找不到符号
+  符号:   方法 getCourseId()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[178,35] 找不到符号
+  符号:   方法 getSubject()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[179,37] 找不到符号
+  符号:   方法 getStageName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[180,37] 找不到符号
+  符号:   方法 getGradeName()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[181,36] 找不到符号
+  符号:   方法 getSemester()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[182,41] 找不到符号
+  符号:   方法 getChapterNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[183,40] 找不到符号
+  符号:   方法 getChapterTitle()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[184,42] 找不到符号
+  符号:   方法 getSectionContent()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[185,41] 找不到符号
+  符号:   方法 getSectionNumber()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[186,40] 找不到符号
+  符号:   方法 getSectionTitle()
+  位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/PPTSlidesController.java:[36,9] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.controller.lesson.PPTSlidesController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/PPTSlidesController.java:[41,13] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.controller.lesson.PPTSlidesController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/result/ApiResponse.java:[24,17] 无法推断com.treepeople.leapmindtts.pojo.result.ApiResponse<>的类型参数
+  原因: 无法推断类型变量 T
+    (实际参数列表和形式参数列表长度不同)
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/result/ApiResponse.java:[28,17] 无法推断com.treepeople.leapmindtts.pojo.result.ApiResponse<>的类型参数
+  原因: 无法推断类型变量 T
+    (实际参数列表和形式参数列表长度不同)
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/result/ApiResponse.java:[32,16] 无法推断com.treepeople.leapmindtts.pojo.result.ApiResponse<>的类型参数
+  原因: 无法推断类型变量 T
+    (实际参数列表和形式参数列表长度不同)
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/result/ApiResponse.java:[38,17] 无法推断com.treepeople.leapmindtts.pojo.result.ApiResponse<>的类型参数
+  原因: 无法推断类型变量 T
+    (实际参数列表和形式参数列表长度不同)
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/enums/GradeEnum.java:[46,22] 找不到符号
+  符号:   方法 getCode()
+  位置: 类型为com.treepeople.leapmindtts.pojo.enums.GradeEnum的变量 grade
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[54,9] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.controller.lesson.BulkSpeechController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[55,24] 找不到符号
+  符号:   方法 getTitle()
+  位置: 类型为@jakarta.validation.Valid com.treepeople.leapmindtts.pojo.dto.BulkSynthesisRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[56,24] 找不到符号
+  符号:   方法 getSlides()
+  位置: 类型为@jakarta.validation.Valid com.treepeople.leapmindtts.pojo.dto.BulkSynthesisRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[56,54] 找不到符号
+  符号:   方法 getSlides()
+  位置: 类型为@jakarta.validation.Valid com.treepeople.leapmindtts.pojo.dto.BulkSynthesisRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[64,13] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.controller.lesson.BulkSpeechController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[64,55] 找不到符号
+  符号:   方法 getCourseId()
+  位置: 类型为com.treepeople.leapmindtts.pojo.dto.BulkSynthesisResponse的变量 response
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[67,13] 找不到符号
+  符号:   变量 log
+  位置: 类 com.treepeople.leapmindtts.controller.lesson.BulkSpeechController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[69,48] 找不到符号
+  符号:   方法 builder()
+  位置: 类 com.treepeople.leapmindtts.pojo.dto.BulkSynthesisResponse
+[INFO] 100 errors 
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  11.369 s
+[INFO] Finished at: 2026-08-09T19:17:59+08:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.12.1:compile (default-compile) on project leapmind-tts: Compilation failure: Compilation failure: 
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/WeakPointsServiceImpl.java:[805,52] 找不到符号
+[ERROR]   符号:   类 WeakPointDetailVOBuilder
+[ERROR]   位置: 类 com.treepeople.leapmindtts.pojo.vo.WeakPointDetailVO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/impl/PracticeServiceImpl.java:[22,42] 找不到符号
+[ERROR]   符号:   类 AIModelService
+[ERROR]   位置: 程序包 com.treepeople.leapmindtts.service
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/impl/PracticeServiceImpl.java:[89,34] 找不到符号
+[ERROR]   符号:   类 AIModelService
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.impl.PracticeServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/config/WebClientConfig.java:[84,22] 已在类 com.treepeople.leapmindtts.config.WebClientConfig中定义了方法 contextCompressWebClient()
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[31,36] 找不到符号
+[ERROR]   符号:   方法 getSecret()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.config.JwtConfig的变量 jwtConfig
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[33,13] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.util.JwtUtil
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[48,61] 找不到符号
+[ERROR]   符号:   方法 getExpiration()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.config.JwtConfig的变量 jwtConfig
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[103,13] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.util.JwtUtil
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[140,66] 找不到符号
+[ERROR]   符号:   方法 getTokenPrefix()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.config.JwtConfig的变量 jwtConfig
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/util/JwtUtil.java:[141,50] 找不到符号
+[ERROR]   符号:   方法 getTokenPrefix()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.config.JwtConfig的变量 jwtConfig
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[42,9] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.lesson.SegmentCacheManager
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[43,27] 找不到符号
+[ERROR]   符号:   方法 getCache()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.config.SegmentedSpeechProperties的变量 properties
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[53,13] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.lesson.SegmentCacheManager
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[58,43] 找不到符号
+[ERROR]   符号:   方法 getCache()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.config.SegmentedSpeechProperties的变量 properties
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[60,26] 找不到符号
+[ERROR]   符号:   方法 getSegmentIndex()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.SpeechSegment的变量 segment
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[62,9] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.lesson.SegmentCacheManager
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[63,34] 找不到符号
+[ERROR]   符号:   方法 getSegmentIndex()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.SpeechSegment的变量 segment
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/SegmentCacheManager.java:[96,31] 找不到符号
+[ERROR]   符号:   方法 builder()
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.lesson.SegmentCacheManager.CacheStatistics
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[45,13] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[49,13] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[70,36] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[71,37] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/lesson/impl/AISseServiceImpl.java:[72,37] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.service.lesson.impl.AISseServiceImpl
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/config/M6StrictJsonFilter.java:[67,63] 找不到符号
+[ERROR]   符号:   方法 <com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.ErrorData>builder()
+[ERROR]   位置: 类 com.treepeople.leapmindtts.pojo.result.ApiResponse
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[31,55] 找不到符号
+[ERROR]   符号:   方法 getStageName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[32,47] 找不到符号
+[ERROR]   符号:   方法 getGradeName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[33,45] 找不到符号
+[ERROR]   符号:   方法 getSemester()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[34,44] 找不到符号
+[ERROR]   符号:   方法 getSubject()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[35,51] 找不到符号
+[ERROR]   符号:   方法 getChapterNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseSectionDTO的变量 courseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[45,43] 找不到符号
+[ERROR]   符号:   方法 getSubject()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[46,38] 找不到符号
+[ERROR]   符号:   方法 getStageName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[47,38] 找不到符号
+[ERROR]   符号:   方法 getGradeName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[48,36] 找不到符号
+[ERROR]   符号:   方法 getSemester()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[49,42] 找不到符号
+[ERROR]   符号:   方法 getChapterNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[50,42] 找不到符号
+[ERROR]   符号:   方法 getSectionNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[57,22] 找不到符号
+[ERROR]   符号:   方法 setCourseId(java.lang.String)
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[58,41] 找不到符号
+[ERROR]   符号:   方法 getSubject()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[59,43] 找不到符号
+[ERROR]   符号:   方法 getStageName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[60,43] 找不到符号
+[ERROR]   符号:   方法 getGradeName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[61,42] 找不到符号
+[ERROR]   符号:   方法 getSemester()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[62,47] 找不到符号
+[ERROR]   符号:   方法 getChapterNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[63,46] 找不到符号
+[ERROR]   符号:   方法 getChapterTitle()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[64,48] 找不到符号
+[ERROR]   符号:   方法 getSectionContent()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[65,47] 找不到符号
+[ERROR]   符号:   方法 getSectionNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[66,46] 找不到符号
+[ERROR]   符号:   方法 getSectionTitle()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseCreateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[90,20] 找不到符号
+[ERROR]   符号:   方法 getSubject()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[91,45] 找不到符号
+[ERROR]   符号:   方法 getSubject()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[93,20] 找不到符号
+[ERROR]   符号:   方法 getStageName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[94,47] 找不到符号
+[ERROR]   符号:   方法 getStageName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[96,20] 找不到符号
+[ERROR]   符号:   方法 getGradeName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[97,47] 找不到符号
+[ERROR]   符号:   方法 getGradeName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[99,20] 找不到符号
+[ERROR]   符号:   方法 getSemester()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[100,46] 找不到符号
+[ERROR]   符号:   方法 getSemester()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[102,20] 找不到符号
+[ERROR]   符号:   方法 getChapterNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[103,51] 找不到符号
+[ERROR]   符号:   方法 getChapterNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[105,20] 找不到符号
+[ERROR]   符号:   方法 getChapterTitle()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[106,50] 找不到符号
+[ERROR]   符号:   方法 getChapterTitle()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[108,20] 找不到符号
+[ERROR]   符号:   方法 getSectionContent()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[109,52] 找不到符号
+[ERROR]   符号:   方法 getSectionContent()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[111,20] 找不到符号
+[ERROR]   符号:   方法 getSectionNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[112,51] 找不到符号
+[ERROR]   符号:   方法 getSectionNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[114,20] 找不到符号
+[ERROR]   符号:   方法 getSectionTitle()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[115,50] 找不到符号
+[ERROR]   符号:   方法 getSectionTitle()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.CourseUpdateRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[164,38] 找不到符号
+[ERROR]   符号:   方法 getChapterNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[163,38] 找不到符号
+[ERROR]   符号:   方法 getSubject()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[162,38] 找不到符号
+[ERROR]   符号:   方法 getSemester()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[161,38] 找不到符号
+[ERROR]   符号:   方法 getGradeName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[160,38] 找不到符号
+[ERROR]   符号:   方法 getStageName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[160,98] 找不到符号
+[ERROR]   符号:   方法 getStageName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[161,98] 找不到符号
+[ERROR]   符号:   方法 getGradeName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[162,95] 找不到符号
+[ERROR]   符号:   方法 getSemester()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[163,93] 找不到符号
+[ERROR]   符号:   方法 getSubject()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[164,106] 找不到符号
+[ERROR]   符号:   方法 getChapterNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.AdminCourseSectionDTO的变量 adminCourseSectionDTO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[175,24] 找不到符号
+[ERROR]   符号:   方法 builder()
+[ERROR]   位置: 类 com.treepeople.leapmindtts.pojo.vo.CourseVO
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[176,30] 找不到符号
+[ERROR]   符号:   方法 getId()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[177,36] 找不到符号
+[ERROR]   符号:   方法 getCourseId()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[178,35] 找不到符号
+[ERROR]   符号:   方法 getSubject()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[179,37] 找不到符号
+[ERROR]   符号:   方法 getStageName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[180,37] 找不到符号
+[ERROR]   符号:   方法 getGradeName()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[181,36] 找不到符号
+[ERROR]   符号:   方法 getSemester()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[182,41] 找不到符号
+[ERROR]   符号:   方法 getChapterNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[183,40] 找不到符号
+[ERROR]   符号:   方法 getChapterTitle()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[184,42] 找不到符号
+[ERROR]   符号:   方法 getSectionContent()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[185,41] 找不到符号
+[ERROR]   符号:   方法 getSectionNumber()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/service/admin/impl/CourseServiceImpl.java:[186,40] 找不到符号
+[ERROR]   符号:   方法 getSectionTitle()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.entity.CourseSection的变量 courseSection
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/PPTSlidesController.java:[36,9] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.controller.lesson.PPTSlidesController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/PPTSlidesController.java:[41,13] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.controller.lesson.PPTSlidesController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/result/ApiResponse.java:[24,17] 无法推断com.treepeople.leapmindtts.pojo.result.ApiResponse<>的类型参数
+[ERROR]   原因: 无法推断类型变量 T
+[ERROR]     (实际参数列表和形式参数列表长度不同)
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/result/ApiResponse.java:[28,17] 无法推断com.treepeople.leapmindtts.pojo.result.ApiResponse<>的类型参数
+[ERROR]   原因: 无法推断类型变量 T
+[ERROR]     (实际参数列表和形式参数列表长度不同)
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/result/ApiResponse.java:[32,16] 无法推断com.treepeople.leapmindtts.pojo.result.ApiResponse<>的类型参数
+[ERROR]   原因: 无法推断类型变量 T
+[ERROR]     (实际参数列表和形式参数列表长度不同)
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/result/ApiResponse.java:[38,17] 无法推断com.treepeople.leapmindtts.pojo.result.ApiResponse<>的类型参数
+[ERROR]   原因: 无法推断类型变量 T
+[ERROR]     (实际参数列表和形式参数列表长度不同)
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/pojo/enums/GradeEnum.java:[46,22] 找不到符号
+[ERROR]   符号:   方法 getCode()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.enums.GradeEnum的变量 grade
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[54,9] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.controller.lesson.BulkSpeechController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[55,24] 找不到符号
+[ERROR]   符号:   方法 getTitle()
+[ERROR]   位置: 类型为@jakarta.validation.Valid com.treepeople.leapmindtts.pojo.dto.BulkSynthesisRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[56,24] 找不到符号
+[ERROR]   符号:   方法 getSlides()
+[ERROR]   位置: 类型为@jakarta.validation.Valid com.treepeople.leapmindtts.pojo.dto.BulkSynthesisRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[56,54] 找不到符号
+[ERROR]   符号:   方法 getSlides()
+[ERROR]   位置: 类型为@jakarta.validation.Valid com.treepeople.leapmindtts.pojo.dto.BulkSynthesisRequest的变量 request
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[64,13] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.controller.lesson.BulkSpeechController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[64,55] 找不到符号
+[ERROR]   符号:   方法 getCourseId()
+[ERROR]   位置: 类型为com.treepeople.leapmindtts.pojo.dto.BulkSynthesisResponse的变量 response
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[67,13] 找不到符号
+[ERROR]   符号:   变量 log
+[ERROR]   位置: 类 com.treepeople.leapmindtts.controller.lesson.BulkSpeechController
+[ERROR] /d:/a-TuMo/study/project/hsd/leapmind/aitutor-backend-java/src/main/java/com/treepeople/leapmindtts/controller/lesson/BulkSpeechController.java:[69,48] 找不到符号
+[ERROR]   符号:   方法 builder()
+[ERROR]   位置: 类 com.treepeople.leapmindtts.pojo.dto.BulkSynthesisResponse
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
