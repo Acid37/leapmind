@@ -5,6 +5,7 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { Sparkles, ThumbsUp, HelpCircle, BookOpen, BookmarkPlus, BookmarkCheck, Send } from 'lucide-react'
 import { mockPhotoQA, mockAddToWrongBook } from '../../services/m2'
+import { createDeterministicEventId, recordLearningEvent } from '../../services/learningEventService'
 import { useChatSession } from '../../hooks/useChatSession'
 import { getUserInfo } from '../../utils/tokenManager'
 
@@ -17,8 +18,11 @@ export default function QAResultPanel({ ocrRecordId, question, onKnowledgePointC
   const [inWrongBook, setInWrongBook] = useState(false)
   const [addingToWrong, setAddingToWrong] = useState(false)
   const [followUp, setFollowUp] = useState('')
+  const [contentId, setContentId] = useState(null)
+  const [feedback, setFeedback] = useState(null)
 
-  const userId = getUserInfo()?.userId || 1
+  const userInfo = getUserInfo()
+  const userId = userInfo?.id ?? userInfo?.userId
   const { messages: followUpMsgs, isGenerating: followUpLoading, send: sendFollowUp } = useChatSession({
     sceneType: 'doing_exercise',
     context: { questionId: ocrRecordId },
@@ -32,17 +36,34 @@ export default function QAResultPanel({ ocrRecordId, question, onKnowledgePointC
     setDone(false)
     setKnowledgePoints([])
     setSimilarQuestions([])
+    setFeedback(null)
+    let detectedKnowledgePoints = []
+    const occurredAt = new Date().toISOString()
 
     await mockPhotoQA(
       ocrRecordId,
       question,
       (chunk) => {
         if (chunk.type === 'done') {
+          const explainId = String(chunk.explainId ?? chunk.contentId ?? '')
+          if (explainId) {
+            setContentId(explainId)
+            recordLearningEvent({
+              eventId: createDeterministicEventId('m2-request', explainId),
+              userId,
+              eventType: 'request_explanation',
+              sourceModule: 'M2',
+              occurredAt,
+              kpId: detectedKnowledgePoints[0]?.id,
+              data: { explainId, reasonTag: 'USER_REQUEST' },
+            }).catch(error => console.warn('[M2][M6] 请求讲解事件上报失败:', error.message))
+          }
           setDone(true)
           setLoading(false)
         } else if (chunk.type === 'knowledge') {
           try {
-            setKnowledgePoints(JSON.parse(chunk.content))
+            detectedKnowledgePoints = JSON.parse(chunk.content)
+            setKnowledgePoints(detectedKnowledgePoints)
           } catch {
             // plain text fallback
           }
@@ -74,6 +95,19 @@ export default function QAResultPanel({ ocrRecordId, question, onKnowledgePointC
     if (!followUp.trim() || followUpLoading) return
     sendFollowUp(followUp.trim())
     setFollowUp('')
+  }
+
+  const handleFeedback = (value) => {
+    setFeedback(value)
+    if (!contentId) return
+    recordLearningEvent({
+      eventId: createDeterministicEventId('m2-feedback', `${contentId}:${value}`),
+      userId,
+      eventType: 'explanation_feedback',
+      sourceModule: 'M2',
+      kpId: knowledgePoints[0]?.id,
+      data: { explainId: contentId, feedback: value, repeatCount: 0 },
+    }).catch(error => console.warn('[M2][M6] 讲解反馈事件上报失败:', error.message))
   }
 
   return (
@@ -170,10 +204,24 @@ export default function QAResultPanel({ ocrRecordId, question, onKnowledgePointC
         <div className="mt-4 space-y-3">
           {/* 反馈按钮 */}
           <div className="flex gap-3">
-            <button className="flex-1 px-4 py-2 bg-green-500/20 text-green-300 rounded-xl text-sm font-medium hover:bg-green-500/30 transition-all flex items-center justify-center gap-1.5 border border-green-400/20">
+            <button
+              onClick={() => handleFeedback('understood')}
+              className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 border ${
+                feedback === 'understood'
+                  ? 'bg-green-500/30 text-green-300 border-green-400/30'
+                  : 'bg-green-500/20 text-green-300 border-green-400/20 hover:bg-green-500/30'
+              }`}
+            >
               <ThumbsUp className="w-4 h-4" /> 懂了
             </button>
-            <button className="flex-1 px-4 py-2 bg-yellow-500/20 text-yellow-300 rounded-xl text-sm font-medium hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-1.5 border border-yellow-400/20">
+            <button
+              onClick={() => handleFeedback('still_confused')}
+              className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 border ${
+                feedback === 'still_confused'
+                  ? 'bg-yellow-500/30 text-yellow-300 border-yellow-400/30'
+                  : 'bg-yellow-500/20 text-yellow-300 border-yellow-400/20 hover:bg-yellow-500/30'
+              }`}
+            >
               <HelpCircle className="w-4 h-4" /> 还有疑问
             </button>
           </div>

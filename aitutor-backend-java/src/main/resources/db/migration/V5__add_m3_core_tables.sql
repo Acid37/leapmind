@@ -8,8 +8,8 @@
 --     question_kp_relations — 题目-知识点关联
 --     user_answers      — 答题记录
 --     wrong_question_book — 错题本
---     conversation_messages — 对话记录
---     user_profiles     — 用户画像
+--     conversation_messages — 对话记录（权威结构由 V13 创建）
+--     user_profiles     — 用户画像（权威结构由 V9 创建）
 --   此前这些表仅存在于 Python sql/init.sql 中，Java Flyway 未创建，
 --   导致 Python 引擎直连数据库时无法读取数据。
 --
@@ -23,7 +23,7 @@
 CREATE TABLE knowledge_points (
     id          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '知识点ID',
     subject     VARCHAR(50)  NOT NULL COMMENT '学科：math/chinese/english/physics/chemistry/biology',
-    grade       VARCHAR(20)  NOT NULL COMMENT '年级：grade_7~grade_12',
+    grade       VARCHAR(20)  NOT NULL DEFAULT 'grade_all' COMMENT '年级：grade_7~grade_12，grade_all=跨年级通用',
     name        VARCHAR(200) NOT NULL COMMENT '知识点名称，如"勾股定理"',
     parent_id   BIGINT       DEFAULT NULL COMMENT '父知识点ID（构建知识树）',
     description TEXT         DEFAULT NULL COMMENT '知识点描述',
@@ -125,42 +125,15 @@ CREATE TABLE wrong_question_book (
 
 -- -----------------------------------------------
 -- 6. 对话消息表（M7 写入，M3+Python 读取分析）
+--    注：conversation_messages 权威结构见 V13__add_conversation_tables.sql
+--        （含 conversation_sessions），此处不再重复建表，避免同名冲突。
 -- -----------------------------------------------
-CREATE TABLE conversation_messages (
-    id              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '消息ID',
-    user_id         BIGINT       NOT NULL COMMENT '用户ID',
-    session_id      BIGINT       DEFAULT NULL COMMENT '会话ID',
-    kp_id           BIGINT       DEFAULT NULL COMMENT '关联知识点ID（可为空，需AI标注）',
-    role            VARCHAR(20)  NOT NULL COMMENT '角色：user/assistant/system',
-    content         TEXT         NOT NULL COMMENT '消息内容',
-    message_type    VARCHAR(30)  DEFAULT 'text' COMMENT '消息类型：text/image/voice/action',
-    metadata_json   TEXT         DEFAULT NULL COMMENT '附加信息JSON：token消耗、响应耗时等',
-    created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '消息时间',
-    PRIMARY KEY (id),
-    INDEX idx_user_time (user_id, created_at),
-    INDEX idx_session_time (session_id, created_at),
-    INDEX idx_user_kp (user_id, kp_id),
-    CONSTRAINT fk_cm_user FOREIGN KEY (user_id) REFERENCES users(id),
-    CONSTRAINT fk_cm_kp FOREIGN KEY (kp_id) REFERENCES knowledge_points(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话消息表';
 
 -- -----------------------------------------------
 -- 7. 用户画像表（M6 写入，M2/M3/M4/M5/M7 消费）
+--    注：user_profiles 权威结构见 V9__create_m6_user_profiles.sql，
+--        此处不再重复建表，避免同名冲突。
 -- -----------------------------------------------
-CREATE TABLE user_profiles (
-    id                      BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    user_id                 BIGINT       NOT NULL COMMENT '用户ID',
-    strengths_json          TEXT         DEFAULT NULL COMMENT '擅长知识点列表 JSON: [{"kp_id":1,"level":0.85},...]',
-    weakness_json           TEXT         DEFAULT NULL COMMENT '薄弱知识点列表 JSON',
-    learning_style          VARCHAR(50)  DEFAULT NULL COMMENT '学习风格：visual/auditory/reading/kinesthetic',
-    confusion_history_json  TEXT         DEFAULT NULL COMMENT '历史困惑点记录 JSON',
-    avg_accuracy            DECIMAL(5,2) DEFAULT NULL COMMENT '平均正确率',
-    total_questions         INT          DEFAULT NULL COMMENT '总做题数',
-    updated_at              DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_user (user_id),
-    CONSTRAINT fk_up_user FOREIGN KEY (user_id) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户画像表';
 
 -- ===============================================
 -- 种子数据：数学知识点树（与 Python sql/init.sql 一致）

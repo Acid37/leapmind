@@ -19,10 +19,11 @@ class PlatformContractsTest {
     private static final Instant NOW = Instant.parse("2026-07-27T00:00:00Z");
     private static final UUID REQUEST_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
-    @Test void commandEnvelopeDerivesV1MetadataForAllTenPayloads() {
+    @Test void commandEnvelopeDerivesV1MetadataForAllPayloads() {
         List<Expected> values = List.of(
                 new Expected(payload(new LearningEventPayload.AnswerQuestion(true, 2, 10, 0, null)), "answer_question", "M1"),
                 new Expected(payload(new LearningEventPayload.FinishPractice(1, BigDecimal.ONE, 0)), "finish_practice", "M1"),
+                new Expected(payload(new LearningEventPayload.WrongQuestionChanged(99L, "UNRESOLVED", 1)), "wrong_question_changed", "M1"),
                 new Expected(payload(new LearningEventPayload.RequestExplanation("exp-1", "USER_REQUEST")), "request_explanation", "M2"),
                 new Expected(payload(new LearningEventPayload.ExplanationFeedback("exp-1", "understood", 0)), "explanation_feedback", "M2"),
                 new Expected(payload(new LearningEventPayload.WeakPointChanged(BigDecimal.ZERO, BigDecimal.ONE, "RECALCULATED")), "weak_point_changed", "M3"),

@@ -2,6 +2,7 @@ package com.treepeople.leapmindtts.service.lesson;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.treepeople.leapmindtts.config.ConversationProperties;
 import com.treepeople.leapmindtts.mapper.ConversationMessageMapper;
 import com.treepeople.leapmindtts.mapper.ConversationSessionMapper;
@@ -11,9 +12,9 @@ import com.treepeople.leapmindtts.pojo.dto.ConversationRequest.SceneType;
 import com.treepeople.leapmindtts.pojo.dto.ConversationSession;
 import com.treepeople.leapmindtts.pojo.entity.ConversationMessageEntity;
 import com.treepeople.leapmindtts.pojo.entity.ConversationSessionEntity;
-import com.treepeople.leapmindtts.pojo.entity.EventCollection;
+import com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.LearningEventRequest;
 // 【引入缺失的优化组件与工具类】
-import com.treepeople.leapmindtts.service.EventCollectionService;
+import com.treepeople.leapmindtts.service.profile.UserEventService;
 import com.treepeople.leapmindtts.service.common.RedisCacheService;
 import com.treepeople.leapmindtts.service.common.MetricsService;
 import com.treepeople.leapmindtts.service.common.ContextCompressService;
@@ -31,6 +32,8 @@ import reactor.core.publisher.Flux;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -59,7 +62,7 @@ public class ConversationService {
     private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
     private final com.treepeople.leapmindtts.service.common.RequestMergeService requestMergeService;
     private final ContextCompressService contextCompressService;
-    private final EventCollectionService eventCollectionService;
+    private final UserEventService userEventService;
 
     private final ConcurrentHashMap<String, BaseSubscriber<AIModelService.AiChunk>> activeSubscribers = new ConcurrentHashMap<>();
 
@@ -79,7 +82,7 @@ public class ConversationService {
                                io.micrometer.core.instrument.MeterRegistry meterRegistry,
                                com.treepeople.leapmindtts.service.common.RequestMergeService requestMergeService,
                                ContextCompressService contextCompressService,
-                               EventCollectionService eventCollectionService) {
+                               UserEventService userEventService) {
         this.aiModelService = aiModelService;
         this.aiTeacherBaiduAsrService = aiTeacherBaiduAsrService;
         this.webClient = webClientBuilder.build();
@@ -93,7 +96,7 @@ public class ConversationService {
         this.meterRegistry = meterRegistry;
         this.requestMergeService = requestMergeService;
         this.contextCompressService = contextCompressService;
-        this.eventCollectionService = eventCollectionService;
+        this.userEventService = userEventService;
     }
 
     @PostConstruct
@@ -166,7 +169,7 @@ public class ConversationService {
      */
     private Flux<ServerSentEvent<?>> tryServeOptimized(ConversationRequest req, String sessionId, ConversationSession session, String callId) {
         // 【修改】修复逻辑漏洞：坚决不加 sessionId，但必须带上 userId 防止跨用户串话！
-        String cacheKey = CacheKeyBuilder.dedupKey(String.valueOf(req.getUserId()), req.getQuestion());
+        String cacheKey = CacheKeyBuilder.dedupKey(String.valueOf(req.getUserId()), buildRequestCacheText(req));
         String cachedAnswer = redisCacheService.get(cacheKey);
 
         if (cachedAnswer != null && !NULL_PLACEHOLDER.equals(cachedAnswer)) {
@@ -179,7 +182,6 @@ public class ConversationService {
                 Flux.fromArray(cachedAnswer.split("(?<=[。！？!?])|(?=[。！？!?])"))
                     .filter(s -> !s.isEmpty())
                     .index()
-                    .delayElements(Duration.ofMillis(50)) // 模拟打字机效果
                     .map(tuple -> sseEvent("message", String.format("{\"type\":\"content\",\"chunk\":\"%s\",\"index\":%d}", escapeJson(tuple.getT2()), tuple.getT1()))),
                 Flux.just(sseEvent("message", String.format("{\"type\":\"done\",\"callId\":\"%s\",\"sessionId\":\"%s\",\"tokenUsage\":{\"input\":0,\"output\":0}}", callId, sessionId)))
             );
@@ -192,7 +194,7 @@ public class ConversationService {
             if (isFollowUp) {
                 return;
             }
-            String cacheKey = CacheKeyBuilder.dedupKey(String.valueOf(req.getUserId()), req.getQuestion());
+            String cacheKey = CacheKeyBuilder.dedupKey(String.valueOf(req.getUserId()), buildRequestCacheText(req));
             if (answer != null && !answer.isEmpty()) {
                 redisCacheService.set(cacheKey, answer, Duration.ofHours(1));
                 log.info("Cached AI answer to Redis: key={}, ttl=1h", cacheKey);
@@ -205,28 +207,28 @@ public class ConversationService {
         }
     }
 
-    private void publishAskDoubtEvent(String sessionId, ConversationRequest req, boolean isFollowUp) {
+    void publishAskDoubtEvent(String sessionId, String callId, ConversationRequest req, boolean isFollowUp) {
         try {
             if (req.getUserId() == null || req.getQuestion() == null || req.getQuestion().isEmpty()) {
                 return;
             }
             String topic = truncate(req.getQuestion(), 120);
-            Map<String, Object> data = new LinkedHashMap<>();
+            ObjectNode data = objectMapper.createObjectNode();
             data.put("topic", topic);
             data.put("confusionTag", "concept_unclear");
             data.put("isFollowUp", isFollowUp);
-            if (sessionId != null) {
-                data.put("sessionId", sessionId);
-            }
-            EventCollection event = EventCollection.builder()
-                    .module("M7")
-                    .eventType("ask_doubt")
-                    .userId(req.getUserId())
-                    .eventData(objectMapper.writeValueAsString(data))
-                    .eventTime(LocalDateTime.now())
-                    .processed(0)
-                    .build();
-            eventCollectionService.collectEvent(event);
+            LearningEventRequest event = new LearningEventRequest(
+                    "m7-ask:" + callId,
+                    req.getUserId(),
+                    "ask_doubt",
+                    "M7",
+                    OffsetDateTime.now(ZoneOffset.UTC),
+                    "1.0",
+                    sessionId,
+                    null,
+                    callId,
+                    data);
+            userEventService.recordInternal(event);
             log.info("Published M7 ask_doubt event for userId={}, topicLength={}, isFollowUp={}",
                     req.getUserId(), topic.codePointCount(0, topic.length()), isFollowUp);
         } catch (Exception e) {
@@ -260,14 +262,65 @@ public class ConversationService {
         return sb.toString();
     }
 
+    /**
+     * 同一个 PPT 内复用会话，但每轮用户消息都固化发问时所在页。
+     * 这样学生翻页后继续追问时，模型仍能区分历史问题来自哪一页。
+     */
+    private String buildContextualUserMessage(ConversationRequest req) {
+        String question = Objects.toString(req.getQuestion(), "");
+        if (req.getSceneType() != SceneType.teaching || req.getContext() == null) {
+            return question;
+        }
+        Map<String, Object> context = req.getContext();
+        Object slide = context.get("currentSlide") != null
+                ? context.get("currentSlide") : context.get("slide");
+        Object title = context.get("slideTitle") != null
+                ? context.get("slideTitle") : context.get("title");
+        Object content = context.get("slideContent");
+        StringBuilder tagged = new StringBuilder();
+        tagged.append("【本轮提问位置：PPT第").append(slide != null ? slide : "未知").append("页");
+        if (title != null && !title.toString().isBlank()) {
+            tagged.append("《").append(title).append("》");
+        }
+        tagged.append("】");
+        if (content != null && !content.toString().isBlank()) {
+            tagged.append("\n【发问时本页内容】").append(content);
+        }
+        tagged.append("\n【学生问题】").append(question);
+        return tagged.toString();
+    }
+
+    /**
+     * 教学场景的缓存和请求合并键必须包含 PPT 与页面快照，避免跨课件、跨页串回答。
+     */
+    private String buildRequestCacheText(ConversationRequest req) {
+        String question = Objects.toString(req.getQuestion(), "");
+        if (req.getSceneType() != SceneType.teaching || req.getContext() == null) {
+            return question;
+        }
+        Map<String, Object> context = req.getContext();
+        Object slide = context.get("currentSlide") != null
+                ? context.get("currentSlide") : context.get("slide");
+        Object title = context.get("slideTitle") != null
+                ? context.get("slideTitle") : context.get("title");
+        return String.join("|",
+                "teaching",
+                Objects.toString(context.get("lectureId"), "unknown"),
+                Objects.toString(slide, "unknown"),
+                Objects.toString(title, ""),
+                Objects.toString(context.get("slideContent"), ""),
+                question);
+    }
+
     private void persistReplayedPair(String sessionId, ConversationSession session, ConversationRequest req, String callId) {
         try {
             if (req.getQuestion() == null || req.getQuestion().isEmpty() || session.getMessages() == null) {
                 return;
             }
-            String cachedAnswer = redisCacheService.get(CacheKeyBuilder.dedupKey(String.valueOf(req.getUserId()), req.getQuestion()));
-            session.getMessages().add(Map.of("role", "user", "content", req.getQuestion()));
-            saveMessageToDb(sessionId, "user", req.getQuestion(), 0, 0, callId);
+            String cachedAnswer = redisCacheService.get(CacheKeyBuilder.dedupKey(String.valueOf(req.getUserId()), buildRequestCacheText(req)));
+            String contextualQuestion = buildContextualUserMessage(req);
+            session.getMessages().add(Map.of("role", "user", "content", contextualQuestion));
+            saveMessageToDb(sessionId, "user", contextualQuestion, 0, 0, callId);
             if (cachedAnswer != null && !NULL_PLACEHOLDER.equals(cachedAnswer)) {
                 session.getMessages().add(Map.of("role", "assistant", "content", cachedAnswer));
                 saveMessageToDb(sessionId, "assistant", cachedAnswer, 0, 0, callId);
@@ -305,13 +358,13 @@ public class ConversationService {
         Flux<ServerSentEvent<?>> optimizedStream = isFollowUp ? null : tryServeOptimized(req, sessionId, session, callId);
         if (optimizedStream != null) {
             persistReplayedPair(sessionId, session, req, callId);
-            publishAskDoubtEvent(sessionId, req, isFollowUp);
+            publishAskDoubtEvent(sessionId, callId, req, isFollowUp);
             return optimizedStream;
         }
 
         // 使用 RequestMergeService 包装实际的流式调用逻辑
         String userId = req.getUserId() != null ? String.valueOf(req.getUserId()) : "anonymous";
-        String dedupKey = CacheKeyBuilder.dedupKey(userId, req.getQuestion());
+        String dedupKey = CacheKeyBuilder.dedupKey(userId, buildRequestCacheText(req));
 
         return requestMergeService.mergeStream(dedupKey, () -> {
             // 语音输入：下载音频 → ASR 转文字 → 替换 question
@@ -335,9 +388,10 @@ public class ConversationService {
         }
 
         if (req.getQuestion() != null && !req.getQuestion().isEmpty()) {
-            Map<String, String> userMsg = Map.of("role", "user", "content", req.getQuestion());
+            String contextualQuestion = buildContextualUserMessage(req);
+            Map<String, String> userMsg = Map.of("role", "user", "content", contextualQuestion);
             session.getMessages().add(userMsg);
-            saveMessageToDb(sessionId, "user", req.getQuestion(), 0, 0, callId);
+            saveMessageToDb(sessionId, "user", contextualQuestion, 0, 0, callId);
         }
         session.setUpdatedAt(Instant.now().toEpochMilli());
 
@@ -377,7 +431,7 @@ public class ConversationService {
                         saveSessionToRedis(session);
 
                         // 【新增】将高频问答存入 Redis 缓存 (TTL 1h)
-                        String cacheKey = CacheKeyBuilder.dedupKey(String.valueOf(session.getUserId()), req.getQuestion());
+                        String cacheKey = CacheKeyBuilder.dedupKey(String.valueOf(session.getUserId()), buildRequestCacheText(req));
                         redisCacheService.set(cacheKey, answer, Duration.ofHours(1));
 
                         fluxSink.next(sseEvent("message",
@@ -437,7 +491,7 @@ public class ConversationService {
                         saveSessionToRedis(session);
                     }
                     cacheAnswerIfNeeded(req, answer, isFollowUp);
-                    publishAskDoubtEvent(sessionId, req, isFollowUp);
+                    publishAskDoubtEvent(sessionId, callId, req, isFollowUp);
                     metricsService.incrementQuestionProcessed("full", "success");
                     streamFinished.set(true);
                     fluxSink.next(sseEvent("message",

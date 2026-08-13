@@ -25,8 +25,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class UserEventServiceImpl implements UserEventService {
-    /** 服务端直调模块白名单：这些 sourceModule 无用户 JWT，只校验 userId 一致。 */
+    /** 服务端直调模块白名单：M1/M3 无 JWT 直调，只校验 userId 一致。 */
     private static final Set<String> SERVICE_SOURCE_MODULES = Set.of("M1", "M3");
+
     private final M6EventJsonCodec codec;
     private final ProfileActorResolver actor;
     private final EventIngestionCore core;
@@ -57,9 +58,9 @@ public class UserEventServiceImpl implements UserEventService {
 
     @Override
     public EventAck record(Long path, LearningEventRequest event, HttpServletRequest request) {
-        authorize(request, path, event);
         Instant receivedAt = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         core.validate(event);
+        authorize(request, path, event);
         return ack(core.ingest(event, receivedAt), request);
     }
 

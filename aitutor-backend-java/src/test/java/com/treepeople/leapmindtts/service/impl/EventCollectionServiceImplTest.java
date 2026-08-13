@@ -1,7 +1,10 @@
 package com.treepeople.leapmindtts.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.treepeople.leapmindtts.mapper.EventCollectionMapper;
+import com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.LearningEventRequest;
 import com.treepeople.leapmindtts.pojo.entity.EventCollection;
+import com.treepeople.leapmindtts.service.profile.UserEventService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -9,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
@@ -34,6 +38,12 @@ class EventCollectionServiceImplTest {
 
     @Mock
     private EventCollectionMapper eventCollectionMapper;
+
+    @Mock
+    private UserEventService userEventService;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @InjectMocks
     private EventCollectionServiceImpl eventCollectionService;
@@ -84,6 +94,31 @@ class EventCollectionServiceImplTest {
             assertThat(result.getModule()).isEqualTo("M1");
             assertThat(result.getEventType()).isEqualTo("COURSE_COMPLETED");
             verify(eventCollectionMapper).insert(event);
+        }
+
+        @Test
+        @DisplayName("M7标准事件同时桥接到画像事件流")
+        void shouldBridgeM7AskDoubtToUnifiedEvents() {
+            EventCollection event = createEvent(null, "M7", "ask_doubt", 23L,
+                    "{\"topic\":\"二次函数零点\",\"confusionTag\":\"concept_unclear\","
+                            + "\"isFollowUp\":false,\"sessionId\":\"session-7\"}",
+                    LocalDateTime.of(2026, 8, 9, 10, 30), null, null);
+            doAnswer(invocation -> {
+                invocation.<EventCollection>getArgument(0).setId(105L);
+                return 1;
+            }).when(eventCollectionMapper).insert(any(EventCollection.class));
+
+            eventCollectionService.collectEvent(event);
+
+            ArgumentCaptor<LearningEventRequest> captor = ArgumentCaptor.forClass(LearningEventRequest.class);
+            verify(userEventService).recordInternal(captor.capture());
+            LearningEventRequest bridged = captor.getValue();
+            assertThat(bridged.eventId()).isEqualTo("legacy-event:105");
+            assertThat(bridged.userId()).isEqualTo(23L);
+            assertThat(bridged.eventType()).isEqualTo("ask_doubt");
+            assertThat(bridged.sourceModule()).isEqualTo("M7");
+            assertThat(bridged.sessionId()).isEqualTo("session-7");
+            assertThat(bridged.data().has("sessionId")).isFalse();
         }
 
         @Test

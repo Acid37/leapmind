@@ -44,6 +44,22 @@ class M6EventServiceTest {
         assertFalse(ack.duplicate());
     }
 
+    @Test void publicM1EventStillRequiresAuthenticatedSelf() throws Exception {
+        ProfileActorResolver actor = mock(ProfileActorResolver.class);
+        UserEventServiceImpl service = new UserEventServiceImpl(
+                new M6EventJsonCodec(json),
+                Validation.buildDefaultValidatorFactory().getValidator(),
+                actor,
+                mock(EventInsertTransaction.class),
+                mock(CommittedEventReader.class),
+                Clock.fixed(Instant.parse("2026-07-20T02:00:00Z"), ZoneOffset.UTC));
+        MockHttpServletRequest request = request();
+
+        service.record(1001L, event("evt-auth-m1", "answer_question", validAnswer(true)), request);
+
+        verify(actor).authorizeSelf(request, 1001L);
+    }
+
     @Test void duplicateIsAcknowledgedButDifferentPayloadConflicts() throws Exception {
         EventInsertTransaction firstWriter = mock(EventInsertTransaction.class);
         UserEventServiceImpl firstService = service(firstWriter, mock(CommittedEventReader.class));

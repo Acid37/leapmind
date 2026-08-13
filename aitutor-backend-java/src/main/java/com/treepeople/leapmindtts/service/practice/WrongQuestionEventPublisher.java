@@ -1,58 +1,47 @@
 package com.treepeople.leapmindtts.service.practice;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.LearningEventRequest;
 import com.treepeople.leapmindtts.pojo.entity.PracticeQuestion;
+import com.treepeople.leapmindtts.service.profile.UserEventService;
 import com.treepeople.leapmindtts.util.PracticeKnowledgePointIds;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.core.env.Environment;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.web.client.RestOperations;
 
-import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.UUID;
-
+/** M1错题状态事件发布器，业务事务提交后统一写入M6事件流。 */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class WrongQuestionEventPublisher {
+    private static final String EVENT_TYPE = "wrong_question_changed";
+    private static final String SOURCE_MODULE = "M1";
+    private static final String SCHEMA_VERSION = "1.0";
 
-    private static final String EVENT_PATH = "/api/user-profile/{userId}/record-event";
-    private static final ZoneOffset EVENT_OFFSET = ZoneOffset.ofHours(8);
+    private final UserEventService userEventService;
+    private final ObjectMapper objectMapper;
 
-    private final RestOperations restOperations;
-    private final String endpoint;
-
-    @Autowired
-    public WrongQuestionEventPublisher(RestTemplateBuilder builder, Environment environment) {
-        this(
-                builder
-                        .setConnectTimeout(Duration.ofSeconds(2))
-                        .setReadTimeout(Duration.ofSeconds(3))
-                        .build(),
-                resolveBaseUrl(environment));
-    }
-
-    WrongQuestionEventPublisher(RestOperations restOperations, String baseUrl) {
-        this.restOperations = restOperations;
-        this.endpoint = stripTrailingSlash(baseUrl) + EVENT_PATH;
-    }
-
+    /**
+     * 尽力发布错题状态变化；事件失败不回滚练习主业务。
+     *
+     * @param userId 用户ID
+     * @param question 题目信息
+     * @param status 错题状态
+     * @param wrongCount 错误次数
+     * @param sessionId 练习会话ID
+     */
     public void publishBestEffort(
             Long userId,
             PracticeQuestion question,
             String status,
             int wrongCount,
             String sessionId) {
-        Runnable publish = () -> postBestEffort(userId, question, status, wrongCount, sessionId);
+        Runnable publish = () -> recordBestEffort(userId, question, status, wrongCount, sessionId);
         if (TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.isSynchronizationActive()) {
             try {
@@ -64,7 +53,7 @@ public class WrongQuestionEventPublisher {
                 });
                 return;
             } catch (RuntimeException exception) {
-                log.warn("M1 错题事件注册事务回调失败，将直接尝试发送: userId={}, questionId={}, reason={}",
+                log.warn("M1错题事件注册事务回调失败，将直接尝试发送: userId={}, questionId={}, reason={}",
                         userId,
                         question == null ? null : question.getId(),
                         exception.getClass().getSimpleName());
@@ -73,7 +62,7 @@ public class WrongQuestionEventPublisher {
         publish.run();
     }
 
-    private void postBestEffort(
+    private void recordBestEffort(
             Long userId,
             PracticeQuestion question,
             String status,
@@ -83,34 +72,26 @@ public class WrongQuestionEventPublisher {
             if (question == null || question.getId() == null) {
                 throw new IllegalArgumentException("错题缺少题目信息，无法发送画像事件");
             }
-
-            Map<String, Object> data = new LinkedHashMap<>();
+            int safeWrongCount = Math.max(1, wrongCount);
+            ObjectNode data = objectMapper.createObjectNode();
             data.put("questionId", question.getId());
             data.put("status", status);
-            data.put("wrongCount", Math.max(1, wrongCount));
+            data.put("wrongCount", safeWrongCount);
 
-            Map<String, Object> event = new LinkedHashMap<>();
-            event.put("eventId", "m1-wrong:" + UUID.randomUUID());
-            event.put("eventType", "wrong_question_changed");
-            event.put("sourceModule", "M1");
-            event.put("occurredAt", OffsetDateTime.now(EVENT_OFFSET));
-            event.put("schemaVersion", "1.0");
-            event.put("userId", userId);
-            event.put("kpId", PracticeKnowledgePointIds.from(
-                    question.getSubject(), question.getKnowledgePoint()));
-            event.put("sessionId", sessionId);
-            event.put("traceId", null);
-            event.put("data", data);
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            restOperations.postForEntity(
-                    endpoint,
-                    new HttpEntity<>(event, headers),
-                    Void.class,
-                    userId);
+            LearningEventRequest event = new LearningEventRequest(
+                    buildEventId(userId, question.getId(), status, safeWrongCount),
+                    userId,
+                    EVENT_TYPE,
+                    SOURCE_MODULE,
+                    OffsetDateTime.now(ZoneOffset.UTC),
+                    SCHEMA_VERSION,
+                    sessionId,
+                    PracticeKnowledgePointIds.from(question.getSubject(), question.getKnowledgePoint()),
+                    null,
+                    data);
+            userEventService.recordInternal(event);
         } catch (RuntimeException exception) {
-            log.warn("M1 错题状态事件发送失败，不影响错题主流程: userId={}, questionId={}, status={}, reason={}",
+            log.warn("M1错题状态事件发送失败，不影响错题主流程: userId={}, questionId={}, status={}, reason={}",
                     userId,
                     question == null ? null : question.getId(),
                     status,
@@ -118,22 +99,7 @@ public class WrongQuestionEventPublisher {
         }
     }
 
-    private static String resolveBaseUrl(Environment environment) {
-        String configured = environment.getProperty("m1.m6-event-base-url");
-        if (configured != null && !configured.isBlank()) {
-            return configured.trim();
-        }
-        return "http://127.0.0.1:" + environment.getProperty("server.port", "8080");
-    }
-
-    private static String stripTrailingSlash(String value) {
-        String normalized = value == null ? "" : value.trim();
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        if (normalized.isEmpty()) {
-            throw new IllegalArgumentException("M1 画像事件地址不能为空");
-        }
-        return normalized;
+    private String buildEventId(Long userId, Long questionId, String status, int wrongCount) {
+        return "m1-wrong:" + userId + ":" + questionId + ":" + status + ":" + wrongCount;
     }
 }

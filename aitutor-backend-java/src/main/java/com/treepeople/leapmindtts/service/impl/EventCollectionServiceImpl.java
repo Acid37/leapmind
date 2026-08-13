@@ -1,16 +1,23 @@
 package com.treepeople.leapmindtts.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.treepeople.leapmindtts.mapper.EventCollectionMapper;
+import com.treepeople.leapmindtts.pojo.dto.profile.M6Dtos.LearningEventRequest;
 import com.treepeople.leapmindtts.pojo.entity.EventCollection;
 import com.treepeople.leapmindtts.service.EventCollectionService;
+import com.treepeople.leapmindtts.service.profile.UserEventService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 事件采集服务实现类
@@ -40,7 +47,23 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EventCollectionServiceImpl implements EventCollectionService {
 
+    private static final Map<String, String> PROFILE_EVENT_SOURCES = Map.ofEntries(
+            Map.entry("answer_question", "M1"),
+            Map.entry("finish_practice", "M1"),
+            Map.entry("wrong_question_changed", "M1"),
+            Map.entry("request_explanation", "M2"),
+            Map.entry("explanation_feedback", "M2"),
+            Map.entry("weak_point_changed", "M3"),
+            Map.entry("lecture_interact", "M4"),
+            Map.entry("lesson_material_used", "M5"),
+            Map.entry("mark_reviewed", "M6"),
+            Map.entry("preference_changed", "M6"),
+            Map.entry("ask_doubt", "M7"));
+    private static final ZoneId LEGACY_EVENT_ZONE = ZoneId.of("Asia/Shanghai");
+
     private final EventCollectionMapper eventCollectionMapper;
+    private final UserEventService userEventService;
+    private final ObjectMapper objectMapper;
 
     /**
      * 采集单条事件数据
@@ -67,6 +90,7 @@ public class EventCollectionServiceImpl implements EventCollectionService {
         }
 
         eventCollectionMapper.insert(eventCollection);
+        bridgeProfileEvent(eventCollection);
         log.info("事件采集成功，事件ID: {}", eventCollection.getId());
 
         return eventCollection;
@@ -90,6 +114,7 @@ public class EventCollectionServiceImpl implements EventCollectionService {
                 event.setProcessed(0);
             }
             eventCollectionMapper.insert(event);
+            bridgeProfileEvent(event);
         }
 
         log.info("批量事件采集完成，共 {} 条", events.size());
@@ -138,5 +163,56 @@ public class EventCollectionServiceImpl implements EventCollectionService {
                 .set(EventCollection::getProcessedAt, LocalDateTime.now());
 
         eventCollectionMapper.update(null, updateWrapper);
+    }
+
+    /** 将仍调用旧采集接口的标准画像事件同步写入user_events。 */
+    private void bridgeProfileEvent(EventCollection legacyEvent) {
+        String expectedSource = PROFILE_EVENT_SOURCES.get(legacyEvent.getEventType());
+        if (expectedSource == null || !expectedSource.equals(legacyEvent.getModule()) || legacyEvent.getId() == null) {
+            return;
+        }
+        try {
+            JsonNode parsed = objectMapper.readTree(legacyEvent.getEventData());
+            if (!(parsed instanceof ObjectNode data)) {
+                throw new IllegalArgumentException("旧事件eventData必须是JSON对象");
+            }
+            String sessionId = removeText(data, "sessionId");
+            String traceId = removeText(data, "traceId");
+            Long kpId = removeLong(data, "kpId");
+            data.remove("sourceModule");
+            LearningEventRequest event = new LearningEventRequest(
+                    "legacy-event:" + legacyEvent.getId(),
+                    legacyEvent.getUserId(),
+                    legacyEvent.getEventType(),
+                    legacyEvent.getModule(),
+                    legacyEvent.getEventTime().atZone(LEGACY_EVENT_ZONE).toOffsetDateTime(),
+                    "1.0",
+                    sessionId,
+                    kpId,
+                    traceId,
+                    data);
+            userEventService.recordInternal(event);
+            log.info("旧事件已桥接到画像事件流: legacyId={}, eventType={}",
+                    legacyEvent.getId(), legacyEvent.getEventType());
+        } catch (Exception exception) {
+            log.warn("旧事件画像桥接失败，已保留原始采集记录: legacyId={}, eventType={}, reason={}",
+                    legacyEvent.getId(), legacyEvent.getEventType(), exception.getMessage());
+        }
+    }
+
+    private String removeText(ObjectNode data, String field) {
+        JsonNode value = data.remove(field);
+        return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private Long removeLong(ObjectNode data, String field) {
+        JsonNode value = data.remove(field);
+        if (value == null || value.isNull()) return null;
+        if (value.isIntegralNumber()) return value.longValue();
+        try {
+            return Long.valueOf(value.asText());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }
